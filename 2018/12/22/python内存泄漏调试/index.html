@@ -1,0 +1,717 @@
+<!DOCTYPE html>
+
+
+
+  
+
+
+<html class="theme-next mist use-motion" lang="">
+<head><meta name="generator" content="Hexo 3.8.0">
+  <meta charset="UTF-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="theme-color" content="#222">
+
+
+
+
+
+
+
+
+
+<meta http-equiv="Cache-Control" content="no-transform">
+<meta http-equiv="Cache-Control" content="no-siteapp">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+  <link href="/lib/fancybox/source/jquery.fancybox.css?v=2.1.5" rel="stylesheet" type="text/css">
+
+
+
+
+
+
+
+<link href="/lib/font-awesome/css/font-awesome.min.css?v=4.6.2" rel="stylesheet" type="text/css">
+
+<link href="/css/main.css?v=5.1.4" rel="stylesheet" type="text/css">
+
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png?v=5.1.4">
+
+
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png?v=5.1.4">
+
+
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png?v=5.1.4">
+
+
+  <link rel="mask-icon" href="/images/logo.svg?v=5.1.4" color="#222">
+
+
+
+
+
+  <meta name="keywords" content="python, memory leak,">
+
+
+
+
+
+
+
+
+
+
+<meta name="description" content="记录一次内存泄漏的调试经历最近写了一个项目，是关于爬虫的，里面涉及到了django作为orm。当时在服务器上运行程序，发现内存占用持续增长，最后直到被系统kill。遇到这个问题，首先要弄清楚内存里面，到底存储了哪些类型的数据。这里主要使用了objgraph，pympler，guppy工具。 使用objgraph观察这里简化下代码, 使用函数dosomething表示一次爬取任务执行。每1分钟执行一">
+<meta name="keywords" content="python, memory leak">
+<meta property="og:type" content="article">
+<meta property="og:title" content="python内存泄漏调试">
+<meta property="og:url" content="http://yoursite.com/2018/12/22/python内存泄漏调试/index.html">
+<meta property="og:site_name" content="blog">
+<meta property="og:description" content="记录一次内存泄漏的调试经历最近写了一个项目，是关于爬虫的，里面涉及到了django作为orm。当时在服务器上运行程序，发现内存占用持续增长，最后直到被系统kill。遇到这个问题，首先要弄清楚内存里面，到底存储了哪些类型的数据。这里主要使用了objgraph，pympler，guppy工具。 使用objgraph观察这里简化下代码, 使用函数dosomething表示一次爬取任务执行。每1分钟执行一">
+<meta property="og:locale" content="default">
+<meta property="og:updated_time" content="2018-12-23T14:05:22.556Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="python内存泄漏调试">
+<meta name="twitter:description" content="记录一次内存泄漏的调试经历最近写了一个项目，是关于爬虫的，里面涉及到了django作为orm。当时在服务器上运行程序，发现内存占用持续增长，最后直到被系统kill。遇到这个问题，首先要弄清楚内存里面，到底存储了哪些类型的数据。这里主要使用了objgraph，pympler，guppy工具。 使用objgraph观察这里简化下代码, 使用函数dosomething表示一次爬取任务执行。每1分钟执行一">
+
+
+
+<script type="text/javascript" id="hexo.configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '/',
+    scheme: 'Mist',
+    version: '5.1.4',
+    sidebar: {"position":"left","display":"hide","offset":12,"b2t":false,"scrollpercent":false,"onmobile":false},
+    fancybox: true,
+    tabs: true,
+    motion: {"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},
+    duoshuo: {
+      userId: '0',
+      author: 'Author'
+    },
+    algolia: {
+      applicationID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    }
+  };
+</script>
+
+
+
+  <link rel="canonical" href="http://yoursite.com/2018/12/22/python内存泄漏调试/">
+
+
+
+
+
+  <title>python内存泄漏调试 | blog</title>
+  
+
+
+
+
+
+
+
+
+</head>
+
+<body itemscope="" itemtype="http://schema.org/WebPage" lang="default">
+
+  
+  
+    
+  
+
+  <div class="container sidebar-position-left page-post-detail">
+    <div class="headband"></div>
+
+    <header id="header" class="header" itemscope="" itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-wrapper">
+  <div class="site-meta ">
+    
+
+    <div class="custom-logo-site-title">
+      <a href="/" class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">blog</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+      
+        <p class="site-subtitle"></p>
+      
+  </div>
+
+  <div class="site-nav-toggle">
+    <button>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+    </button>
+  </div>
+</div>
+
+<nav class="site-nav">
+  
+
+  
+    <ul id="menu" class="menu">
+      
+        
+        <li class="menu-item menu-item-home">
+          <a href="/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-home"></i> <br>
+            
+            Home
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-archives">
+          <a href="/archives/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-archive"></i> <br>
+            
+            Archives
+          </a>
+        </li>
+      
+
+      
+    </ul>
+  
+
+  
+</nav>
+
+
+
+ </div>
+    </header>
+
+    <main id="main" class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          <div id="content" class="content">
+            
+
+  <div id="posts" class="posts-expand">
+    
+
+  
+
+  
+  
+  
+
+  <article class="post post-type-normal" itemscope="" itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2018/12/22/python内存泄漏调试/">
+
+    <span hidden itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="zhmin">
+      <meta itemprop="description" content="">
+      <meta itemprop="image" content="/images/avatar.gif">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope="" itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="blog">
+    </span>
+
+    
+      <header class="post-header">
+
+        
+        
+          <h1 class="post-title" itemprop="name headline">python内存泄漏调试</h1>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">Posted on</span>
+              
+              <time title="Post created" itemprop="dateCreated datePublished" datetime="2018-12-22T21:51:30+08:00">
+                2018-12-22
+              </time>
+            
+
+            
+
+            
+          </span>
+
+          
+
+          
+            
+          
+
+          
+          
+
+          
+
+          
+
+          
+
+        </div>
+      </header>
+    
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+      
+
+      
+        <h1 id="记录一次内存泄漏的调试经历"><a href="#记录一次内存泄漏的调试经历" class="headerlink" title="记录一次内存泄漏的调试经历"></a>记录一次内存泄漏的调试经历</h1><p>最近写了一个项目，是关于爬虫的，里面涉及到了django作为orm。当时在服务器上运行程序，发现内存占用持续增长，最后直到被系统kill。遇到这个问题，首先要弄清楚内存里面，到底存储了哪些类型的数据。这里主要使用了objgraph，pympler，guppy工具。</p>
+<h2 id="使用objgraph观察"><a href="#使用objgraph观察" class="headerlink" title="使用objgraph观察"></a>使用objgraph观察</h2><p>这里简化下代码, 使用函数dosomething表示一次爬取任务执行。每1分钟执行一次</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">import</span> objgraph</span><br><span class="line"><span class="keyword">import</span> schedule</span><br><span class="line"></span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">dosomething</span><span class="params">()</span>:</span></span><br><span class="line">    objgraph.show_growth()</span><br><span class="line">    <span class="comment"># ........ 爬取任务</span></span><br><span class="line">    <span class="keyword">pass</span></span><br><span class="line"></span><br><span class="line"></span><br><span class="line">schedule.every(<span class="number">2</span>).minutes.do(dosomething)</span><br></pre></td></tr></table></figure>
+<p>观察如下：</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br></pre></td><td class="code"><pre><span class="line">objects growth</span><br><span class="line">list                          25705    +25705</span><br><span class="line">function                      16416    +16416</span><br><span class="line">tuple                          7941     +7941</span><br><span class="line">dict                           5802     +5802</span><br><span class="line">weakref                        3779     +3779</span><br><span class="line">builtin_function_or_method     2471     +2471</span><br><span class="line">cell                           2303     +2303</span><br><span class="line">type                           2141     +2141</span><br><span class="line">getset_descriptor              1845     +1845</span><br><span class="line">wrapper_descriptor             1542     +1542</span><br><span class="line"></span><br><span class="line"></span><br><span class="line">objects growth</span><br><span class="line">list                        26225      +520</span><br><span class="line">ObservationList               329       +67</span><br><span class="line">IdentityPartitionCluster      329       +67</span><br><span class="line">SplitResult                    14        +5</span><br><span class="line"></span><br><span class="line"></span><br><span class="line">objects growth</span><br><span class="line">ObservationList               337        +8</span><br><span class="line">IdentityPartitionCluster      337        +8</span><br><span class="line">SplitResult                    19        +5</span><br><span class="line"></span><br><span class="line"></span><br><span class="line">objects growth</span><br><span class="line">ObservationList               349        +4</span><br><span class="line">IdentityPartitionCluster      349        +4</span><br></pre></td></tr></table></figure>
+<p>注意到第一次会出现大幅的增量，是因为第一运行加载类，函数等对象。 从后面的输出结果，可以看到ObservationList和IdentityPartitionCluster一直在持续增长，但是只能看到数量，并不能看到占用内存大小。</p>
+<h2 id="使用pympler工具"><a href="#使用pympler工具" class="headerlink" title="使用pympler工具"></a>使用pympler工具</h2><p>pympler工具可以很容易看到内存的使用情况</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">import</span> objgraph</span><br><span class="line"><span class="keyword">import</span> schedule</span><br><span class="line"><span class="keyword">from</span> pympler <span class="keyword">import</span> tracker, muppy, summary</span><br><span class="line"></span><br><span class="line"></span><br><span class="line">tr = tracker.SummaryTracker()</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">dosomething</span><span class="params">()</span>:</span></span><br><span class="line">    <span class="keyword">print</span> <span class="string">"memory total"</span></span><br><span class="line">    all_objects = muppy.get_objects()</span><br><span class="line">    sum1 = summary.summarize(all_objects)</span><br><span class="line">    summary.print_(sum1)</span><br><span class="line">    </span><br><span class="line">    <span class="keyword">print</span> <span class="string">"memory difference"</span></span><br><span class="line">    tr.print_diff()</span><br><span class="line">    <span class="comment"># ........ 爬取任务</span></span><br><span class="line">    <span class="keyword">pass</span></span><br><span class="line"></span><br><span class="line"></span><br><span class="line">schedule.every(<span class="number">2</span>).minutes.do(dosomething)</span><br></pre></td></tr></table></figure>
+<p>观察如下：</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br><span class="line">89</span><br><span class="line">90</span><br><span class="line">91</span><br><span class="line">92</span><br><span class="line">93</span><br><span class="line">94</span><br><span class="line">95</span><br><span class="line">96</span><br><span class="line">97</span><br><span class="line">98</span><br><span class="line">99</span><br><span class="line">100</span><br><span class="line">101</span><br><span class="line">102</span><br><span class="line">103</span><br><span class="line">104</span><br><span class="line">105</span><br><span class="line">106</span><br><span class="line">107</span><br><span class="line">108</span><br><span class="line">109</span><br><span class="line">110</span><br><span class="line">111</span><br></pre></td><td class="code"><pre><span class="line">memory total</span><br><span class="line">                                     types |   # objects |   total size</span><br><span class="line">========================================== | =========== | ============</span><br><span class="line">                                       str |       94461 |      7.19 MB</span><br><span class="line">                                      dict |        5802 |      6.54 MB</span><br><span class="line">                                   unicode |        9876 |      4.73 MB</span><br><span class="line">                                      type |        2078 |      1.79 MB</span><br><span class="line">                                      code |       14614 |      1.78 MB</span><br><span class="line">                                      list |        9981 |      1.02 MB</span><br><span class="line">  &lt;class 'guppy.heapy.View.ObservationList |         262 |    854.59 KB</span><br><span class="line">                                     tuple |        7941 |    581.80 KB</span><br><span class="line">                                   weakref |        3779 |    324.76 KB</span><br><span class="line">                                       set |         653 |    183.45 KB</span><br><span class="line">                builtin_function_or_method |        2471 |    173.74 KB</span><br><span class="line">                                       int |        6355 |    148.95 KB</span><br><span class="line">                       function (__init__) |        1119 |    131.13 KB</span><br><span class="line">                         getset_descriptor |        1845 |    129.73 KB</span><br><span class="line">                                      cell |        2303 |    125.95 KB</span><br><span class="line">memory difference</span><br><span class="line">                                              types |   # objects |   total size</span><br><span class="line">=================================================== | =========== | ============</span><br><span class="line">                                                str |       72157 |      4.96 MB</span><br><span class="line">                                            unicode |        6943 |      3.18 MB</span><br><span class="line">                                               list |       15319 |      3.13 MB</span><br><span class="line">           &lt;class 'guppy.heapy.View.ObservationList |         262 |    854.59 KB</span><br><span class="line">                                               dict |         590 |    474.83 KB</span><br><span class="line">                                               code |        1991 |    248.88 KB</span><br><span class="line">                                                int |        5817 |    136.34 KB</span><br><span class="line">                                              tuple |         821 |     55.34 KB</span><br><span class="line">                                            weakref |         576 |     49.50 KB</span><br><span class="line">                                               type |          45 |     39.73 KB</span><br><span class="line">  &lt;class 'guppy.heapy.Part.IdentityPartitionCluster |         262 |     24.56 KB</span><br><span class="line">                                 wrapper_descriptor |         164 |     12.81 KB</span><br><span class="line">                                function (__init__) |          95 |     11.13 KB</span><br><span class="line">                                           classobj |         105 |     10.66 KB</span><br><span class="line">                                           instance |         117 |      8.23 KB</span><br><span class="line">                                           </span><br><span class="line"></span><br><span class="line"></span><br><span class="line"></span><br><span class="line">memory total</span><br><span class="line">                       types |   # objects |   total size</span><br><span class="line">============================ | =========== | ============</span><br><span class="line">                     unicode |        9890 |      9.76 MB</span><br><span class="line">                         str |       95090 |      7.22 MB</span><br><span class="line">                        dict |        5802 |      6.54 MB</span><br><span class="line">                        type |        2078 |      1.79 MB</span><br><span class="line">                        code |       14614 |      1.78 MB</span><br><span class="line">                        list |       10501 |      1.08 MB</span><br><span class="line">                       tuple |        7940 |    581.73 KB</span><br><span class="line">                     weakref |        3778 |    324.67 KB</span><br><span class="line">                         set |         653 |    183.45 KB</span><br><span class="line">  builtin_function_or_method |        2471 |    173.74 KB</span><br><span class="line">                         int |        6654 |    155.95 KB</span><br><span class="line">         function (__init__) |        1119 |    131.13 KB</span><br><span class="line">           getset_descriptor |        1845 |    129.73 KB</span><br><span class="line">                        cell |        2302 |    125.89 KB</span><br><span class="line">          wrapper_descriptor |        1542 |    120.47 KB</span><br><span class="line">memory difference</span><br><span class="line">                                              types |   # objects |      total size</span><br><span class="line">=================================================== | =========== | ===============</span><br><span class="line">                                            unicode |          14 |         5.04 MB</span><br><span class="line">                                               list |         520 |        56.93 KB</span><br><span class="line">                                                str |         629 |        35.84 KB</span><br><span class="line">                                                int |         299 |         7.01 KB</span><br><span class="line">  &lt;class 'guppy.heapy.Part.IdentityPartitionCluster |          67 |         6.28 KB</span><br><span class="line">                       &lt;class 'urlparse.SplitResult |           5 |       480     B</span><br><span class="line">                                   _sre.SRE_Pattern |           2 |       176     B</span><br><span class="line">                                  datetime.datetime |           1 |        48     B</span><br><span class="line">                                               cell |          -1 |       -56     B</span><br><span class="line">                                              tuple |          -1 |       -64     B</span><br><span class="line">                                            weakref |          -1 |       -88     B</span><br><span class="line">                                  function (remove) |          -1 |      -120     B</span><br><span class="line">           &lt;class 'guppy.heapy.View.ObservationList |          67 |   -753144     B</span><br><span class="line">           </span><br><span class="line">           </span><br><span class="line">                     </span><br><span class="line"> .......................</span><br><span class="line"> ...................  省略中间多次结果</span><br><span class="line"> .....................</span><br><span class="line">           </span><br><span class="line">           </span><br><span class="line">memory total</span><br><span class="line">                                     types |   # objects |   total size</span><br><span class="line">========================================== | =========== | ============</span><br><span class="line">                                   unicode |       11050 |    385.95 MB</span><br><span class="line">                                       str |       95073 |      7.22 MB</span><br><span class="line">                                      dict |        5802 |      6.54 MB</span><br><span class="line">                                      type |        2078 |      1.79 MB</span><br><span class="line">                                      code |       14614 |      1.78 MB</span><br><span class="line">                                      list |       10501 |      1.08 MB</span><br><span class="line">                                     tuple |        7940 |    581.73 KB</span><br><span class="line">                                   weakref |        3778 |    324.67 KB</span><br><span class="line">                                       int |        8762 |    205.36 KB</span><br><span class="line">                                       set |         653 |    183.45 KB</span><br><span class="line">  &lt;class 'guppy.heapy.View.ObservationList |         897 |    181.98 KB</span><br><span class="line">                builtin_function_or_method |        2471 |    173.74 KB</span><br><span class="line">                       function (__init__) |        1119 |    131.13 KB</span><br><span class="line">                         getset_descriptor |        1845 |    129.73 KB</span><br><span class="line">                                      cell |        2302 |    125.89 KB</span><br><span class="line">memory difference</span><br><span class="line">                                              types |   # objects |   total size</span><br><span class="line">=================================================== | =========== | ============</span><br><span class="line">                                            unicode |           6 |      2.18 MB</span><br><span class="line">                                                str |          29 |      2.14 KB</span><br><span class="line">                                               dict |           0 |    768     B</span><br><span class="line">                       &lt;class 'urlparse.SplitResult |           7 |    672     B</span><br><span class="line">                                  collections.deque |           0 |    512     B</span><br><span class="line">           &lt;class 'guppy.heapy.View.ObservationList |           3 |    336     B</span><br><span class="line">  &lt;class 'guppy.heapy.Part.IdentityPartitionCluster |           3 |    288     B</span><br><span class="line">                                                int |          12 |    288     B</span><br></pre></td></tr></table></figure>
+<p>可以看到unicode类型，一直在持续增长。从当初4M多，一直持续增长到385M。知道了是unicode的问题，接下来要观察下这些unicode被哪些对象引用。</p>
+<h2 id="使用guppy工具"><a href="#使用guppy工具" class="headerlink" title="使用guppy工具"></a>使用guppy工具</h2><p>guppy可以查看到heap内存的具体使用情况，哪些对象占用多少内存。</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">import</span> objgraph</span><br><span class="line"><span class="keyword">import</span> schedule</span><br><span class="line"><span class="keyword">import</span> guppy</span><br><span class="line"><span class="keyword">from</span> pympler <span class="keyword">import</span> tracker, muppy, summary</span><br><span class="line"></span><br><span class="line"></span><br><span class="line">tr = tracker.SummaryTracker()</span><br><span class="line">hp = guppy.hpy()</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">dosomething</span><span class="params">()</span>:</span></span><br><span class="line">    <span class="keyword">print</span> <span class="string">"heap total"</span></span><br><span class="line">    heap = hp.heap()</span><br><span class="line">    references = heap[<span class="number">0</span>].byvia</span><br><span class="line">    <span class="keyword">print</span> references</span><br><span class="line">    </span><br><span class="line">    <span class="comment"># ........ 爬取任务</span></span><br><span class="line">    <span class="keyword">pass</span></span><br><span class="line"></span><br><span class="line"></span><br><span class="line">schedule.every(<span class="number">2</span>).minutes.do(dosomething)</span><br></pre></td></tr></table></figure>
+<p>guppy使用hpy初始化了SessionContext，使用它可以访问heap信息。在调用hp.heap()后返回的heap信息，通过heap[0]能够获取占用内存第一名的信息，即关于unicode信息。byvia返回了引用这个类型的排名。</p>
+<p>比如上面的代码，返回哪些object引用了unicode这个类型。</p>
+<p>观察结果</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line">Partition of a set of 10151 objects. Total size = 116935280 bytes.</span><br><span class="line"> Index  Count   %     Size   % Cumulative  % Referred Via:</span><br><span class="line">     0    155   2 114401312  98 114401312  98 "[u'sql']"</span><br><span class="line">     1   1245  12  1036064   1 115437376  99 '.func_doc', '[0]'</span><br><span class="line">     2    384   4   282360   0 115719736  99 "['__doc__']"</span><br><span class="line">     3   1456  14   200344   0 115920080  99 '[1]'</span><br><span class="line">     4    144   1    89824   0 116009904  99 '.__doc__', '.func_doc', '[0]'</span><br><span class="line">     5    719   7    89336   0 116099240  99 '[2]'</span><br><span class="line">     6      1   0    72784   0 116172024  99 "['TECHNICAL_500_TEMPLATE']"</span><br><span class="line">     7    565   6    70256   0 116242280  99 '[0]'</span><br><span class="line">     8    532   5    61408   0 116303688  99 '[3]'</span><br><span class="line">     9    448   4    50464   0 116354152 100 '[4]'</span><br><span class="line">&lt;1359 more rows. Type e.g. '_.more' to view.&gt;</span><br></pre></td></tr></table></figure>
+<p>可以看到sql这个属性，占用了所有unicode的98%的存储空间。继续观察sql这个属性的引用链</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">import</span> objgraph</span><br><span class="line"><span class="keyword">import</span> schedule</span><br><span class="line"><span class="keyword">import</span> guppy</span><br><span class="line"><span class="keyword">from</span> pympler <span class="keyword">import</span> tracker, muppy, summary</span><br><span class="line"></span><br><span class="line"></span><br><span class="line">tr = tracker.SummaryTracker()</span><br><span class="line">hp = guppy.hpy()</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">dosomething</span><span class="params">()</span>:</span></span><br><span class="line">    <span class="keyword">print</span> <span class="string">"heap total"</span></span><br><span class="line">    heap = hp.heap()</span><br><span class="line">    references = heap[<span class="number">0</span>].byvia</span><br><span class="line">    <span class="keyword">print</span> references[<span class="number">0</span>].kind</span><br><span class="line">    <span class="keyword">print</span> references[<span class="number">0</span>].shpaths</span><br><span class="line">    <span class="keyword">print</span> references[<span class="number">0</span>].rp</span><br><span class="line">    </span><br><span class="line">    <span class="comment"># ........ 爬取任务</span></span><br><span class="line">    <span class="keyword">pass</span></span><br><span class="line"></span><br><span class="line"></span><br><span class="line">schedule.every(<span class="number">2</span>).minutes.do(dosomething)</span><br></pre></td></tr></table></figure>
+<p>shpaths返回从最顶端的root到这个object的最短引用路径。rp返回被哪些类型应用信息。</p>
+<p>观察结果</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br></pre></td><td class="code"><pre><span class="line">&lt;via "[u'sql']"&gt;</span><br><span class="line"> 0: hp.Root.i0_modules['django.contr....models.query'].__dict__['connections'].__dict__['_connections'].??[&lt;weakref...bc7d6830&gt;]['default'].__dict__['queries_log'].??[u'sql']</span><br><span class="line"> 1: hp.Root.i0_modules['django.contr....models.query'].__dict__['connections'].__dict__['_connections'].??[&lt;weakref...bc7d6830&gt;]['default'].__dict__['queries_log'].??[u'sql']</span><br><span class="line"> 2: hp.Root.i0_modules['django.contr....models.query'].__dict__['connections'].__dict__['_connections'].??[&lt;weakref...bc7d6830&gt;]['default'].__dict__['queries_log'].??[u'sql']</span><br><span class="line"> 3: hp.Root.i0_modules['django.contr....models.query'].__dict__['connections'].__dict__['_connections'].??[&lt;weakref...bc7d6830&gt;]['default'].__dict__['queries_log'].??[u'sql']</span><br><span class="line"> 4: hp.Root.i0_modules['django.contr....models.query'].__dict__['connections'].__dict__['_connections'].??[&lt;weakref...bc7d6830&gt;]['default'].__dict__['queries_log'].??[u'sql']</span><br><span class="line"> 5: hp.Root.i0_modules['django.contr....models.query'].__dict__['connections'].__dict__['_connections'].??[&lt;weakref...bc7d6830&gt;]['default'].__dict__['queries_log'].??[u'sql']</span><br><span class="line"> 6: hp.Root.i0_modules['django.contr....models.query'].__dict__['connections'].__dict__['_connections'].??[&lt;weakref...bc7d6830&gt;]['default'].__dict__['queries_log'].??[u'sql']</span><br><span class="line"> 7: hp.Root.i0_modules['django.contr....models.query'].__dict__['connections'].__dict__['_connections'].??[&lt;weakref...bc7d6830&gt;]['default'].__dict__['queries_log'].??[u'sql']</span><br><span class="line"> 8: hp.Root.i0_modules['django.contr....models.query'].__dict__['connections'].__dict__['_connections'].??[&lt;weakref...bc7d6830&gt;]['default'].__dict__['queries_log'].??[u'sql']</span><br><span class="line"> 9: hp.Root.i0_modules['django.contr....models.query'].__dict__['connections'].__dict__['_connections'].??[&lt;weakref...bc7d6830&gt;]['default'].__dict__['queries_log'].??[u'sql']</span><br><span class="line">&lt;... 250 more paths ...&gt;</span><br><span class="line"></span><br><span class="line"></span><br><span class="line">Reference Pattern by &lt;[dict of] class&gt;.</span><br><span class="line"> 0: _ --- [-] 20 &lt;via "[u'sql']"&gt;: 0x7f439c90c810, 0x7f439c90c840...</span><br><span class="line"> 1: a      [-] 20 dict (no owner): 0x7f439d065b40*2, 0x7f439d54bc58*2...</span><br><span class="line"> 2: aa ---- [-] 1 collections.deque: 0x7f43a051d360</span><br><span class="line"> 3: a3       [-] 1 dict of django.contrib.gis.db.backends.postgis.base.Databa...</span><br><span class="line"> 4: a4 ------ [-] 1 django.contrib.gis.db.backends.postgis.base.DatabaseWrapp...</span><br><span class="line"> 5: a5         [-] 1 dict of django.contrib.gis.db.backends.postgis.operation...</span><br><span class="line"> 6: a6 -------- [-] 1 django.contrib.gis.db.backends.postgis.operations.PostG...</span><br><span class="line"> 7: a7           [^ 3] 1 dict of django.contrib.gis.db.backends.postgis.base....</span><br><span class="line"> 8: a4b ------ [-] 1 dict (no owner): 0x7f43bbe00050*1</span><br><span class="line"> 9: a4ba        [-] 1 dict (no owner): 0x7f43bbe0de88*1</span><br><span class="line">&lt;Type e.g. '_.more' for more.&gt;</span><br></pre></td></tr></table></figure>
+<p>可以明显得看到是django的问题，后来上网查了下django内存泄漏，原来是因为django在debug模式下，会保存每一次的sql语句。终于弄清楚了原因，解决办法是把django的settings的debug设置为False。</p>
+
+      
+    </div>
+    
+    
+    
+
+    
+
+    
+
+    
+
+    <footer class="post-footer">
+      
+        <div class="post-tags">
+          
+            <a href="/tags/python-memory-leak/" rel="tag"># python, memory leak</a>
+          
+        </div>
+      
+
+      
+      
+      
+
+      
+        <div class="post-nav">
+          <div class="post-nav-next post-nav-item">
+            
+              <a href="/2018/12/16/Datax-Channel原理/" rel="next" title="Datax Channel原理">
+                <i class="fa fa-chevron-left"></i> Datax Channel原理
+              </a>
+            
+          </div>
+
+          <span class="post-nav-divider"></span>
+
+          <div class="post-nav-prev post-nav-item">
+            
+          </div>
+        </div>
+      
+
+      
+      
+    </footer>
+  </div>
+  
+  
+  
+  </article>
+
+
+
+    <div class="post-spread">
+      
+    </div>
+  </div>
+
+
+          </div>
+          
+
+
+          
+
+  
+
+
+
+        </div>
+        
+          
+  
+  <div class="sidebar-toggle">
+    <div class="sidebar-toggle-line-wrap">
+      <span class="sidebar-toggle-line sidebar-toggle-line-first"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-middle"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-last"></span>
+    </div>
+  </div>
+
+  <aside id="sidebar" class="sidebar">
+    
+    <div class="sidebar-inner">
+
+      
+
+      
+        <ul class="sidebar-nav motion-element">
+          <li class="sidebar-nav-toc sidebar-nav-active" data-target="post-toc-wrap">
+            Table of Contents
+          </li>
+          <li class="sidebar-nav-overview" data-target="site-overview-wrap">
+            Overview
+          </li>
+        </ul>
+      
+
+      <section class="site-overview-wrap sidebar-panel">
+        <div class="site-overview">
+          <div class="site-author motion-element" itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+            
+              <p class="site-author-name" itemprop="name">zhmin</p>
+              <p class="site-description motion-element" itemprop="description"></p>
+          </div>
+
+          <nav class="site-state motion-element">
+
+            
+              <div class="site-state-item site-state-posts">
+              
+                <a href="/archives/">
+              
+                  <span class="site-state-item-count">3</span>
+                  <span class="site-state-item-name">posts</span>
+                </a>
+              </div>
+            
+
+            
+
+            
+              
+              
+              <div class="site-state-item site-state-tags">
+                
+                  <span class="site-state-item-count">3</span>
+                  <span class="site-state-item-name">tags</span>
+                
+              </div>
+            
+
+          </nav>
+
+          
+
+          
+            <div class="links-of-author motion-element">
+                
+                  <span class="links-of-author-item">
+                    <a href="https://github.com/zhmin" target="_blank" title="GitHub">
+                      
+                        <i class="fa fa-fw fa-github"></i>GitHub</a>
+                  </span>
+                
+            </div>
+          
+
+          
+          
+
+          
+          
+
+          
+
+        </div>
+      </section>
+
+      
+      <!--noindex-->
+        <section class="post-toc-wrap motion-element sidebar-panel sidebar-panel-active">
+          <div class="post-toc">
+
+            
+              
+            
+
+            
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#记录一次内存泄漏的调试经历"><span class="nav-number">1.</span> <span class="nav-text">记录一次内存泄漏的调试经历</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#使用objgraph观察"><span class="nav-number">1.1.</span> <span class="nav-text">使用objgraph观察</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#使用pympler工具"><span class="nav-number">1.2.</span> <span class="nav-text">使用pympler工具</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#使用guppy工具"><span class="nav-number">1.3.</span> <span class="nav-text">使用guppy工具</span></a></li></ol></li></ol></div>
+            
+
+          </div>
+        </section>
+      <!--/noindex-->
+      
+
+      
+
+    </div>
+  </aside>
+
+
+        
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="footer-inner">
+        <div class="copyright">&copy; <span itemprop="copyrightYear">2018</span>
+  <span class="with-love">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">zhmin</span>
+
+  
+</div>
+
+
+
+
+
+
+
+
+
+
+
+  <script src="https://unpkg.com/mermaid@7.1.2/dist/mermaid.min.js"></script>
+  <script>
+    if (window.mermaid) {
+      mermaid.initialize({"startOnload":"true  // default true","theme":"forest"});
+    }
+  </script>
+
+
+
+<script async src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+<span id="busuanzi_container_site_pv">
+    访问量<span id="busuanzi_value_site_pv"></span>
+</span>
+<span class="post-meta-divider">|</span>
+<span id="busuanzi_container_site_uv">
+  访客数<span id="busuanzi_value_site_uv"></span>
+</span>
+
+        
+
+
+
+
+
+
+
+        
+      </div>
+    </footer>
+
+    
+      <div class="back-to-top">
+        <i class="fa fa-arrow-up"></i>
+        
+      </div>
+    
+
+    
+
+  </div>
+
+  
+
+<script type="text/javascript">
+  if (Object.prototype.toString.call(window.Promise) !== '[object Function]') {
+    window.Promise = null;
+  }
+</script>
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery/index.js?v=2.1.3"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fastclick/lib/fastclick.min.js?v=1.0.6"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery_lazyload/jquery.lazyload.js?v=1.9.7"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.ui.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fancybox/source/jquery.fancybox.pack.js?v=2.1.5"></script>
+  
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/utils.js?v=5.1.4"></script>
+
+  <script type="text/javascript" src="/js/src/motion.js?v=5.1.4"></script>
+
+
+
+  
+  
+
+  
+  <script type="text/javascript" src="/js/src/scrollspy.js?v=5.1.4"></script>
+<script type="text/javascript" src="/js/src/post-details.js?v=5.1.4"></script>
+
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/bootstrap.js?v=5.1.4"></script>
+
+
+
+  
+
+
+  
+
+
+
+
+	
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+</body>
+</html>
