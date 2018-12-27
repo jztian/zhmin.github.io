@@ -1,0 +1,738 @@
+<!DOCTYPE html>
+
+
+
+  
+
+
+<html class="theme-next mist use-motion" lang="">
+<head><meta name="generator" content="Hexo 3.8.0">
+  <meta charset="UTF-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="theme-color" content="#222">
+
+
+
+
+
+
+
+
+
+<meta http-equiv="Cache-Control" content="no-transform">
+<meta http-equiv="Cache-Control" content="no-siteapp">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+  <link href="/lib/fancybox/source/jquery.fancybox.css?v=2.1.5" rel="stylesheet" type="text/css">
+
+
+
+
+
+
+
+<link href="/lib/font-awesome/css/font-awesome.min.css?v=4.6.2" rel="stylesheet" type="text/css">
+
+<link href="/css/main.css?v=5.1.4" rel="stylesheet" type="text/css">
+
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png?v=5.1.4">
+
+
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png?v=5.1.4">
+
+
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png?v=5.1.4">
+
+
+  <link rel="mask-icon" href="/images/logo.svg?v=5.1.4" color="#222">
+
+
+
+
+
+  <meta name="keywords" content="datax,">
+
+
+
+
+
+
+
+
+
+
+<meta name="description" content="Datax 任务执行流程加载配置Datax启动是从Engine类开始的。Engine会读取配置文件，并且初始化和运行JobContainer。 1234567891011121314public class Engine &amp;#123;	public static void entry(final String[] args) throws Throwable &amp;#123;    	// .....">
+<meta name="keywords" content="datax">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Datax 任务执行流程">
+<meta property="og:url" content="http://yoursite.com/2018/12/27/Datax-任务执行流程/index.html">
+<meta property="og:site_name" content="blog">
+<meta property="og:description" content="Datax 任务执行流程加载配置Datax启动是从Engine类开始的。Engine会读取配置文件，并且初始化和运行JobContainer。 1234567891011121314public class Engine &amp;#123;	public static void entry(final String[] args) throws Throwable &amp;#123;    	// .....">
+<meta property="og:locale" content="default">
+<meta property="og:updated_time" content="2018-12-27T14:04:19.547Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Datax 任务执行流程">
+<meta name="twitter:description" content="Datax 任务执行流程加载配置Datax启动是从Engine类开始的。Engine会读取配置文件，并且初始化和运行JobContainer。 1234567891011121314public class Engine &amp;#123;	public static void entry(final String[] args) throws Throwable &amp;#123;    	// .....">
+
+
+
+<script type="text/javascript" id="hexo.configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '/',
+    scheme: 'Mist',
+    version: '5.1.4',
+    sidebar: {"position":"left","display":"hide","offset":12,"b2t":false,"scrollpercent":false,"onmobile":false},
+    fancybox: true,
+    tabs: true,
+    motion: {"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},
+    duoshuo: {
+      userId: '0',
+      author: 'Author'
+    },
+    algolia: {
+      applicationID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    }
+  };
+</script>
+
+
+
+  <link rel="canonical" href="http://yoursite.com/2018/12/27/Datax-任务执行流程/">
+
+
+
+
+
+  <title>Datax 任务执行流程 | blog</title>
+  
+
+
+
+
+
+
+
+
+</head>
+
+<body itemscope="" itemtype="http://schema.org/WebPage" lang="default">
+
+  
+  
+    
+  
+
+  <div class="container sidebar-position-left page-post-detail">
+    <div class="headband"></div>
+
+    <header id="header" class="header" itemscope="" itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-wrapper">
+  <div class="site-meta ">
+    
+
+    <div class="custom-logo-site-title">
+      <a href="/" class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">blog</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+      
+        <p class="site-subtitle"></p>
+      
+  </div>
+
+  <div class="site-nav-toggle">
+    <button>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+    </button>
+  </div>
+</div>
+
+<nav class="site-nav">
+  
+
+  
+    <ul id="menu" class="menu">
+      
+        
+        <li class="menu-item menu-item-home">
+          <a href="/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-home"></i> <br>
+            
+            Home
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-archives">
+          <a href="/archives/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-archive"></i> <br>
+            
+            Archives
+          </a>
+        </li>
+      
+
+      
+    </ul>
+  
+
+  
+</nav>
+
+
+
+ </div>
+    </header>
+
+    <main id="main" class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          <div id="content" class="content">
+            
+
+  <div id="posts" class="posts-expand">
+    
+
+  
+
+  
+  
+  
+
+  <article class="post post-type-normal" itemscope="" itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2018/12/27/Datax-任务执行流程/">
+
+    <span hidden itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="zhmin">
+      <meta itemprop="description" content="">
+      <meta itemprop="image" content="/images/avatar.gif">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope="" itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="blog">
+    </span>
+
+    
+      <header class="post-header">
+
+        
+        
+          <h1 class="post-title" itemprop="name headline">Datax 任务执行流程</h1>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">Posted on</span>
+              
+              <time title="Post created" itemprop="dateCreated datePublished" datetime="2018-12-27T16:33:43+08:00">
+                2018-12-27
+              </time>
+            
+
+            
+
+            
+          </span>
+
+          
+
+          
+            
+          
+
+          
+          
+
+          
+
+          
+
+          
+
+        </div>
+      </header>
+    
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+      
+
+      
+        <h1 id="Datax-任务执行流程"><a href="#Datax-任务执行流程" class="headerlink" title="Datax 任务执行流程"></a>Datax 任务执行流程</h1><h2 id="加载配置"><a href="#加载配置" class="headerlink" title="加载配置"></a>加载配置</h2><p>Datax启动是从Engine类开始的。Engine会读取配置文件，并且初始化和运行JobContainer。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">Engine</span> </span>&#123;</span><br><span class="line">	<span class="function"><span class="keyword">public</span> <span class="keyword">static</span> <span class="keyword">void</span> <span class="title">entry</span><span class="params">(<span class="keyword">final</span> String[] args)</span> <span class="keyword">throws</span> Throwable </span>&#123;</span><br><span class="line">    	<span class="comment">// .....</span></span><br><span class="line">        Configuration configuration = ConfigParser.parse(jobPath);</span><br><span class="line">        Engine engine = <span class="keyword">new</span> Engine();</span><br><span class="line">        engine.start(configuration);</span><br><span class="line">	&#125;</span><br><span class="line">    </span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">start</span><span class="params">(Configuration allConf)</span> </span>&#123;</span><br><span class="line">        <span class="comment">// ......</span></span><br><span class="line">        container = <span class="keyword">new</span> JobContainer(allConf);</span><br><span class="line">        container.start();</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h2 id="JobContainer原理"><a href="#JobContainer原理" class="headerlink" title="JobContainer原理"></a>JobContainer原理</h2><p>JobContaier的源码涉及到插件的动态加载，可以参考此篇博客。</p>
+<p>首先看看JobContainer的start方法，它将任务的执行分为多个阶段。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">JobContainer</span> <span class="keyword">extends</span> <span class="title">AbstractContainer</span> </span>&#123;</span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">start</span><span class="params">()</span> </span>&#123;</span><br><span class="line">        LOG.debug(<span class="string">"jobContainer starts to do preHandle ..."</span>);</span><br><span class="line">        <span class="keyword">this</span>.preHandle();</span><br><span class="line">        LOG.debug(<span class="string">"jobContainer starts to do init ..."</span>);</span><br><span class="line">        <span class="keyword">this</span>.init();</span><br><span class="line">        LOG.info(<span class="string">"jobContainer starts to do prepare ..."</span>);</span><br><span class="line">        <span class="keyword">this</span>.prepare();</span><br><span class="line">        LOG.info(<span class="string">"jobContainer starts to do split ..."</span>);</span><br><span class="line">        <span class="keyword">this</span>.totalStage = <span class="keyword">this</span>.split();</span><br><span class="line">        LOG.info(<span class="string">"jobContainer starts to do schedule ..."</span>);</span><br><span class="line">        <span class="keyword">this</span>.schedule();</span><br><span class="line">        LOG.debug(<span class="string">"jobContainer starts to do post ..."</span>);</span><br><span class="line">        <span class="keyword">this</span>.post();</span><br><span class="line">        LOG.debug(<span class="string">"jobContainer starts to do postHandle ..."</span>);</span><br><span class="line">        <span class="keyword">this</span>.postHandle();</span><br><span class="line">        LOG.info(<span class="string">"DataX jobId [&#123;&#125;] completed successfully."</span>, <span class="keyword">this</span>.jobId);</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h3 id="加载-和运行-Handler的初始化函数"><a href="#加载-和运行-Handler的初始化函数" class="headerlink" title="加载 和运行 Handler的初始化函数"></a>加载 和运行 Handler的初始化函数</h3><p>这里会根据配置，加载指定的Handler类，并且执行它的preHandler回调函数。相关的配置如下：</p>
+<ul>
+<li>job.preHandler.pluginType， 插件类型</li>
+<li>job.preHandler.pluginName， 插件名称</li>
+</ul>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">private</span> <span class="keyword">void</span> <span class="title">preHandle</span><span class="params">()</span> </span>&#123;</span><br><span class="line">    <span class="comment">// 获取preHandler的类型，由job.preHandler.pluginType指定</span></span><br><span class="line">    String handlerPluginTypeStr = <span class="keyword">this</span>.configuration.getString(</span><br><span class="line">            CoreConstant.DATAX_JOB_PREHANDLER_PLUGINTYPE);</span><br><span class="line">    <span class="comment">// 实例化PluginType</span></span><br><span class="line">    PluginType handlerPluginType = PluginType.valueOf(handlerPluginTypeStr.toUpperCase());</span><br><span class="line">	<span class="comment">// 获取preHandler的名称</span></span><br><span class="line">    String handlerPluginName = <span class="keyword">this</span>.configuration.getString(</span><br><span class="line">            CoreConstant.DATAX_JOB_PREHANDLER_PLUGINNAME);</span><br><span class="line">    <span class="comment">// 切换类加载器</span></span><br><span class="line">    classLoaderSwapper.setCurrentThreadClassLoader(LoadUtil.getJarLoader(</span><br><span class="line">            handlerPluginType, handlerPluginName));</span><br><span class="line">	<span class="comment">// 加载 Handler</span></span><br><span class="line">    AbstractJobPlugin handler = LoadUtil.loadJobPlugin(</span><br><span class="line">            handlerPluginType, handlerPluginName);</span><br><span class="line">	<span class="comment">// 初始化handler的jobPluginCollector， 通过它可以知道任务的详情</span></span><br><span class="line">    JobPluginCollector jobPluginCollector = <span class="keyword">new</span> DefaultJobPluginCollector(</span><br><span class="line">            <span class="keyword">this</span>.getContainerCommunicator());</span><br><span class="line">    handler.setJobPluginCollector(jobPluginCollector);</span><br><span class="line"></span><br><span class="line">    <span class="comment">//调用handler的preHandler</span></span><br><span class="line">    handler.preHandler(configuration);</span><br><span class="line">    <span class="comment">// 切回类加载器</span></span><br><span class="line">    classLoaderSwapper.restoreCurrentThreadClassLoader();</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h3 id="加载Reader和Writer"><a href="#加载Reader和Writer" class="headerlink" title="加载Reader和Writer"></a>加载Reader和Writer</h3><p>init方法会将加载配置中指定的Reader和Writer，来完成数据的读取和写入。Reader的初始化和Writer相同，这里以Reader为例：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">private</span> <span class="keyword">void</span> <span class="title">init</span><span class="params">()</span> </span>&#123;</span><br><span class="line">    JobPluginCollector jobPluginCollector = <span class="keyword">new</span> DefaultJobPluginCollector(<span class="keyword">this</span>.getContainerCommunicator());</span><br><span class="line">    <span class="comment">//必须先Reader ，后Writer</span></span><br><span class="line">    <span class="keyword">this</span>.jobReader = <span class="keyword">this</span>.initJobReader(jobPluginCollector);</span><br><span class="line">    <span class="keyword">this</span>.jobWriter = <span class="keyword">this</span>.initJobWriter(jobPluginCollector);</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 加载Reader</span></span><br><span class="line"><span class="keyword">private</span> Reader.<span class="function">Job <span class="title">initJobReader</span><span class="params">(JobPluginCollector jobPluginCollector)</span> </span>&#123;</span><br><span class="line">    <span class="comment">// 读取 Reader的名称</span></span><br><span class="line">    <span class="keyword">this</span>.readerPluginName = <span class="keyword">this</span>.configuration.getString(</span><br><span class="line">        CoreConstant.DATAX_JOB_CONTENT_READER_NAME);</span><br><span class="line">    <span class="comment">// 切换类加载器</span></span><br><span class="line">    classLoaderSwapper.setCurrentThreadClassLoader(LoadUtil.getJarLoader(</span><br><span class="line">        PluginType.READER, <span class="keyword">this</span>.readerPluginName));</span><br><span class="line">    <span class="comment">// 加载Reader插件</span></span><br><span class="line">    Reader.Job jobReader = (Reader.Job) LoadUtil.loadJobPlugin(</span><br><span class="line">        PluginType.READER, <span class="keyword">this</span>.readerPluginName);</span><br><span class="line">    <span class="comment">// 更新Reader的配置</span></span><br><span class="line">    jobReader.setPluginJobConf(<span class="keyword">this</span>.configuration.getConfiguration(</span><br><span class="line">        CoreConstant.DATAX_JOB_CONTENT_READER_PARAMETER));</span><br><span class="line">    jobReader.setPeerPluginJobConf(<span class="keyword">this</span>.configuration.getConfiguration(</span><br><span class="line">        CoreConstant.DATAX_JOB_CONTENT_WRITER_PARAMETER));</span><br><span class="line">    <span class="comment">// 初始化Reader的jobPluginCollector</span></span><br><span class="line">    jobReader.setJobPluginCollector(jobPluginCollector);</span><br><span class="line">    <span class="comment">// 调用Reader的init回调函数</span></span><br><span class="line">    jobReader.init();</span><br><span class="line">    <span class="comment">// 切回类加载器</span></span><br><span class="line">    classLoaderSwapper.restoreCurrentThreadClassLoader();</span><br><span class="line">    <span class="keyword">return</span> jobReader;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h3 id="Reader和Writer的初始化回调函数"><a href="#Reader和Writer的初始化回调函数" class="headerlink" title="Reader和Writer的初始化回调函数"></a>Reader和Writer的初始化回调函数</h3><p>prepare方法会执行Reader和Writer的prepare回调函数。Reader和Writer相同，下面以Reader为例：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">private</span> <span class="keyword">void</span> <span class="title">prepare</span><span class="params">()</span> </span>&#123;</span><br><span class="line">	<span class="keyword">this</span>.prepareJobReader();</span><br><span class="line">    <span class="keyword">this</span>.prepareJobWriter();</span><br><span class="line">&#125;</span><br><span class="line">    </span><br><span class="line"><span class="function"><span class="keyword">private</span> <span class="keyword">void</span> <span class="title">prepareJobReader</span><span class="params">()</span> </span>&#123;</span><br><span class="line">    <span class="comment">// 切换类加载器</span></span><br><span class="line">    classLoaderSwapper.setCurrentThreadClassLoader(LoadUtil.getJarLoader(</span><br><span class="line">            PluginType.READER, <span class="keyword">this</span>.readerPluginName));</span><br><span class="line">    LOG.info(String.format(<span class="string">"DataX Reader.Job [%s] do prepare work ."</span>,</span><br><span class="line">            <span class="keyword">this</span>.readerPluginName));</span><br><span class="line">    <span class="comment">// 调用jobReader的prepare方法</span></span><br><span class="line">    <span class="keyword">this</span>.jobReader.prepare();</span><br><span class="line">    <span class="comment">// 切回类加载器</span></span><br><span class="line">    classLoaderSwapper.restoreCurrentThreadClassLoader();</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h3 id="切分任务"><a href="#切分任务" class="headerlink" title="切分任务"></a>切分任务</h3><p>split方法会根据channel的数目，将整个job任务，划分成多个小的task。具体原理参见这篇博客。</p>
+<h3 id="分配和执行任务"><a href="#分配和执行任务" class="headerlink" title="分配和执行任务"></a>分配和执行任务</h3><p>schedule方法会将task发送给各个Channel执行。具体原理参见这篇博客。</p>
+<h3 id="调用Reader和Writer的完成回调函数"><a href="#调用Reader和Writer的完成回调函数" class="headerlink" title="调用Reader和Writer的完成回调函数"></a>调用Reader和Writer的完成回调函数</h3><p>post会执行Reader和Writer的post回调函数。Reader和Writer相同，下面以Reader为例：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">private</span> <span class="keyword">void</span> <span class="title">post</span><span class="params">()</span> </span>&#123;</span><br><span class="line">    <span class="keyword">this</span>.postJobWriter();</span><br><span class="line">    <span class="keyword">this</span>.postJobReader();</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">private</span> <span class="keyword">void</span> <span class="title">postJobReader</span><span class="params">()</span> </span>&#123;</span><br><span class="line">	<span class="comment">// 切换类加载器</span></span><br><span class="line">	classLoaderSwapper.setCurrentThreadClassLoader(LoadUtil.getJarLoader(</span><br><span class="line">		PluginType.READER, <span class="keyword">this</span>.readerPluginName));</span><br><span class="line">    LOG.info(<span class="string">"DataX Reader.Job [&#123;&#125;] do post work."</span>, <span class="keyword">this</span>.readerPluginName);</span><br><span class="line">    <span class="comment">// 调用jobReader的post方法</span></span><br><span class="line">    <span class="keyword">this</span>.jobReader.post();</span><br><span class="line">    <span class="comment">// 切回类加载器</span></span><br><span class="line">    classLoaderSwapper.restoreCurrentThreadClassLoader();</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h3 id="加载-和运行-Handler的完成函数"><a href="#加载-和运行-Handler的完成函数" class="headerlink" title="加载 和运行 Handler的完成函数"></a>加载 和运行 Handler的完成函数</h3><p>这里会根据配置，加载指定的Handler类，并且执行它的postHandler回调函数。相关的配置如下：</p>
+<ul>
+<li>job.postHandler.pluginType， 插件类型</li>
+<li>job.postHandler.pluginName， 插件名称</li>
+</ul>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">private</span> <span class="keyword">void</span> <span class="title">postHandle</span><span class="params">()</span> </span>&#123;</span><br><span class="line">    <span class="comment">// 获取插件类型</span></span><br><span class="line">	String handlerPluginTypeStr = <span class="keyword">this</span>.configuration.getString(</span><br><span class="line">		CoreConstant.DATAX_JOB_POSTHANDLER_PLUGINTYPE);</span><br><span class="line">    PluginType handlerPluginType = PluginType.valueOf(handlerPluginTypeStr.toUpperCase());</span><br><span class="line">    </span><br><span class="line">    <span class="comment">// 获取插件名称</span></span><br><span class="line">    String handlerPluginName = <span class="keyword">this</span>.configuration.getString(</span><br><span class="line">        CoreConstant.DATAX_JOB_POSTHANDLER_PLUGINNAME);</span><br><span class="line">    <span class="comment">// 切换类加载器</span></span><br><span class="line">    classLoaderSwapper.setCurrentThreadClassLoader(LoadUtil.getJarLoader(</span><br><span class="line">        handlerPluginType, handlerPluginName));</span><br><span class="line">    <span class="comment">// 加载插件</span></span><br><span class="line">    AbstractJobPlugin handler = LoadUtil.loadJobPlugin(</span><br><span class="line">        handlerPluginType, handlerPluginName);</span><br><span class="line">    </span><br><span class="line">    <span class="comment">// 配置jobPluginCollector， 通过它可以得到任务执行的详情</span></span><br><span class="line">    JobPluginCollector jobPluginCollector = <span class="keyword">new</span> DefaultJobPluginCollector(</span><br><span class="line">        <span class="keyword">this</span>.getContainerCommunicator());</span><br><span class="line">    handler.setJobPluginCollector(jobPluginCollector);</span><br><span class="line">    </span><br><span class="line">    <span class="comment">// 调用handler的postHandler函数</span></span><br><span class="line">    handler.postHandler(configuration);</span><br><span class="line">    <span class="comment">// 切回类加载器</span></span><br><span class="line">    classLoaderSwapper.restoreCurrentThreadClassLoader();</span><br></pre></td></tr></table></figure>
+<h2 id="扩展-handler-插件"><a href="#扩展-handler-插件" class="headerlink" title="扩展 handler 插件"></a>扩展 handler 插件</h2><p>如果有个需求，需要将任务的完成情况，记录下来。这个时候需要自定义handler。</p>
+<h3 id="修改插件加载"><a href="#修改插件加载" class="headerlink" title="修改插件加载"></a>修改插件加载</h3><p>首先需要修改读取插件配置的源码，因为从ConfigParser的源码可以看到，datax已经从配置文件中，提取了posthandler的插件名称，但是在寻找插件的时候，只是从reader和writer目录下去寻找，所以需要增加从handler目录的寻找。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">CoreConstant</span> </span>&#123;</span><br><span class="line">	<span class="keyword">public</span> <span class="keyword">static</span> String DATAX_PLUGIN_HANDLER_HOME = StringUtils.join(</span><br><span class="line">			<span class="keyword">new</span> String[] &#123; DATAX_HOME, <span class="string">"plugin"</span>, <span class="string">"handler"</span> &#125;, File.separator);</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">public</span> <span class="keyword">final</span> <span class="class"><span class="keyword">class</span> <span class="title">ConfigParser</span> </span>&#123;</span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">static</span> Configuration <span class="title">parsePluginConfig</span><span class="params">(List&lt;String&gt; wantPluginNames)</span> </span>&#123;</span><br><span class="line">        .......</span><br><span class="line">         <span class="keyword">for</span>(<span class="keyword">final</span> String each : ConfigParser</span><br><span class="line">             	.getDirAsList(CoreConstant.DATAX_PLUGIN_HANDLER_HOME)) &#123;</span><br><span class="line">             Configuration eachHandlerConfig = ConfigParser.parseOnePluginConfig(each, </span><br><span class="line">                  		<span class="string">"handler"</span>, replicaCheckPluginSet, wantPluginNames);</span><br><span class="line">             <span class="keyword">if</span> (eachHandlerConfig != <span class="keyword">null</span>) &#123;</span><br><span class="line">                 configuration.merge(eachHandlerConfig, <span class="keyword">true</span>);</span><br><span class="line">                 complete += <span class="number">1</span>;</span><br><span class="line">             &#125;</span><br><span class="line">         &#125;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h3 id="自定义Handler类"><a href="#自定义Handler类" class="headerlink" title="自定义Handler类"></a>自定义Handler类</h3><p>因为postHandler是属于Job运行类型的插件，所有必须在里面新建一个名称为Job的类，这个Job类必须继承AbstractJobPlugin。下面就是自定义插件的JobResultCollector的基本雏形</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">JobResultCollector</span> </span>&#123;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">private</span> <span class="keyword">static</span> <span class="keyword">final</span> Logger LOG = LoggerFactory.getLogger(Collector.class);</span><br><span class="line"></span><br><span class="line">    <span class="keyword">public</span> <span class="keyword">static</span> <span class="class"><span class="keyword">class</span> <span class="title">Job</span> <span class="keyword">extends</span> <span class="title">AbstractJobPlugin</span> </span>&#123;</span><br><span class="line"></span><br><span class="line">        <span class="meta">@Override</span></span><br><span class="line">        <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">init</span><span class="params">()</span> </span>&#123;</span><br><span class="line">            LOG.info(<span class="string">"plugin Collector start init"</span>);</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        <span class="meta">@Override</span></span><br><span class="line">        <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">destroy</span><span class="params">()</span> </span>&#123;</span><br><span class="line">            LOG.info(<span class="string">"plugin Collector destroy"</span>);</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        <span class="meta">@Override</span></span><br><span class="line">        <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">postHandler</span><span class="params">(Configuration jobConfiguration)</span> </span>&#123;</span><br><span class="line">            LOG.info(<span class="string">"plugin Collector post handler"</span>);</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h3 id="增加结果数据读取功能"><a href="#增加结果数据读取功能" class="headerlink" title="增加结果数据读取功能"></a>增加结果数据读取功能</h3><p>因为这个插件需要记录任务完成结果，所以需要了解下怎么获取统计数据。关于统计数据的原理，可以参见此篇文章</p>
+<p>因为自定义Handler属于Job运行类型的插件，所以需要继承AbstractJobPlugin。AbstractJobPlugin有一个重要属性jobPluginCollector，通过它可以获得需要的数据。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="keyword">abstract</span> <span class="class"><span class="keyword">class</span> <span class="title">AbstractJobPlugin</span> <span class="keyword">extends</span> <span class="title">AbstractPlugin</span> </span>&#123;</span><br><span class="line">    </span><br><span class="line">    <span class="keyword">private</span> JobPluginCollector jobPluginCollector;</span><br><span class="line"></span><br><span class="line">    <span class="function"><span class="keyword">public</span> JobPluginCollector <span class="title">getJobPluginCollector</span><span class="params">()</span> </span>&#123;</span><br><span class="line">        <span class="keyword">return</span> jobPluginCollector;</span><br><span class="line">    &#125;</span><br><span class="line">    </span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">setJobPluginCollector</span><span class="params">(</span></span></span><br><span class="line"><span class="function"><span class="params">            JobPluginCollector jobPluginCollector)</span> </span>&#123;</span><br><span class="line">		<span class="keyword">this</span>.jobPluginCollector = jobPluginCollector;</span><br><span class="line">	&#125;   </span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>通过加载posthandler的源码中，可以看到jobPluginCollector变量的初始化，实质上是DefaultJobPluginCollector的实例。并且每个插件都有着独立的JobPluginCollector， 但这些JobPluginCollector都共享者同一个AbstractContainerCommunicator</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">JobContainer</span> <span class="keyword">extends</span> <span class="title">AbstractContainer</span> </span>&#123;</span><br><span class="line"></span><br><span class="line">	<span class="function"><span class="keyword">private</span> <span class="keyword">void</span> <span class="title">postHandle</span><span class="params">()</span> </span>&#123;</span><br><span class="line">        ........</span><br><span class="line">        <span class="comment">// 加载和实例化handler</span></span><br><span class="line">        AbstractJobPlugin handler = LoadUtil.loadJobPlugin(</span><br><span class="line">                handlerPluginType, handlerPluginName);</span><br><span class="line">		<span class="comment">// 实例化DefaultJobPluginCollector</span></span><br><span class="line">        JobPluginCollector jobPluginCollector = <span class="keyword">new</span> DefaultJobPluginCollector(</span><br><span class="line">                <span class="keyword">this</span>.getContainerCommunicator());</span><br><span class="line">        <span class="comment">// 设置handler的jobPluginCollector</span></span><br><span class="line">        handler.setJobPluginCollector(jobPluginCollector);</span><br><span class="line">        ........</span><br><span class="line">        handler.postHandler(configuration);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>接下来看看DefaultJobPluginCollector的源码，可以看到它只提供了关于返回消息的方法，却没有提供别的数据的访问。感觉像是阿里这边的源码并没有开放完全。所以如果想访问到其他的数据，就需要修改源码了。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="keyword">final</span> <span class="class"><span class="keyword">class</span> <span class="title">DefaultJobPluginCollector</span> <span class="keyword">implements</span> <span class="title">JobPluginCollector</span> </span>&#123;</span><br><span class="line">    <span class="keyword">private</span> AbstractContainerCommunicator jobCollector;</span><br><span class="line"></span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="title">DefaultJobPluginCollector</span><span class="params">(AbstractContainerCommunicator containerCollector)</span> </span>&#123;</span><br><span class="line">        <span class="keyword">this</span>.jobCollector = containerCollector;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="meta">@Override</span></span><br><span class="line">    <span class="keyword">public</span> Map&lt;String, List&lt;String&gt;&gt; getMessage() &#123;</span><br><span class="line">        Communication totalCommunication = <span class="keyword">this</span>.jobCollector.collect();</span><br><span class="line">        <span class="keyword">return</span> totalCommunication.getMessage();</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="meta">@Override</span></span><br><span class="line">    <span class="function"><span class="keyword">public</span> List&lt;String&gt; <span class="title">getMessage</span><span class="params">(String key)</span> </span>&#123;</span><br><span class="line">        Communication totalCommunication = <span class="keyword">this</span>.jobCollector.collect();</span><br><span class="line">        <span class="keyword">return</span> totalCommunication.getMessage(key);</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>原本我是想增加一个方法返回Communication。这样根据返回的Communication，可以查看里面任何的数据。因为DefaultJobPluginCollector实现JobPluginCollector接口，所以也需要加上。 代码如下：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="keyword">final</span> <span class="class"><span class="keyword">class</span> <span class="title">DefaultJobPluginCollector</span> <span class="keyword">implements</span> <span class="title">JobPluginCollector</span> </span>&#123;</span><br><span class="line">    </span><br><span class="line">    <span class="function"><span class="keyword">public</span> Communication <span class="title">getCommunication</span><span class="params">()</span> </span>&#123;</span><br><span class="line">        <span class="keyword">return</span> <span class="keyword">this</span>.jobCollector.collect();</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">interface</span> <span class="title">JobPluginCollector</span> <span class="keyword">extends</span> <span class="title">PluginCollector</span> </span>&#123;</span><br><span class="line">    <span class="function">Communication <span class="title">getCommunication</span><span class="params">()</span></span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>但是行不通，因为DefaultJobPluginCollector是属于datax-core模块的类，JobPluginCollector属于datax-common模块的类。datax-core是依赖于datax-common的。而Communication是属于datax-core模块的类，如果在JobPluginCollector引用Communication，就会产生循环依赖。</p>
+<p>所以增加方法必须考虑依赖关系，因为Communication的数据类型比较简单，这样接口只需要返回简单的数据类型即可</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="keyword">final</span> <span class="class"><span class="keyword">class</span> <span class="title">DefaultJobPluginCollector</span> <span class="keyword">implements</span> <span class="title">JobPluginCollector</span> </span>&#123;</span><br><span class="line">    </span><br><span class="line">    <span class="meta">@Override</span></span><br><span class="line">    <span class="function"><span class="keyword">public</span> Map&lt;String, Number&gt; <span class="title">getCounter</span><span class="params">()</span> </span>&#123;</span><br><span class="line">        <span class="keyword">return</span> <span class="keyword">this</span>.jobCollector.collect().getCounter();</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">interface</span> <span class="title">JobPluginCollector</span> <span class="keyword">extends</span> <span class="title">PluginCollector</span> </span>&#123;</span><br><span class="line">    <span class="function">Map&lt;String, Number&gt; <span class="title">getCounter</span><span class="params">()</span></span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>现在解决了读取数据的需求了，接下来实现JobResultCollector的postHandler方法。可以结合CommunicationTool里面的变量，获取对应的数据。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">@Override</span></span><br><span class="line"><span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">postHandler</span><span class="params">(Configuration jobConfiguration)</span> </span>&#123;</span><br><span class="line">    LOG.info(<span class="string">"plugin Collector post handler"</span>);</span><br><span class="line">    Map&lt;String, Number&gt; counter = getJobPluginCollector().getCounter();</span><br><span class="line">    <span class="keyword">long</span> successReadRecords = getLongCounter(counter, CommunicationTool.READ_SUCCEED_RECORDS);</span><br><span class="line">    <span class="keyword">long</span> failedReadRecords = getLongCounter(counter, CommunicationTool.READ_FAILED_RECORDS);</span><br><span class="line">    <span class="keyword">long</span> totalReadRecords = successReadRecords - failedReadRecords;</span><br><span class="line">    LOG.info(<span class="string">"total records : "</span> + totalReadRecords);</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">private</span> <span class="keyword">long</span> <span class="title">getLongCounter</span><span class="params">(Map&lt;String, Number&gt; counter, String key)</span> </span>&#123;</span><br><span class="line">    Number value = counter.get(key);</span><br><span class="line">    <span class="keyword">return</span> value == <span class="keyword">null</span> ? <span class="number">0</span> : value.longValue();</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+      
+    </div>
+    
+    
+    
+
+    
+
+    
+
+    
+
+    <footer class="post-footer">
+      
+        <div class="post-tags">
+          
+            <a href="/tags/datax/" rel="tag"># datax</a>
+          
+        </div>
+      
+
+      
+      
+      
+
+      
+        <div class="post-nav">
+          <div class="post-nav-next post-nav-item">
+            
+              <a href="/2018/12/27/Datax数据统计原理/" rel="next" title="Datax数据统计原理">
+                <i class="fa fa-chevron-left"></i> Datax数据统计原理
+              </a>
+            
+          </div>
+
+          <span class="post-nav-divider"></span>
+
+          <div class="post-nav-prev post-nav-item">
+            
+          </div>
+        </div>
+      
+
+      
+      
+    </footer>
+  </div>
+  
+  
+  
+  </article>
+
+
+
+    <div class="post-spread">
+      
+    </div>
+  </div>
+
+
+          </div>
+          
+
+
+          
+
+  
+
+
+
+        </div>
+        
+          
+  
+  <div class="sidebar-toggle">
+    <div class="sidebar-toggle-line-wrap">
+      <span class="sidebar-toggle-line sidebar-toggle-line-first"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-middle"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-last"></span>
+    </div>
+  </div>
+
+  <aside id="sidebar" class="sidebar">
+    
+    <div class="sidebar-inner">
+
+      
+
+      
+        <ul class="sidebar-nav motion-element">
+          <li class="sidebar-nav-toc sidebar-nav-active" data-target="post-toc-wrap">
+            Table of Contents
+          </li>
+          <li class="sidebar-nav-overview" data-target="site-overview-wrap">
+            Overview
+          </li>
+        </ul>
+      
+
+      <section class="site-overview-wrap sidebar-panel">
+        <div class="site-overview">
+          <div class="site-author motion-element" itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+            
+              <p class="site-author-name" itemprop="name">zhmin</p>
+              <p class="site-description motion-element" itemprop="description"></p>
+          </div>
+
+          <nav class="site-state motion-element">
+
+            
+              <div class="site-state-item site-state-posts">
+              
+                <a href="/archives/">
+              
+                  <span class="site-state-item-count">5</span>
+                  <span class="site-state-item-name">posts</span>
+                </a>
+              </div>
+            
+
+            
+
+            
+              
+              
+              <div class="site-state-item site-state-tags">
+                
+                  <span class="site-state-item-count">4</span>
+                  <span class="site-state-item-name">tags</span>
+                
+              </div>
+            
+
+          </nav>
+
+          
+
+          
+            <div class="links-of-author motion-element">
+                
+                  <span class="links-of-author-item">
+                    <a href="https://github.com/zhmin" target="_blank" title="GitHub">
+                      
+                        <i class="fa fa-fw fa-github"></i>GitHub</a>
+                  </span>
+                
+            </div>
+          
+
+          
+          
+
+          
+          
+
+          
+
+        </div>
+      </section>
+
+      
+      <!--noindex-->
+        <section class="post-toc-wrap motion-element sidebar-panel sidebar-panel-active">
+          <div class="post-toc">
+
+            
+              
+            
+
+            
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#Datax-任务执行流程"><span class="nav-number">1.</span> <span class="nav-text">Datax 任务执行流程</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#加载配置"><span class="nav-number">1.1.</span> <span class="nav-text">加载配置</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#JobContainer原理"><span class="nav-number">1.2.</span> <span class="nav-text">JobContainer原理</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#加载-和运行-Handler的初始化函数"><span class="nav-number">1.2.1.</span> <span class="nav-text">加载 和运行 Handler的初始化函数</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#加载Reader和Writer"><span class="nav-number">1.2.2.</span> <span class="nav-text">加载Reader和Writer</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Reader和Writer的初始化回调函数"><span class="nav-number">1.2.3.</span> <span class="nav-text">Reader和Writer的初始化回调函数</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#切分任务"><span class="nav-number">1.2.4.</span> <span class="nav-text">切分任务</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#分配和执行任务"><span class="nav-number">1.2.5.</span> <span class="nav-text">分配和执行任务</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#调用Reader和Writer的完成回调函数"><span class="nav-number">1.2.6.</span> <span class="nav-text">调用Reader和Writer的完成回调函数</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#加载-和运行-Handler的完成函数"><span class="nav-number">1.2.7.</span> <span class="nav-text">加载 和运行 Handler的完成函数</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#扩展-handler-插件"><span class="nav-number">1.3.</span> <span class="nav-text">扩展 handler 插件</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#修改插件加载"><span class="nav-number">1.3.1.</span> <span class="nav-text">修改插件加载</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#自定义Handler类"><span class="nav-number">1.3.2.</span> <span class="nav-text">自定义Handler类</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#增加结果数据读取功能"><span class="nav-number">1.3.3.</span> <span class="nav-text">增加结果数据读取功能</span></a></li></ol></li></ol></li></ol></div>
+            
+
+          </div>
+        </section>
+      <!--/noindex-->
+      
+
+      
+
+    </div>
+  </aside>
+
+
+        
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="footer-inner">
+        <div class="copyright">&copy; <span itemprop="copyrightYear">2018</span>
+  <span class="with-love">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">zhmin</span>
+
+  
+</div>
+
+
+
+
+
+
+
+
+
+
+
+  <script src="https://unpkg.com/mermaid@7.1.2/dist/mermaid.min.js"></script>
+  <script>
+    if (window.mermaid) {
+      mermaid.initialize({"startOnload":"true  // default true","theme":"forest"});
+    }
+  </script>
+
+
+
+<script async src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+<span id="busuanzi_container_site_pv">
+    访问量<span id="busuanzi_value_site_pv"></span>
+</span>
+<span class="post-meta-divider">|</span>
+<span id="busuanzi_container_site_uv">
+  访客数<span id="busuanzi_value_site_uv"></span>
+</span>
+
+        
+
+
+
+
+
+
+
+        
+      </div>
+    </footer>
+
+    
+      <div class="back-to-top">
+        <i class="fa fa-arrow-up"></i>
+        
+      </div>
+    
+
+    
+
+  </div>
+
+  
+
+<script type="text/javascript">
+  if (Object.prototype.toString.call(window.Promise) !== '[object Function]') {
+    window.Promise = null;
+  }
+</script>
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery/index.js?v=2.1.3"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fastclick/lib/fastclick.min.js?v=1.0.6"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery_lazyload/jquery.lazyload.js?v=1.9.7"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.ui.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fancybox/source/jquery.fancybox.pack.js?v=2.1.5"></script>
+  
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/utils.js?v=5.1.4"></script>
+
+  <script type="text/javascript" src="/js/src/motion.js?v=5.1.4"></script>
+
+
+
+  
+  
+
+  
+  <script type="text/javascript" src="/js/src/scrollspy.js?v=5.1.4"></script>
+<script type="text/javascript" src="/js/src/post-details.js?v=5.1.4"></script>
+
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/bootstrap.js?v=5.1.4"></script>
+
+
+
+  
+
+
+  
+
+
+
+
+	
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+</body>
+</html>
