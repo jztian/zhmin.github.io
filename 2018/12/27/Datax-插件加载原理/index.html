@@ -1,0 +1,726 @@
+<!DOCTYPE html>
+
+
+
+  
+
+
+<html class="theme-next mist use-motion" lang="">
+<head><meta name="generator" content="Hexo 3.8.0">
+  <meta charset="UTF-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="theme-color" content="#222">
+
+
+
+
+
+
+
+
+
+<meta http-equiv="Cache-Control" content="no-transform">
+<meta http-equiv="Cache-Control" content="no-siteapp">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+  <link href="/lib/fancybox/source/jquery.fancybox.css?v=2.1.5" rel="stylesheet" type="text/css">
+
+
+
+
+
+
+
+<link href="/lib/font-awesome/css/font-awesome.min.css?v=4.6.2" rel="stylesheet" type="text/css">
+
+<link href="/css/main.css?v=5.1.4" rel="stylesheet" type="text/css">
+
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png?v=5.1.4">
+
+
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png?v=5.1.4">
+
+
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png?v=5.1.4">
+
+
+  <link rel="mask-icon" href="/images/logo.svg?v=5.1.4" color="#222">
+
+
+
+
+
+  <meta name="keywords" content="data, plugin,">
+
+
+
+
+
+
+
+
+
+
+<meta name="description" content="Datax 插件加载原理插件类型Datax有好几种类型的插件，每个插件都有不同的作用。  reader， 读插件。Reader就是属于这种类型的 writer， 写插件。Writer就是属于这种类型的 transformer， 目前还未知 handler， 主要用于任务执行前的准备工作和完成的收尾工作。  插件类型由PluginType枚举表示 123public enum PluginType">
+<meta name="keywords" content="data, plugin">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Datax 插件加载原理">
+<meta property="og:url" content="http://yoursite.com/2018/12/27/Datax-插件加载原理/index.html">
+<meta property="og:site_name" content="blog">
+<meta property="og:description" content="Datax 插件加载原理插件类型Datax有好几种类型的插件，每个插件都有不同的作用。  reader， 读插件。Reader就是属于这种类型的 writer， 写插件。Writer就是属于这种类型的 transformer， 目前还未知 handler， 主要用于任务执行前的准备工作和完成的收尾工作。  插件类型由PluginType枚举表示 123public enum PluginType">
+<meta property="og:locale" content="default">
+<meta property="og:image" content="https://github.com/zhmin/blog/blob/datax/datax/images/plugin-uml.png?raw=true">
+<meta property="og:updated_time" content="2018-12-28T14:59:06.088Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Datax 插件加载原理">
+<meta name="twitter:description" content="Datax 插件加载原理插件类型Datax有好几种类型的插件，每个插件都有不同的作用。  reader， 读插件。Reader就是属于这种类型的 writer， 写插件。Writer就是属于这种类型的 transformer， 目前还未知 handler， 主要用于任务执行前的准备工作和完成的收尾工作。  插件类型由PluginType枚举表示 123public enum PluginType">
+<meta name="twitter:image" content="https://github.com/zhmin/blog/blob/datax/datax/images/plugin-uml.png?raw=true">
+
+
+
+<script type="text/javascript" id="hexo.configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '/',
+    scheme: 'Mist',
+    version: '5.1.4',
+    sidebar: {"position":"left","display":"hide","offset":12,"b2t":false,"scrollpercent":false,"onmobile":false},
+    fancybox: true,
+    tabs: true,
+    motion: {"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},
+    duoshuo: {
+      userId: '0',
+      author: 'Author'
+    },
+    algolia: {
+      applicationID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    }
+  };
+</script>
+
+
+
+  <link rel="canonical" href="http://yoursite.com/2018/12/27/Datax-插件加载原理/">
+
+
+
+
+
+  <title>Datax 插件加载原理 | blog</title>
+  
+
+
+
+
+
+
+
+
+</head>
+
+<body itemscope="" itemtype="http://schema.org/WebPage" lang="default">
+
+  
+  
+    
+  
+
+  <div class="container sidebar-position-left page-post-detail">
+    <div class="headband"></div>
+
+    <header id="header" class="header" itemscope="" itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-wrapper">
+  <div class="site-meta ">
+    
+
+    <div class="custom-logo-site-title">
+      <a href="/" class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">blog</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+      
+        <h1 class="site-subtitle" itemprop="description"></h1>
+      
+  </div>
+
+  <div class="site-nav-toggle">
+    <button>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+    </button>
+  </div>
+</div>
+
+<nav class="site-nav">
+  
+
+  
+    <ul id="menu" class="menu">
+      
+        
+        <li class="menu-item menu-item-home">
+          <a href="/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-home"></i> <br>
+            
+            Home
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-archives">
+          <a href="/archives/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-archive"></i> <br>
+            
+            Archives
+          </a>
+        </li>
+      
+
+      
+    </ul>
+  
+
+  
+</nav>
+
+
+
+ </div>
+    </header>
+
+    <main id="main" class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          <div id="content" class="content">
+            
+
+  <div id="posts" class="posts-expand">
+    
+
+  
+
+  
+  
+  
+
+  <article class="post post-type-normal" itemscope="" itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2018/12/27/Datax-插件加载原理/">
+
+    <span hidden itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="zhmin">
+      <meta itemprop="description" content="">
+      <meta itemprop="image" content="/images/avatar.gif">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope="" itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="blog">
+    </span>
+
+    
+      <header class="post-header">
+
+        
+        
+          <h2 class="post-title" itemprop="name headline">Datax 插件加载原理</h2>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">Posted on</span>
+              
+              <time title="Post created" itemprop="dateCreated datePublished" datetime="2018-12-27T22:30:47+08:00">
+                2018-12-27
+              </time>
+            
+
+            
+
+            
+          </span>
+
+          
+
+          
+            
+          
+
+          
+          
+
+          
+
+          
+
+          
+
+        </div>
+      </header>
+    
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+      
+
+      
+        <h1 id="Datax-插件加载原理"><a href="#Datax-插件加载原理" class="headerlink" title="Datax 插件加载原理"></a>Datax 插件加载原理</h1><h2 id="插件类型"><a href="#插件类型" class="headerlink" title="插件类型"></a>插件类型</h2><p>Datax有好几种类型的插件，每个插件都有不同的作用。</p>
+<ul>
+<li>reader， 读插件。Reader就是属于这种类型的</li>
+<li>writer， 写插件。Writer就是属于这种类型的</li>
+<li>transformer， 目前还未知</li>
+<li>handler， 主要用于任务执行前的准备工作和完成的收尾工作。</li>
+</ul>
+<p>插件类型由PluginType枚举表示</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="keyword">enum</span> PluginType &#123;</span><br><span class="line">	READER(<span class="string">"reader"</span>), TRANSFORMER(<span class="string">"transformer"</span>), WRITER(<span class="string">"writer"</span>), HANDLER(<span class="string">"handler"</span>);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>根据运行类型，又可以分为Job级别的插件和Task级别的插件。uml如下图所示</p>
+<p><img src="https://github.com/zhmin/blog/blob/datax/datax/images/plugin-uml.png?raw=true" alt=""></p>
+<h2 id="插件配置读取"><a href="#插件配置读取" class="headerlink" title="插件配置读取"></a>插件配置读取</h2><p>ConfigParser首先会读取配置文件，提取需要使用的reader，writer，prehandler 和 posthandler的名称。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">public</span> <span class="keyword">static</span> Configuration <span class="title">parse</span><span class="params">(<span class="keyword">final</span> String jobPath)</span> </span>&#123;</span><br><span class="line">    Configuration configuration = ConfigParser.parseJobConfig(jobPath);</span><br><span class="line">    <span class="comment">// 合并 conf/core.json文件的配置, false 表示不覆盖原有的配置</span></span><br><span class="line">    configuration.merge(</span><br><span class="line">            <span class="comment">//CoreConstant.DATAX_CONF_PATH的值为conf/core.json</span></span><br><span class="line">            ConfigParser.parseCoreConfig</span><br><span class="line">            (CoreConstant.DATAX_CONF_PATH),</span><br><span class="line">            <span class="keyword">false</span>);</span><br><span class="line">    <span class="comment">// 获取job.content列表的第一个reader</span></span><br><span class="line">    String readerPluginName = configuration.getString(</span><br><span class="line">            <span class="comment">//CoreConstant.DATAX_JOB_CONTENT_READER_NAME的值为job.content[0].reader.name</span></span><br><span class="line">            CoreConstant.DATAX_JOB_CONTENT_READER_NAME);</span><br><span class="line">    <span class="comment">// 获取job.content列表的第一个writer</span></span><br><span class="line">    String writerPluginName = configuration.getString(</span><br><span class="line">            <span class="comment">//CoreConstant.DATAX_JOB_CONTENT_WRITER_NAME的值为job.content[0].writer.name</span></span><br><span class="line">            CoreConstant.DATAX_JOB_CONTENT_WRITER_NAME);</span><br><span class="line">    <span class="comment">// 读取job.preHandler.pluginName</span></span><br><span class="line">    String preHandlerName = configuration.getString(</span><br><span class="line">            <span class="comment">//CoreConstant.DATAX_JOB_PREHANDLER_PLUGINNAME的值为job.preHandler.pluginName</span></span><br><span class="line">            CoreConstant.DATAX_JOB_PREHANDLER_PLUGINNAME);</span><br><span class="line">    <span class="comment">// 读取job.postHandler.pluginName</span></span><br><span class="line">    String postHandlerName = configuration.getString(</span><br><span class="line">            <span class="comment">//CoreConstant.DATAX_JOB_POSTHANDLER_PLUGINNAME的值为job.postHandler.pluginName</span></span><br><span class="line">            CoreConstant.DATAX_JOB_POSTHANDLER_PLUGINNAME);</span><br><span class="line"></span><br><span class="line">    Set&lt;String&gt; pluginList = <span class="keyword">new</span> HashSet&lt;String&gt;();</span><br><span class="line">    pluginList.add(readerPluginName);</span><br><span class="line">    pluginList.add(writerPluginName);</span><br><span class="line">    ......</span><br><span class="line">    <span class="comment">// 调用parsePluginConfig生成plugin的配置，然后合并</span></span><br><span class="line">    configuration.merge(parsePluginConfig(<span class="keyword">new</span> ArrayList&lt;String&gt;(pluginList)), <span class="keyword">false</span>);</span><br><span class="line">    ......</span><br><span class="line">    <span class="keyword">return</span> configuration;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>提取完插件名称后，会去reader目录和writer目录，寻找插件的位置。目前Datax只支持reader和writer插件，因为它只从这两个目录中寻找。如果想自己扩展其他类型插件的话，比如handler类型的， 需要修改parsePluginConfig的代码。每个插件目录会有一个重要的配置文件 plugin.json ，它定义了插件的名称和对应的类，在LoadUtils类加载插件的时候会使用到。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br></pre></td><td class="code"><pre><span class="line">   <span class="function"><span class="keyword">public</span> <span class="keyword">static</span> Configuration <span class="title">parsePluginConfig</span><span class="params">(List&lt;String&gt; wantPluginNames)</span> </span>&#123;</span><br><span class="line">       Configuration configuration = Configuration.newDefault();</span><br><span class="line">       ......</span><br><span class="line">       <span class="comment">// 遍历plugin.reader目录下的文件夹</span></span><br><span class="line">       <span class="keyword">for</span> (<span class="keyword">final</span> String each : ConfigParser</span><br><span class="line">               .getDirAsList(CoreConstant.DATAX_PLUGIN_READER_HOME)) &#123;</span><br><span class="line">           <span class="comment">// 调用 parseOnePluginConfig解析单个plugin配置</span></span><br><span class="line">           Configuration eachReaderConfig = ConfigParser.parseOnePluginConfig(each, <span class="string">"reader"</span>, replicaCheckPluginSet, wantPluginNames);</span><br><span class="line">           <span class="keyword">if</span>(eachReaderConfig!=<span class="keyword">null</span>) &#123;</span><br><span class="line">               configuration.merge(eachReaderConfig, <span class="keyword">true</span>);</span><br><span class="line">               complete += <span class="number">1</span>;</span><br><span class="line">           &#125;</span><br><span class="line">       &#125;</span><br><span class="line"></span><br><span class="line">       <span class="comment">// 遍历plugin.writer目录下的文件夹</span></span><br><span class="line">       <span class="keyword">for</span> (<span class="keyword">final</span> String each : ConfigParser</span><br><span class="line">               .getDirAsList(CoreConstant.DATAX_PLUGIN_WRITER_HOME)) &#123;</span><br><span class="line">           <span class="comment">// 调用 parseOnePluginConfig解析单个plugin配置</span></span><br><span class="line">           Configuration eachWriterConfig = ConfigParser.parseOnePluginConfig(each, <span class="string">"writer"</span>, replicaCheckPluginSet, wantPluginNames);</span><br><span class="line">           <span class="keyword">if</span>(eachWriterConfig!=<span class="keyword">null</span>) &#123;</span><br><span class="line">               configuration.merge(eachWriterConfig, <span class="keyword">true</span>);</span><br><span class="line">               complete += <span class="number">1</span>;</span><br><span class="line">           &#125;</span><br><span class="line">       &#125;</span><br><span class="line">       </span><br><span class="line">       ......</span><br><span class="line"></span><br><span class="line">       <span class="keyword">return</span> configuration;</span><br><span class="line">   &#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 读取plugin目录下的plugin.json 文件</span></span><br><span class="line"><span class="function"><span class="keyword">public</span> <span class="keyword">static</span> Configuration <span class="title">parseOnePluginConfig</span><span class="params">(<span class="keyword">final</span> String path, <span class="keyword">final</span> String type, Set&lt;String&gt; pluginSet, List&lt;String&gt; wantPluginNames)</span> </span>&#123;</span><br><span class="line">       String filePath = path + File.separator + <span class="string">"plugin.json"</span>;</span><br><span class="line">       Configuration configuration = Configuration.from(<span class="keyword">new</span> File(filePath));</span><br><span class="line"></span><br><span class="line">       String pluginPath = configuration.getString(<span class="string">"path"</span>);</span><br><span class="line">       String pluginName = configuration.getString(<span class="string">"name"</span>);</span><br><span class="line">       <span class="keyword">if</span>(!pluginSet.contains(pluginName)) &#123;</span><br><span class="line">           pluginSet.add(pluginName);</span><br><span class="line">       &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">           ......</span><br><span class="line">       &#125;</span><br><span class="line"></span><br><span class="line">       <span class="comment">//不是想要的插件，就不生成配置，直接返回</span></span><br><span class="line">       <span class="keyword">if</span> (wantPluginNames != <span class="keyword">null</span> &amp;&amp; wantPluginNames.size() &gt; <span class="number">0</span> &amp;&amp; !wantPluginNames.contains(pluginName)) &#123;</span><br><span class="line">           <span class="keyword">return</span> <span class="keyword">null</span>;</span><br><span class="line">       &#125;</span><br><span class="line"></span><br><span class="line">       <span class="comment">// plugin.json的path路径，是指插件的jar包。如果没有指定，则默认为和plugin.json文件在同一个目录下</span></span><br><span class="line">       <span class="keyword">boolean</span> isDefaultPath = StringUtils.isBlank(pluginPath);</span><br><span class="line">       <span class="keyword">if</span> (isDefaultPath) &#123;</span><br><span class="line">           configuration.set(<span class="string">"path"</span>, path);</span><br><span class="line">       &#125;</span><br><span class="line"></span><br><span class="line">       Configuration result = Configuration.newDefault();</span><br><span class="line">       <span class="comment">// 最后保存在puligin.&#123;type&#125;.&#123;pluginName&#125;路径下</span></span><br><span class="line">       result.set(</span><br><span class="line">               String.format(<span class="string">"plugin.%s.%s"</span>, type, pluginName),</span><br><span class="line">               configuration.getInternal());</span><br><span class="line"></span><br><span class="line">       <span class="keyword">return</span> result;</span><br><span class="line">   &#125;</span><br></pre></td></tr></table></figure>
+<h2 id="动态加载插件"><a href="#动态加载插件" class="headerlink" title="动态加载插件"></a>动态加载插件</h2><p>插件的加载都是使用ClassLoader动态加载。 为了避免类的冲突，对于每个插件的加载，对应着独立的加载器。加载器由JarLoader实现，插件的加载接口由LoadUtil类负责。当要加载一个插件时，需要实例化一个JarLoader，然后切换thread class loader之后，才加载插件。</p>
+<h3 id="JarLoader-类"><a href="#JarLoader-类" class="headerlink" title="JarLoader 类"></a>JarLoader 类</h3><p>JarLoader继承URLClassLoader，扩充了可以加载目录的功能。可以从指定的目录下，把传入的路径、及其子路径、以及路径中的jar文件加入到class path。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">JarLoader</span> <span class="keyword">extends</span> <span class="title">URLClassLoader</span> </span>&#123;</span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="title">JarLoader</span><span class="params">(String[] paths)</span> </span>&#123;</span><br><span class="line">        <span class="keyword">this</span>(paths, JarLoader.class.getClassLoader());</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="title">JarLoader</span><span class="params">(String[] paths, ClassLoader parent)</span> </span>&#123;</span><br><span class="line">        <span class="comment">// 调用getURLS，获取所有的jar包路径</span></span><br><span class="line">        <span class="keyword">super</span>(getURLs(paths), parent);</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 获取所有的jar包</span></span><br><span class="line">    <span class="keyword">private</span> <span class="keyword">static</span> URL[] getURLs(String[] paths) &#123;</span><br><span class="line">        <span class="comment">// 获取包括子目录的所有目录路径</span></span><br><span class="line">        List&lt;String&gt; dirs = <span class="keyword">new</span> ArrayList&lt;String&gt;();</span><br><span class="line">        <span class="keyword">for</span> (String path : paths) &#123;</span><br><span class="line">            dirs.add(path);</span><br><span class="line">            <span class="comment">// 获取path目录和其子目录的所有目录路径</span></span><br><span class="line">            JarLoader.collectDirs(path, dirs);</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="comment">// 遍历目录，获取jar包的路径</span></span><br><span class="line">        List&lt;URL&gt; urls = <span class="keyword">new</span> ArrayList&lt;URL&gt;();</span><br><span class="line">        <span class="keyword">for</span> (String path : dirs) &#123;</span><br><span class="line">            urls.addAll(doGetURLs(path));</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        <span class="keyword">return</span> urls.toArray(<span class="keyword">new</span> URL[<span class="number">0</span>]);</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 递归的方式，获取所有目录</span></span><br><span class="line">    <span class="function"><span class="keyword">private</span> <span class="keyword">static</span> <span class="keyword">void</span> <span class="title">collectDirs</span><span class="params">(String path, List&lt;String&gt; collector)</span> </span>&#123;</span><br><span class="line">        <span class="comment">// path为空，终止</span></span><br><span class="line">        <span class="keyword">if</span> (<span class="keyword">null</span> == path || StringUtils.isBlank(path)) &#123;</span><br><span class="line">            <span class="keyword">return</span>;</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        <span class="comment">// path不为目录，终止</span></span><br><span class="line">        File current = <span class="keyword">new</span> File(path);</span><br><span class="line">        <span class="keyword">if</span> (!current.exists() || !current.isDirectory()) &#123;</span><br><span class="line">            <span class="keyword">return</span>;</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        <span class="comment">// 遍历完子文件，终止</span></span><br><span class="line">        <span class="keyword">for</span> (File child : current.listFiles()) &#123;</span><br><span class="line">            <span class="keyword">if</span> (!child.isDirectory()) &#123;</span><br><span class="line">                <span class="keyword">continue</span>;</span><br><span class="line">            &#125;</span><br><span class="line"></span><br><span class="line">            collector.add(child.getAbsolutePath());</span><br><span class="line">            collectDirs(child.getAbsolutePath(), collector);</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;    </span><br><span class="line"></span><br><span class="line">    <span class="function"><span class="keyword">private</span> <span class="keyword">static</span> List&lt;URL&gt; <span class="title">doGetURLs</span><span class="params">(<span class="keyword">final</span> String path)</span> </span>&#123;</span><br><span class="line">        </span><br><span class="line">        File jarPath = <span class="keyword">new</span> File(path);</span><br><span class="line">		<span class="comment">// 只寻找文件以.jar结尾的文件</span></span><br><span class="line">        FileFilter jarFilter = <span class="keyword">new</span> FileFilter() &#123;</span><br><span class="line">            <span class="meta">@Override</span></span><br><span class="line">            <span class="function"><span class="keyword">public</span> <span class="keyword">boolean</span> <span class="title">accept</span><span class="params">(File pathname)</span> </span>&#123;</span><br><span class="line">                <span class="keyword">return</span> pathname.getName().endsWith(<span class="string">".jar"</span>);</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;;</span><br><span class="line"></span><br><span class="line">		</span><br><span class="line">        File[] allJars = <span class="keyword">new</span> File(path).listFiles(jarFilter);</span><br><span class="line">        List&lt;URL&gt; jarURLs = <span class="keyword">new</span> ArrayList&lt;URL&gt;(allJars.length);</span><br><span class="line"></span><br><span class="line">        <span class="keyword">for</span> (<span class="keyword">int</span> i = <span class="number">0</span>; i &lt; allJars.length; i++) &#123;</span><br><span class="line">            <span class="keyword">try</span> &#123;</span><br><span class="line">                jarURLs.add(allJars[i].toURI().toURL());</span><br><span class="line">            &#125; <span class="keyword">catch</span> (Exception e) &#123;</span><br><span class="line">                <span class="keyword">throw</span> DataXException.asDataXException(</span><br><span class="line">                        FrameworkErrorCode.PLUGIN_INIT_ERROR,</span><br><span class="line">                        <span class="string">"系统加载jar包出错"</span>, e);</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        <span class="keyword">return</span> jarURLs;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h3 id="LoadUtil-类"><a href="#LoadUtil-类" class="headerlink" title="LoadUtil 类"></a>LoadUtil 类</h3><p>LoadUtil管理着插件的加载器，调用getJarLoader返回插件对应的加载器。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">LoadUtil</span> </span>&#123;</span><br><span class="line">    </span><br><span class="line">    <span class="comment">// 加载器的HashMap, Key由插件类型和名称决定, 格式为plugin.&#123;pulginType&#125;.&#123;pluginName&#125;</span></span><br><span class="line">    <span class="keyword">private</span> <span class="keyword">static</span> Map&lt;String, JarLoader&gt; jarLoaderCenter = <span class="keyword">new</span> HashMap&lt;String, JarLoader&gt;();</span><br><span class="line"></span><br><span class="line">	<span class="function"><span class="keyword">public</span> <span class="keyword">static</span> <span class="keyword">synchronized</span> JarLoader <span class="title">getJarLoader</span><span class="params">(PluginType pluginType, String pluginName)</span> </span>&#123;</span><br><span class="line">        Configuration pluginConf = getPluginConf(pluginType, pluginName);</span><br><span class="line"></span><br><span class="line">        JarLoader jarLoader = jarLoaderCenter.get(generatePluginKey(pluginType,</span><br><span class="line">                pluginName));</span><br><span class="line">        <span class="keyword">if</span> (<span class="keyword">null</span> == jarLoader) &#123;</span><br><span class="line">            <span class="comment">// 构建加载器JarLoader</span></span><br><span class="line">            <span class="comment">// 获取jar所在的目录</span></span><br><span class="line">            String pluginPath = pluginConf.getString(<span class="string">"path"</span>);</span><br><span class="line">            jarLoader = <span class="keyword">new</span> JarLoader(<span class="keyword">new</span> String[]&#123;pluginPath&#125;);</span><br><span class="line">            <span class="comment">//添加到HashMap中</span></span><br><span class="line">            jarLoaderCenter.put(generatePluginKey(pluginType, pluginName),</span><br><span class="line">                    jarLoader);</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        <span class="keyword">return</span> jarLoader;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">private</span> <span class="keyword">static</span> <span class="keyword">final</span> String pluginTypeNameFormat = <span class="string">"plugin.%s.%s"</span>;</span><br><span class="line">	</span><br><span class="line">    <span class="comment">// 生成HashMpa的key值</span></span><br><span class="line">    <span class="function"><span class="keyword">private</span> <span class="keyword">static</span> String <span class="title">generatePluginKey</span><span class="params">(PluginType pluginType,</span></span></span><br><span class="line"><span class="function"><span class="params">                                            String pluginName)</span> </span>&#123;</span><br><span class="line">        <span class="keyword">return</span> String.format(pluginTypeNameFormat, pluginType.toString(),</span><br><span class="line">                pluginName);</span><br><span class="line">    &#125;</span><br></pre></td></tr></table></figure>
+<p>当获取类加载器，就可以调用LoadUtil来加载插件。LoadUtil提供了 loadJobPlugin 和  loadTaskPlugin 两个接口，加载Job  和 Task 的两种插件。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 加载Job类型的Plugin</span></span><br><span class="line"><span class="function"><span class="keyword">public</span> <span class="keyword">static</span> AbstractJobPlugin <span class="title">loadJobPlugin</span><span class="params">(PluginType pluginType, String pluginName)</span> </span>&#123;</span><br><span class="line">        <span class="comment">// 调用loadPluginClass方法，加载插件对应的class</span></span><br><span class="line">        Class&lt;? extends AbstractPlugin&gt; clazz = LoadUtil.loadPluginClass(pluginType, pluginName, ContainerType.Job);</span><br><span class="line"></span><br><span class="line">        <span class="comment">// 实例化Plugin，转换为AbstractJobPlugin</span></span><br><span class="line">        AbstractJobPlugin jobPlugin = (AbstractJobPlugin) clazz.newInstance();</span><br><span class="line">        <span class="comment">// 设置Job的配置,路径为plugin.&#123;pluginType&#125;.&#123;pluginName&#125;</span></span><br><span class="line">        jobPlugin.setPluginConf(getPluginConf(pluginType, pluginName));</span><br><span class="line">        <span class="keyword">return</span> jobPlugin;</span><br><span class="line"></span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 加载Task类型的Plugin</span></span><br><span class="line"><span class="function"><span class="keyword">public</span> <span class="keyword">static</span> AbstractTaskPlugin <span class="title">loadTaskPlugin</span><span class="params">(PluginType pluginType, String pluginName)</span> </span>&#123;</span><br><span class="line">        <span class="comment">// 调用loadPluginClass方法，加载插件对应的class</span></span><br><span class="line">        Class&lt;? extends AbstractPlugin&gt; clazz = LoadUtil.loadPluginClass(pluginType, pluginName, ContainerType.Task);</span><br><span class="line">        <span class="comment">// 实例化Plugin，转换为AbstractTaskPlugin</span></span><br><span class="line">        AbstractTaskPlugin taskPlugin = (AbstracTasktTaskPlugin) clazz.newInstance();</span><br><span class="line">        <span class="comment">// 设置Task的配置,路径为plugin.&#123;pluginType&#125;.&#123;pluginName&#125;</span></span><br><span class="line">        taskPlugin.setPluginConf(getPluginConf(pluginType, pluginName));</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 加载插件类</span></span><br><span class="line"><span class="comment">// pluginType 代表插件类型</span></span><br><span class="line"><span class="comment">// pluginName 代表插件名称</span></span><br><span class="line"><span class="comment">// pluginRunType 代表着运行类型，Job或者Task</span></span><br><span class="line"><span class="keyword">private</span> <span class="keyword">static</span> <span class="keyword">synchronized</span> Class&lt;? extends AbstractPlugin&gt; loadPluginClass(</span><br><span class="line">    PluginType pluginType, String pluginName,</span><br><span class="line">    ContainerType pluginRunType) &#123;</span><br><span class="line">    <span class="comment">// 获取插件配置</span></span><br><span class="line">    Configuration pluginConf = getPluginConf(pluginType, pluginName);</span><br><span class="line">    <span class="comment">// 获取插件对应的ClassLoader</span></span><br><span class="line">    JarLoader jarLoader = LoadUtil.getJarLoader(pluginType, pluginName);</span><br><span class="line">    <span class="keyword">try</span> &#123;</span><br><span class="line">        <span class="comment">// 加载插件的class</span></span><br><span class="line">        <span class="keyword">return</span> (Class&lt;? extends AbstractPlugin&gt;) jarLoader</span><br><span class="line">            .loadClass(pluginConf.getString(<span class="string">"class"</span>) + <span class="string">"$"</span></span><br><span class="line">                       + pluginRunType.value());</span><br><span class="line">    &#125; <span class="keyword">catch</span> (Exception e) &#123;</span><br><span class="line">        <span class="keyword">throw</span> DataXException.asDataXException(FrameworkErrorCode.RUNTIME_ERROR, e);</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h2 id="切换类加载器"><a href="#切换类加载器" class="headerlink" title="切换类加载器"></a>切换类加载器</h2><p>ClassLoaderSwapper类，提供了比较方便的切换接口。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 实例化</span></span><br><span class="line">ClassLoaderSwapper classLoaderSwapper = ClassLoaderSwapper.newCurrentThreadClassLoaderSwapper();</span><br><span class="line"></span><br><span class="line">ClassLoader classLoader1 = <span class="keyword">new</span> URLClassLoader();</span><br><span class="line"><span class="comment">// 切换加载器classLoader1</span></span><br><span class="line">classLoaderSwapper.setCurrentThreadClassLoader(classLoader1);</span><br><span class="line">Class&lt;? extends MyClass&gt; myClass = classLoader1.loadClass(<span class="string">"MyClass"</span>);</span><br><span class="line"><span class="comment">// 切回加载器</span></span><br><span class="line">classLoaderSwapper.restoreCurrentThreadClassLoader();</span><br></pre></td></tr></table></figure>
+<p>ClassLoaderSwapper的源码比较简单， 它有一个属性storeClassLoader， 用于保存着切换之前的ClassLoader。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="keyword">final</span> <span class="class"><span class="keyword">class</span> <span class="title">ClassLoaderSwapper</span> </span>&#123;</span><br><span class="line">    </span><br><span class="line">    <span class="comment">// 保存切换之前的加载器</span></span><br><span class="line">    <span class="keyword">private</span> ClassLoader storeClassLoader = <span class="keyword">null</span>;</span><br><span class="line"></span><br><span class="line">    <span class="function"><span class="keyword">public</span> ClassLoader <span class="title">setCurrentThreadClassLoader</span><span class="params">(ClassLoader classLoader)</span> </span>&#123;</span><br><span class="line">        <span class="comment">// 保存切换前的加载器</span></span><br><span class="line">        <span class="keyword">this</span>.storeClassLoader = Thread.currentThread().getContextClassLoader();</span><br><span class="line">        <span class="comment">// 切换加载器到classLoader</span></span><br><span class="line">        Thread.currentThread().setContextClassLoader(classLoader);</span><br><span class="line">        <span class="keyword">return</span> <span class="keyword">this</span>.storeClassLoader;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line"></span><br><span class="line">    <span class="function"><span class="keyword">public</span> ClassLoader <span class="title">restoreCurrentThreadClassLoader</span><span class="params">()</span> </span>&#123;</span><br><span class="line">        </span><br><span class="line">        ClassLoader classLoader = Thread.currentThread()</span><br><span class="line">                .getContextClassLoader();</span><br><span class="line">        <span class="comment">// 切换到原来的加载器</span></span><br><span class="line">        Thread.currentThread().setContextClassLoader(<span class="keyword">this</span>.storeClassLoader);</span><br><span class="line">        <span class="comment">// 返回切换之前的类加载器</span></span><br><span class="line">        <span class="keyword">return</span> classLoader;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+      
+    </div>
+    
+    
+    
+
+    
+
+    
+
+    
+
+    <footer class="post-footer">
+      
+        <div class="post-tags">
+          
+            <a href="/tags/data-plugin/" rel="tag"># data, plugin</a>
+          
+        </div>
+      
+
+      
+      
+      
+
+      
+        <div class="post-nav">
+          <div class="post-nav-next post-nav-item">
+            
+              <a href="/2018/12/27/Datax-任务执行流程/" rel="next" title="Datax 任务执行流程">
+                <i class="fa fa-chevron-left"></i> Datax 任务执行流程
+              </a>
+            
+          </div>
+
+          <span class="post-nav-divider"></span>
+
+          <div class="post-nav-prev post-nav-item">
+            
+              <a href="/2018/12/28/Datax-任务分配原理/" rel="prev" title="Datax 任务分配原理">
+                Datax 任务分配原理 <i class="fa fa-chevron-right"></i>
+              </a>
+            
+          </div>
+        </div>
+      
+
+      
+      
+    </footer>
+  </div>
+  
+  
+  
+  </article>
+
+
+
+    <div class="post-spread">
+      
+    </div>
+  </div>
+
+
+          </div>
+          
+
+
+          
+
+  
+
+
+
+        </div>
+        
+          
+  
+  <div class="sidebar-toggle">
+    <div class="sidebar-toggle-line-wrap">
+      <span class="sidebar-toggle-line sidebar-toggle-line-first"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-middle"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-last"></span>
+    </div>
+  </div>
+
+  <aside id="sidebar" class="sidebar">
+    
+    <div class="sidebar-inner">
+
+      
+
+      
+        <ul class="sidebar-nav motion-element">
+          <li class="sidebar-nav-toc sidebar-nav-active" data-target="post-toc-wrap">
+            Table of Contents
+          </li>
+          <li class="sidebar-nav-overview" data-target="site-overview-wrap">
+            Overview
+          </li>
+        </ul>
+      
+
+      <section class="site-overview-wrap sidebar-panel">
+        <div class="site-overview">
+          <div class="site-author motion-element" itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+            
+              <p class="site-author-name" itemprop="name">zhmin</p>
+              <p class="site-description motion-element" itemprop="description"></p>
+          </div>
+
+          <nav class="site-state motion-element">
+
+            
+              <div class="site-state-item site-state-posts">
+              
+                <a href="/archives/">
+              
+                  <span class="site-state-item-count">7</span>
+                  <span class="site-state-item-name">posts</span>
+                </a>
+              </div>
+            
+
+            
+
+            
+              
+              
+              <div class="site-state-item site-state-tags">
+                
+                  <span class="site-state-item-count">6</span>
+                  <span class="site-state-item-name">tags</span>
+                
+              </div>
+            
+
+          </nav>
+
+          
+
+          
+            <div class="links-of-author motion-element">
+                
+                  <span class="links-of-author-item">
+                    <a href="https://github.com/zhmin" target="_blank" title="GitHub">
+                      
+                        <i class="fa fa-fw fa-github"></i>GitHub</a>
+                  </span>
+                
+            </div>
+          
+
+          
+          
+
+          
+          
+
+          
+
+        </div>
+      </section>
+
+      
+      <!--noindex-->
+        <section class="post-toc-wrap motion-element sidebar-panel sidebar-panel-active">
+          <div class="post-toc">
+
+            
+              
+            
+
+            
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#Datax-插件加载原理"><span class="nav-number">1.</span> <span class="nav-text">Datax 插件加载原理</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#插件类型"><span class="nav-number">1.1.</span> <span class="nav-text">插件类型</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#插件配置读取"><span class="nav-number">1.2.</span> <span class="nav-text">插件配置读取</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#动态加载插件"><span class="nav-number">1.3.</span> <span class="nav-text">动态加载插件</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#JarLoader-类"><span class="nav-number">1.3.1.</span> <span class="nav-text">JarLoader 类</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#LoadUtil-类"><span class="nav-number">1.3.2.</span> <span class="nav-text">LoadUtil 类</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#切换类加载器"><span class="nav-number">1.4.</span> <span class="nav-text">切换类加载器</span></a></li></ol></li></ol></div>
+            
+
+          </div>
+        </section>
+      <!--/noindex-->
+      
+
+      
+
+    </div>
+  </aside>
+
+
+        
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="footer-inner">
+        <div class="copyright">&copy; <span itemprop="copyrightYear">2018</span>
+  <span class="with-love">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">zhmin</span>
+
+  
+</div>
+
+
+
+
+
+
+
+
+
+
+
+  <script src="https://unpkg.com/mermaid@7.1.2/dist/mermaid.min.js"></script>
+  <script>
+    if (window.mermaid) {
+      mermaid.initialize({"startOnload":"true  // default true","theme":"forest"});
+    }
+  </script>
+
+
+
+<script async src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+<span id="busuanzi_container_site_pv">
+    访问量<span id="busuanzi_value_site_pv"></span>
+</span>
+<span class="post-meta-divider">|</span>
+<span id="busuanzi_container_site_uv">
+  访客数<span id="busuanzi_value_site_uv"></span>
+</span>
+
+        
+
+
+
+
+
+
+
+        
+      </div>
+    </footer>
+
+    
+      <div class="back-to-top">
+        <i class="fa fa-arrow-up"></i>
+        
+      </div>
+    
+
+    
+
+  </div>
+
+  
+
+<script type="text/javascript">
+  if (Object.prototype.toString.call(window.Promise) !== '[object Function]') {
+    window.Promise = null;
+  }
+</script>
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery/index.js?v=2.1.3"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fastclick/lib/fastclick.min.js?v=1.0.6"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery_lazyload/jquery.lazyload.js?v=1.9.7"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.ui.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fancybox/source/jquery.fancybox.pack.js?v=2.1.5"></script>
+  
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/utils.js?v=5.1.4"></script>
+
+  <script type="text/javascript" src="/js/src/motion.js?v=5.1.4"></script>
+
+
+
+  
+  
+
+  
+  <script type="text/javascript" src="/js/src/scrollspy.js?v=5.1.4"></script>
+<script type="text/javascript" src="/js/src/post-details.js?v=5.1.4"></script>
+
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/bootstrap.js?v=5.1.4"></script>
+
+
+
+  
+
+
+  
+
+
+
+
+	
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+</body>
+</html>
