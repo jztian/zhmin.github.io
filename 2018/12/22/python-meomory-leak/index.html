@@ -83,7 +83,7 @@
 <meta name="keywords" content="python, memory leak">
 <meta property="og:type" content="article">
 <meta property="og:title" content="python内存泄漏调试">
-<meta property="og:url" content="https://zhmin.github.io/2018/12/22/python内存泄漏调试/index.html">
+<meta property="og:url" content="https://zhmin.github.io/2018/12/22/python-meomory-leak/index.html">
 <meta property="og:site_name" content="blog">
 <meta property="og:description" content="记录一次内存泄漏的调试经历最近写了一个项目，是关于爬虫的，里面涉及到了django作为orm。当时在服务器上运行程序，发现内存占用持续增长，最后直到被系统kill。遇到这个问题，首先要弄清楚内存里面，到底存储了哪些类型的数据。这里主要使用了objgraph，pympler，guppy工具。 使用objgraph观察这里简化下代码, 使用函数dosomething表示一次爬取任务执行。每1分钟执行一">
 <meta property="og:locale" content="default">
@@ -120,7 +120,7 @@
 
 
 
-  <link rel="canonical" href="https://zhmin.github.io/2018/12/22/python内存泄漏调试/">
+  <link rel="canonical" href="https://zhmin.github.io/2018/12/22/python-meomory-leak/">
 
 
 
@@ -233,7 +233,7 @@
   
   
   <div class="post-block">
-    <link itemprop="mainEntityOfPage" href="https://zhmin.github.io/2018/12/22/python内存泄漏调试/">
+    <link itemprop="mainEntityOfPage" href="https://zhmin.github.io/2018/12/22/python-meomory-leak/">
 
     <span hidden itemprop="author" itemscope="" itemtype="http://schema.org/Person">
       <meta itemprop="name" content="zhmin">
@@ -352,7 +352,7 @@
         <div class="post-nav">
           <div class="post-nav-next post-nav-item">
             
-              <a href="/2018/12/16/Datax-Channel原理/" rel="next" title="Datax Channel原理">
+              <a href="/2018/12/16/datax-channel/" rel="next" title="Datax Channel原理">
                 <i class="fa fa-chevron-left"></i> Datax Channel原理
               </a>
             
@@ -362,7 +362,7 @@
 
           <div class="post-nav-prev post-nav-item">
             
-              <a href="/2018/12/27/Datax数据统计原理/" rel="prev" title="Datax数据统计原理">
+              <a href="/2018/12/27/datax-statistics/" rel="prev" title="Datax数据统计原理">
                 Datax数据统计原理 <i class="fa fa-chevron-right"></i>
               </a>
             
@@ -517,7 +517,7 @@
 
     <footer id="footer" class="footer">
       <div class="footer-inner">
-        <div class="copyright">&copy; <span itemprop="copyrightYear">2018</span>
+        <div class="copyright">&copy; <span itemprop="copyrightYear">2019</span>
   <span class="with-love">
     <i class="fa fa-user"></i>
   </span>
