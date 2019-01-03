@@ -1,0 +1,735 @@
+<!DOCTYPE html>
+
+
+
+  
+
+
+<html class="theme-next mist use-motion" lang="">
+<head><meta name="generator" content="Hexo 3.8.0">
+  <meta charset="UTF-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="theme-color" content="#222">
+
+
+
+
+
+
+
+
+
+<meta http-equiv="Cache-Control" content="no-transform">
+<meta http-equiv="Cache-Control" content="no-siteapp">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+  <link href="/lib/fancybox/source/jquery.fancybox.css?v=2.1.5" rel="stylesheet" type="text/css">
+
+
+
+
+
+
+
+<link href="/lib/font-awesome/css/font-awesome.min.css?v=4.6.2" rel="stylesheet" type="text/css">
+
+<link href="/css/main.css?v=5.1.4" rel="stylesheet" type="text/css">
+
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png?v=5.1.4">
+
+
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png?v=5.1.4">
+
+
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png?v=5.1.4">
+
+
+  <link rel="mask-icon" href="/images/logo.svg?v=5.1.4" color="#222">
+
+
+
+
+
+  <meta name="keywords" content="spark, yarn,">
+
+
+
+
+
+
+
+
+
+
+<meta name="description" content="Spark 运行在 Yarn 的原理Rpc 服务Spark运行在Yarn上，会涉及到下列Rpc 服务。YarnDriverEndpoint和YarnSchedulerEndpoint运行在同一个进程  YarnDriverEndpoint， 继承DriverEndpoint，主要负责与Executor的通信 YarnSchedulerEndpoint， 负责与AMEndpoint沟通 AMEndp">
+<meta name="keywords" content="spark, yarn">
+<meta property="og:type" content="article">
+<meta property="og:title" content="spark-on-yarn">
+<meta property="og:url" content="https://zhmin.github.io/2019/01/02/spark-on-yarn/index.html">
+<meta property="og:site_name" content="blog">
+<meta property="og:description" content="Spark 运行在 Yarn 的原理Rpc 服务Spark运行在Yarn上，会涉及到下列Rpc 服务。YarnDriverEndpoint和YarnSchedulerEndpoint运行在同一个进程  YarnDriverEndpoint， 继承DriverEndpoint，主要负责与Executor的通信 YarnSchedulerEndpoint， 负责与AMEndpoint沟通 AMEndp">
+<meta property="og:locale" content="default">
+<meta property="og:image" content="https://zhmin.github.io/2019/01/02/spark-on-yarn/cluster-mode.jpg">
+<meta property="og:image" content="https://zhmin.github.io/2019/01/02/spark-on-yarn/client-mode.jpg">
+<meta property="og:updated_time" content="2019-01-03T12:55:25.639Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="spark-on-yarn">
+<meta name="twitter:description" content="Spark 运行在 Yarn 的原理Rpc 服务Spark运行在Yarn上，会涉及到下列Rpc 服务。YarnDriverEndpoint和YarnSchedulerEndpoint运行在同一个进程  YarnDriverEndpoint， 继承DriverEndpoint，主要负责与Executor的通信 YarnSchedulerEndpoint， 负责与AMEndpoint沟通 AMEndp">
+<meta name="twitter:image" content="https://zhmin.github.io/2019/01/02/spark-on-yarn/cluster-mode.jpg">
+
+
+
+<script type="text/javascript" id="hexo.configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '/',
+    scheme: 'Mist',
+    version: '5.1.4',
+    sidebar: {"position":"left","display":"hide","offset":12,"b2t":false,"scrollpercent":false,"onmobile":false},
+    fancybox: true,
+    tabs: true,
+    motion: {"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},
+    duoshuo: {
+      userId: '0',
+      author: 'Author'
+    },
+    algolia: {
+      applicationID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    }
+  };
+</script>
+
+
+
+  <link rel="canonical" href="https://zhmin.github.io/2019/01/02/spark-on-yarn/">
+
+
+
+
+
+  <title>spark-on-yarn | blog</title>
+  
+
+
+
+
+
+
+
+
+</head>
+
+<body itemscope="" itemtype="http://schema.org/WebPage" lang="default">
+
+  
+  
+    
+  
+
+  <div class="container sidebar-position-left page-post-detail">
+    <div class="headband"></div>
+
+    <header id="header" class="header" itemscope="" itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-wrapper">
+  <div class="site-meta ">
+    
+
+    <div class="custom-logo-site-title">
+      <a href="/" class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">blog</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+      
+        <h1 class="site-subtitle" itemprop="description"></h1>
+      
+  </div>
+
+  <div class="site-nav-toggle">
+    <button>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+    </button>
+  </div>
+</div>
+
+<nav class="site-nav">
+  
+
+  
+    <ul id="menu" class="menu">
+      
+        
+        <li class="menu-item menu-item-home">
+          <a href="/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-home"></i> <br>
+            
+            Home
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-archives">
+          <a href="/archives/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-archive"></i> <br>
+            
+            Archives
+          </a>
+        </li>
+      
+
+      
+    </ul>
+  
+
+  
+</nav>
+
+
+
+ </div>
+    </header>
+
+    <main id="main" class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          <div id="content" class="content">
+            
+
+  <div id="posts" class="posts-expand">
+    
+
+  
+
+  
+  
+  
+
+  <article class="post post-type-normal" itemscope="" itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block">
+    <link itemprop="mainEntityOfPage" href="https://zhmin.github.io/2019/01/02/spark-on-yarn/">
+
+    <span hidden itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="zhmin">
+      <meta itemprop="description" content="">
+      <meta itemprop="image" content="/images/avatar.gif">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope="" itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="blog">
+    </span>
+
+    
+      <header class="post-header">
+
+        
+        
+          <h2 class="post-title" itemprop="name headline">spark-on-yarn</h2>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">Posted on</span>
+              
+              <time title="Post created" itemprop="dateCreated datePublished" datetime="2019-01-02T20:10:01+08:00">
+                2019-01-02
+              </time>
+            
+
+            
+
+            
+          </span>
+
+          
+
+          
+            
+          
+
+          
+          
+
+          
+
+          
+
+          
+
+        </div>
+      </header>
+    
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+      
+
+      
+        <h1 id="Spark-运行在-Yarn-的原理"><a href="#Spark-运行在-Yarn-的原理" class="headerlink" title="Spark 运行在 Yarn 的原理"></a>Spark 运行在 Yarn 的原理</h1><h2 id="Rpc-服务"><a href="#Rpc-服务" class="headerlink" title="Rpc 服务"></a>Rpc 服务</h2><p>Spark运行在Yarn上，会涉及到下列Rpc 服务。YarnDriverEndpoint和YarnSchedulerEndpoint运行在同一个进程</p>
+<ul>
+<li>YarnDriverEndpoint， 继承DriverEndpoint，主要负责与Executor的通信</li>
+<li>YarnSchedulerEndpoint， 负责与AMEndpoint沟通</li>
+<li>AMEndpoint， 运行在ApplicationMaster上，主要负责Yarn的资源请求</li>
+</ul>
+<h3 id="YarnDriverEndpoint"><a href="#YarnDriverEndpoint" class="headerlink" title="YarnDriverEndpoint"></a>YarnDriverEndpoint</h3><p>YarnDriverEndpoint继承DriverEndpoint， 只是修改了onDisconnected方法，增加了当Executor断开连接时，会去AMEndpoint获取失败日志这一步。</p>
+<h3 id="YarnSchedulerEndpoint"><a href="#YarnSchedulerEndpoint" class="headerlink" title="YarnSchedulerEndpoint"></a>YarnSchedulerEndpoint</h3><p>YarnSchedulerEndpoint接收下列请求：</p>
+<p>来自AMEndpoint的请求</p>
+<ul>
+<li>RegisterClusterManager，请求包含AMEndpoint客户端。</li>
+<li>AddWebUIFilter， 通过它可以做一些控制访问spark web ui 的操作</li>
+</ul>
+<p>来自SchedulerBackend的请求， 这些请求都会转发给AMEndpoint</p>
+<ul>
+<li>RequestExecutors， 请求资源</li>
+<li>KillExecutors， 杀死Container</li>
+<li>GetExecutorLossReason， 获取Executor运行的错误信息 </li>
+</ul>
+<h3 id="AMEndpoint"><a href="#AMEndpoint" class="headerlink" title="AMEndpoint"></a>AMEndpoint</h3><p>AMEndpoint的所有请求都是来自YarnSchedulerEndpoint，接收下列请求：</p>
+<ul>
+<li>RequestExecutors， 请求资源</li>
+<li>KillExecutors， 杀死Container</li>
+<li>GetExecutorLossReason， 获取Executor运行的错误信息 </li>
+</ul>
+<h2 id="ApplicationMaster启动"><a href="#ApplicationMaster启动" class="headerlink" title="ApplicationMaster启动"></a>ApplicationMaster启动</h2><p>当yarn的客户端申请到第一个container后，会在这个container启动ApplicationMaster的进程。</p>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">class</span> <span class="title">ApplicationMaster</span>(<span class="params"></span></span></span><br><span class="line"><span class="class"><span class="params">    args: <span class="type">ApplicationMasterArguments</span>,</span></span></span><br><span class="line"><span class="class"><span class="params">    client: <span class="type">YarnRMClient</span></span>) </span>&#123;</span><br><span class="line">    </span><br><span class="line">    <span class="keyword">final</span> <span class="function"><span class="keyword">def</span> <span class="title">run</span></span>(): <span class="type">Int</span> = &#123;</span><br><span class="line">    	<span class="comment">// 如果是cluster模式， 则调用runDriver</span></span><br><span class="line">    	<span class="keyword">if</span> (isClusterMode) &#123;</span><br><span class="line">        	runDriver(securityMgr)</span><br><span class="line">      	&#125; <span class="keyword">else</span> &#123;</span><br><span class="line">      	<span class="comment">// 否则调用runExecutorLauncher</span></span><br><span class="line">	        runExecutorLauncher(securityMgr)</span><br><span class="line">    	&#125;</span><br><span class="line">    &#125;</span><br></pre></td></tr></table></figure>
+<h2 id="Yarn运行模式"><a href="#Yarn运行模式" class="headerlink" title="Yarn运行模式"></a>Yarn运行模式</h2><h3 id="cluster模式"><a href="#cluster模式" class="headerlink" title="cluster模式"></a>cluster模式</h3><p>cluster模式下，ApplicationMaster会首先启动一个线程，执行用户的程序，里面就包含了sparkContext的初始化。sparkContext在初始化的时候，会运行DriverEndpoint服务。</p>
+<p>然后会运行AMEndpoint服务，对外提供资源请求的Rpc接口。主线程会一直等待用户程序执行完，才退出。</p>
+<p>这里可以看到，DriverEndpoint和AmEndpoint运行在同一个进程里面。</p>
+<p><img src="cluster-mode.jpg" alt="cluster mode"></p>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">runDriver</span></span>(securityMgr: <span class="type">SecurityManager</span>): <span class="type">Unit</span> = &#123;</span><br><span class="line">    <span class="comment">// 启动用户线程，运行main方法。这里面会完成 sparkContext 的初始化</span></span><br><span class="line">	userClassThread = startUserApplication()</span><br><span class="line">	<span class="keyword">val</span> totalWaitTime = sparkConf.get(<span class="type">AM_MAX_WAIT_TIME</span>)</span><br><span class="line">	<span class="comment">// 等待 sparkContext 初始化完成</span></span><br><span class="line">	<span class="keyword">val</span> sc = <span class="type">ThreadUtils</span>.awaitResult(sparkContextPromise.future,</span><br><span class="line">    	<span class="type">Duration</span>(totalWaitTime, <span class="type">TimeUnit</span>.<span class="type">MILLISECONDS</span>))</span><br><span class="line">    <span class="keyword">if</span> (sc != <span class="literal">null</span>) &#123;</span><br><span class="line">        <span class="comment">// 调用rpcEnv创建和运行AMEndpoint</span></span><br><span class="line">    	rpcEnv = sc.env.rpcEnv</span><br><span class="line">		<span class="keyword">val</span> driverRef = runAMEndpoint(</span><br><span class="line">         	sc.getConf.get(<span class="string">"spark.driver.host"</span>),</span><br><span class="line">      		sc.getConf.get(<span class="string">"spark.driver.port"</span>),</span><br><span class="line">      		isClusterMode = <span class="literal">true</span>)</span><br><span class="line">         <span class="comment">// 向 Yarn 注册ApplicationMaster</span></span><br><span class="line">		registerAM(sc.getConf, rpcEnv, driverRef, sc.ui.map(_.webUrl), securityMgr)</span><br><span class="line">	&#125; <span class="keyword">else</span> &#123;</span><br><span class="line">        <span class="keyword">if</span> (!finished) &#123;</span><br><span class="line">      		<span class="keyword">throw</span> <span class="keyword">new</span> <span class="type">IllegalStateException</span>(<span class="string">"SparkContext is null but app is still running!"</span>)</span><br><span class="line">    	&#125;</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="comment">// 等待用户线程执行完</span></span><br><span class="line">	userClassThread.join()	</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">startUserApplication</span></span>(): <span class="type">Thread</span> = &#123;</span><br><span class="line">	<span class="comment">// 加载Main函数</span></span><br><span class="line">	<span class="keyword">val</span> mainMethod = userClassLoader.loadClass(args.userClass)</span><br><span class="line">		.getMethod(<span class="string">"main"</span>, classOf[<span class="type">Array</span>[<span class="type">String</span>]])</span><br><span class="line">	<span class="keyword">val</span> userThread = <span class="keyword">new</span> <span class="type">Thread</span> &#123;</span><br><span class="line">		<span class="keyword">override</span> <span class="function"><span class="keyword">def</span> <span class="title">run</span></span>() &#123;</span><br><span class="line">			<span class="keyword">try</span> &#123;</span><br><span class="line">				<span class="comment">// 执行Main函数</span></span><br><span class="line">				mainMethod.invoke(<span class="literal">null</span>, userArgs.toArray)</span><br><span class="line">				<span class="comment">// 成功执行Main函数后，调用finish做清洗操作</span></span><br><span class="line">				finish(<span class="type">FinalApplicationStatus</span>.<span class="type">SUCCEEDED</span>, <span class="type">ApplicationMaster</span>.<span class="type">EXIT_SUCCESS</span>)</span><br><span class="line">			&#125;</span><br><span class="line">			.......</span><br><span class="line">		&#125;</span><br><span class="line">	&#125;</span><br><span class="line">	userThread.setContextClassLoader(userClassLoader)</span><br><span class="line">	userThread.setName(<span class="string">"Driver"</span>)</span><br><span class="line">	<span class="comment">// 启动线程</span></span><br><span class="line">	userThread.start()</span><br><span class="line">	userThread</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h3 id="client模式"><a href="#client模式" class="headerlink" title="client模式"></a>client模式</h3><p>client模式下，用户的程序是运行在spark-submit提交的那台主机上，所以SparkContext和DriverEndpoint都是运行在这台主机上。而ApplicationMaster运行在yarn上的container里。ApplicationMaster这里仅仅是运行AMEndpoint的Rpc服务。</p>
+<p>所以在client模式下，DriverEndpoint和AmEndpoint 是不在同一个进程里面的。</p>
+<p><img src="client-mode.jpg" alt="client mode"></p>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">runExecutorLauncher</span></span>(securityMgr: <span class="type">SecurityManager</span>): <span class="type">Unit</span> = &#123;</span><br><span class="line">  <span class="keyword">val</span> port = sparkConf.get(<span class="type">AM_PORT</span>)</span><br><span class="line">  <span class="comment">// 实例化 rpcEnv</span></span><br><span class="line">  rpcEnv = <span class="type">RpcEnv</span>.create(<span class="string">"sparkYarnAM"</span>, <span class="type">Utils</span>.localHostName, port, sparkConf, securityMgr,</span><br><span class="line">    clientMode = <span class="literal">true</span>)</span><br><span class="line">  <span class="comment">// 等待DriverEndpoint服务启动，</span></span><br><span class="line">  <span class="keyword">val</span> driverRef = waitForSparkDriver()</span><br><span class="line">  registerAM(sparkConf, rpcEnv, driverRef, sparkConf.getOption(<span class="string">"spark.driver.appUIAddress"</span>),</span><br><span class="line">    securityMgr)</span><br><span class="line"></span><br><span class="line">  <span class="comment">// reporterThread会与yarn的ResourceManager保持心跳，知道程序运行结束</span></span><br><span class="line">  reporterThread.join()</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">waitForSparkDriver</span></span>(): <span class="type">RpcEndpointRef</span> = &#123;</span><br><span class="line">    <span class="keyword">var</span> driverUp = <span class="literal">false</span></span><br><span class="line">    <span class="comment">// 解析driverEndpoint的服务地址</span></span><br><span class="line">    <span class="keyword">val</span> hostport = args.userArgs(<span class="number">0</span>)</span><br><span class="line">    <span class="keyword">val</span> (driverHost, driverPort) = <span class="type">Utils</span>.parseHostPort(hostport)</span><br><span class="line">    <span class="comment">// 计算超时时间</span></span><br><span class="line">    <span class="keyword">val</span> totalWaitTimeMs = sparkConf.get(<span class="type">AM_MAX_WAIT_TIME</span>)</span><br><span class="line">    <span class="keyword">val</span> deadline = <span class="type">System</span>.currentTimeMillis + totalWaitTimeMs</span><br><span class="line">    </span><br><span class="line">    <span class="comment">// 不停的尝试socket连接，查看是否服务已经启动</span></span><br><span class="line">    <span class="keyword">while</span> (!driverUp &amp;&amp; !finished &amp;&amp; <span class="type">System</span>.currentTimeMillis &lt; deadline) &#123;</span><br><span class="line">    	<span class="keyword">try</span> &#123;</span><br><span class="line">            <span class="comment">// 这里新建socket，会自动连接，如果没有出错，则说明正常连接</span></span><br><span class="line">            <span class="keyword">val</span> socket = <span class="keyword">new</span> <span class="type">Socket</span>(driverHost, driverPort)</span><br><span class="line">            socket.close()</span><br><span class="line">            driverUp = <span class="literal">true</span></span><br><span class="line">        &#125; <span class="keyword">catch</span> &#123;</span><br><span class="line">            <span class="comment">// 等待100ms</span></span><br><span class="line">            <span class="keyword">case</span> e: <span class="type">Exception</span> =&gt;</span><br><span class="line">            	<span class="type">Thread</span>.sleep(<span class="number">100</span>L)</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    </span><br><span class="line">    <span class="keyword">if</span> (!driverUp) &#123;</span><br><span class="line">    	<span class="keyword">throw</span> <span class="keyword">new</span> <span class="type">SparkException</span>(<span class="string">"Failed to connect to driver!"</span>)</span><br><span class="line">    &#125;</span><br><span class="line">    sparkConf.set(<span class="string">"spark.driver.host"</span>, driverHost)</span><br><span class="line">    sparkConf.set(<span class="string">"spark.driver.port"</span>, driverPort.toString)</span><br><span class="line">    <span class="comment">// 运行AMEndpoint服务</span></span><br><span class="line">    runAMEndpoint(driverHost, driverPort.toString, isClusterMode = <span class="literal">false</span>)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h2 id="AMEndpoint-启动"><a href="#AMEndpoint-启动" class="headerlink" title="AMEndpoint 启动"></a>AMEndpoint 启动</h2><p>AMEndpoint是只和YarnSchedulerEndpoint通信，它在启动之后会发送RegisterClusterManager消息给YarnSchedulerEndpoint，消息会携带AMEndpoint客户端。这样YarnSchedulerEndpoint就可以通过它与AMEndpoint通信了。</p>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">class</span> <span class="title">ApplicationMaster</span>(<span class="params">.... </span>) </span>&#123;</span><br><span class="line">  <span class="keyword">private</span> <span class="function"><span class="keyword">def</span> <span class="title">runAMEndpoint</span></span>(</span><br><span class="line">      host: <span class="type">String</span>,</span><br><span class="line">      port: <span class="type">String</span>,</span><br><span class="line">      isClusterMode: <span class="type">Boolean</span>): <span class="type">RpcEndpointRef</span> = &#123;</span><br><span class="line">    <span class="comment">// 注意这里实例化的是YarnSchedulerEndpoint</span></span><br><span class="line">    <span class="comment">// AMEndpoint的driverEndpoint是指YarnSchedulerEndpoint， 而不是DriverEndpoint</span></span><br><span class="line">    <span class="keyword">val</span> driverEndpoint = rpcEnv.setupEndpointRef(</span><br><span class="line">      <span class="type">RpcAddress</span>(host, port.toInt),</span><br><span class="line">      <span class="type">YarnSchedulerBackend</span>.<span class="type">ENDPOINT_NAME</span>)</span><br><span class="line">    amEndpoint =</span><br><span class="line">      rpcEnv.setupEndpoint(<span class="string">"YarnAM"</span>, <span class="keyword">new</span> <span class="type">AMEndpoint</span>(rpcEnv, driverEndpoint, isClusterMode))</span><br><span class="line">    driverEndpoint</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="class"><span class="keyword">class</span> <span class="title">AMEndpoint</span>(<span class="params">override val rpcEnv: <span class="type">RpcEnv</span>, driver: <span class="type">RpcEndpointRef</span>, isClusterMode: <span class="type">Boolean</span></span>)</span></span><br><span class="line"><span class="class">  	<span class="keyword">extends</span> <span class="title">RpcEndpoint</span> <span class="keyword">with</span> <span class="title">Logging</span> </span>&#123;</span><br><span class="line">  	<span class="keyword">override</span> <span class="function"><span class="keyword">def</span> <span class="title">onStart</span></span>(): <span class="type">Unit</span> = &#123;</span><br><span class="line">    	<span class="comment">// 向YarnSchedulerEndpoint发送 注册信息</span></span><br><span class="line">    	driver.send(<span class="type">RegisterClusterManager</span>(self))</span><br><span class="line">  	&#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+      
+    </div>
+    
+    
+    
+
+    
+
+    
+
+    
+
+    <footer class="post-footer">
+      
+        <div class="post-tags">
+          
+            <a href="/tags/spark-yarn/" rel="tag"># spark, yarn</a>
+          
+        </div>
+      
+
+      
+      
+      
+
+      
+        <div class="post-nav">
+          <div class="post-nav-next post-nav-item">
+            
+              <a href="/2018/12/28/datax-job/" rel="next" title="Datax 任务分配原理">
+                <i class="fa fa-chevron-left"></i> Datax 任务分配原理
+              </a>
+            
+          </div>
+
+          <span class="post-nav-divider"></span>
+
+          <div class="post-nav-prev post-nav-item">
+            
+          </div>
+        </div>
+      
+
+      
+      
+    </footer>
+  </div>
+  
+  
+  
+  </article>
+
+
+
+    <div class="post-spread">
+      
+    </div>
+  </div>
+
+
+          </div>
+          
+
+
+          
+
+  
+
+
+
+        </div>
+        
+          
+  
+  <div class="sidebar-toggle">
+    <div class="sidebar-toggle-line-wrap">
+      <span class="sidebar-toggle-line sidebar-toggle-line-first"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-middle"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-last"></span>
+    </div>
+  </div>
+
+  <aside id="sidebar" class="sidebar">
+    
+    <div class="sidebar-inner">
+
+      
+
+      
+        <ul class="sidebar-nav motion-element">
+          <li class="sidebar-nav-toc sidebar-nav-active" data-target="post-toc-wrap">
+            Table of Contents
+          </li>
+          <li class="sidebar-nav-overview" data-target="site-overview-wrap">
+            Overview
+          </li>
+        </ul>
+      
+
+      <section class="site-overview-wrap sidebar-panel">
+        <div class="site-overview">
+          <div class="site-author motion-element" itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+            
+              <p class="site-author-name" itemprop="name">zhmin</p>
+              <p class="site-description motion-element" itemprop="description"></p>
+          </div>
+
+          <nav class="site-state motion-element">
+
+            
+              <div class="site-state-item site-state-posts">
+              
+                <a href="/archives/">
+              
+                  <span class="site-state-item-count">8</span>
+                  <span class="site-state-item-name">posts</span>
+                </a>
+              </div>
+            
+
+            
+
+            
+              
+              
+              <div class="site-state-item site-state-tags">
+                
+                  <span class="site-state-item-count">7</span>
+                  <span class="site-state-item-name">tags</span>
+                
+              </div>
+            
+
+          </nav>
+
+          
+
+          
+            <div class="links-of-author motion-element">
+                
+                  <span class="links-of-author-item">
+                    <a href="https://github.com/zhmin" target="_blank" title="GitHub">
+                      
+                        <i class="fa fa-fw fa-github"></i>GitHub</a>
+                  </span>
+                
+            </div>
+          
+
+          
+          
+
+          
+          
+
+          
+
+        </div>
+      </section>
+
+      
+      <!--noindex-->
+        <section class="post-toc-wrap motion-element sidebar-panel sidebar-panel-active">
+          <div class="post-toc">
+
+            
+              
+            
+
+            
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#Spark-运行在-Yarn-的原理"><span class="nav-number">1.</span> <span class="nav-text">Spark 运行在 Yarn 的原理</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#Rpc-服务"><span class="nav-number">1.1.</span> <span class="nav-text">Rpc 服务</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#YarnDriverEndpoint"><span class="nav-number">1.1.1.</span> <span class="nav-text">YarnDriverEndpoint</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#YarnSchedulerEndpoint"><span class="nav-number">1.1.2.</span> <span class="nav-text">YarnSchedulerEndpoint</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#AMEndpoint"><span class="nav-number">1.1.3.</span> <span class="nav-text">AMEndpoint</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#ApplicationMaster启动"><span class="nav-number">1.2.</span> <span class="nav-text">ApplicationMaster启动</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Yarn运行模式"><span class="nav-number">1.3.</span> <span class="nav-text">Yarn运行模式</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#cluster模式"><span class="nav-number">1.3.1.</span> <span class="nav-text">cluster模式</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#client模式"><span class="nav-number">1.3.2.</span> <span class="nav-text">client模式</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#AMEndpoint-启动"><span class="nav-number">1.4.</span> <span class="nav-text">AMEndpoint 启动</span></a></li></ol></li></ol></div>
+            
+
+          </div>
+        </section>
+      <!--/noindex-->
+      
+
+      
+
+    </div>
+  </aside>
+
+
+        
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="footer-inner">
+        <div class="copyright">&copy; <span itemprop="copyrightYear">2019</span>
+  <span class="with-love">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">zhmin</span>
+
+  
+</div>
+
+
+
+
+
+
+
+
+
+
+
+  <script src="https://unpkg.com/mermaid@7.1.2/dist/mermaid.min.js"></script>
+  <script>
+    if (window.mermaid) {
+      mermaid.initialize({"startOnload":"true  // default true","theme":"forest"});
+    }
+  </script>
+
+
+
+<script async src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+<span id="busuanzi_container_site_pv">
+    访问量<span id="busuanzi_value_site_pv"></span>
+</span>
+<span class="post-meta-divider">|</span>
+<span id="busuanzi_container_site_uv">
+  访客数<span id="busuanzi_value_site_uv"></span>
+</span>
+
+        
+
+
+
+
+
+
+
+        
+      </div>
+    </footer>
+
+    
+      <div class="back-to-top">
+        <i class="fa fa-arrow-up"></i>
+        
+      </div>
+    
+
+    
+
+  </div>
+
+  
+
+<script type="text/javascript">
+  if (Object.prototype.toString.call(window.Promise) !== '[object Function]') {
+    window.Promise = null;
+  }
+</script>
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery/index.js?v=2.1.3"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fastclick/lib/fastclick.min.js?v=1.0.6"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery_lazyload/jquery.lazyload.js?v=1.9.7"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.ui.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fancybox/source/jquery.fancybox.pack.js?v=2.1.5"></script>
+  
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/utils.js?v=5.1.4"></script>
+
+  <script type="text/javascript" src="/js/src/motion.js?v=5.1.4"></script>
+
+
+
+  
+  
+
+  
+  <script type="text/javascript" src="/js/src/scrollspy.js?v=5.1.4"></script>
+<script type="text/javascript" src="/js/src/post-details.js?v=5.1.4"></script>
+
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/bootstrap.js?v=5.1.4"></script>
+
+
+
+  
+
+
+  
+
+
+
+
+	
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+</body>
+</html>
