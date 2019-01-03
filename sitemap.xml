@@ -2,6 +2,13 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   
   <url>
+    <loc>https://zhmin.github.io/2019/01/03/spark-rdd-dependency/</loc>
+    
+    <lastmod>2019-01-03T13:42:47.548Z</lastmod>
+    
+  </url>
+  
+  <url>
     <loc>https://zhmin.github.io/2019/01/02/spark-on-yarn/</loc>
     
     <lastmod>2019-01-03T12:55:25.639Z</lastmod>

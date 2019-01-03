@@ -1,0 +1,725 @@
+<!DOCTYPE html>
+
+
+
+  
+
+
+<html class="theme-next mist use-motion" lang="">
+<head><meta name="generator" content="Hexo 3.8.0">
+  <meta charset="UTF-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="theme-color" content="#222">
+
+
+
+
+
+
+
+
+
+<meta http-equiv="Cache-Control" content="no-transform">
+<meta http-equiv="Cache-Control" content="no-siteapp">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+  <link href="/lib/fancybox/source/jquery.fancybox.css?v=2.1.5" rel="stylesheet" type="text/css">
+
+
+
+
+
+
+
+<link href="/lib/font-awesome/css/font-awesome.min.css?v=4.6.2" rel="stylesheet" type="text/css">
+
+<link href="/css/main.css?v=5.1.4" rel="stylesheet" type="text/css">
+
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png?v=5.1.4">
+
+
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png?v=5.1.4">
+
+
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png?v=5.1.4">
+
+
+  <link rel="mask-icon" href="/images/logo.svg?v=5.1.4" color="#222">
+
+
+
+
+
+  <meta name="keywords" content="spark, rdd, dependency,">
+
+
+
+
+
+
+
+
+
+
+<meta name="description" content="RDD之间的依赖当RDD执行transform操作时(比如map，filter，groupby)，就会创造新的RDD。RDD之间的联系类型，就是由Dependency表示。根据rdd分区之间的联系，可以分为两大类，窄依赖NarrowDependency， 宽依赖ShuffleDependency。 窄依赖当父RDD的每个分区只对应于子RDD的一个分区，这种情况是窄依赖。这里分为两种情形： OneT">
+<meta name="keywords" content="spark, rdd, dependency">
+<meta property="og:type" content="article">
+<meta property="og:title" content="spark-rdd-dependency">
+<meta property="og:url" content="https://zhmin.github.io/2019/01/03/spark-rdd-dependency/index.html">
+<meta property="og:site_name" content="blog">
+<meta property="og:description" content="RDD之间的依赖当RDD执行transform操作时(比如map，filter，groupby)，就会创造新的RDD。RDD之间的联系类型，就是由Dependency表示。根据rdd分区之间的联系，可以分为两大类，窄依赖NarrowDependency， 宽依赖ShuffleDependency。 窄依赖当父RDD的每个分区只对应于子RDD的一个分区，这种情况是窄依赖。这里分为两种情形： OneT">
+<meta property="og:locale" content="default">
+<meta property="og:updated_time" content="2019-01-03T13:42:47.548Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="spark-rdd-dependency">
+<meta name="twitter:description" content="RDD之间的依赖当RDD执行transform操作时(比如map，filter，groupby)，就会创造新的RDD。RDD之间的联系类型，就是由Dependency表示。根据rdd分区之间的联系，可以分为两大类，窄依赖NarrowDependency， 宽依赖ShuffleDependency。 窄依赖当父RDD的每个分区只对应于子RDD的一个分区，这种情况是窄依赖。这里分为两种情形： OneT">
+
+
+
+<script type="text/javascript" id="hexo.configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '/',
+    scheme: 'Mist',
+    version: '5.1.4',
+    sidebar: {"position":"left","display":"hide","offset":12,"b2t":false,"scrollpercent":false,"onmobile":false},
+    fancybox: true,
+    tabs: true,
+    motion: {"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},
+    duoshuo: {
+      userId: '0',
+      author: 'Author'
+    },
+    algolia: {
+      applicationID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    }
+  };
+</script>
+
+
+
+  <link rel="canonical" href="https://zhmin.github.io/2019/01/03/spark-rdd-dependency/">
+
+
+
+
+
+  <title>spark-rdd-dependency | blog</title>
+  
+
+
+
+
+
+
+
+
+</head>
+
+<body itemscope="" itemtype="http://schema.org/WebPage" lang="default">
+
+  
+  
+    
+  
+
+  <div class="container sidebar-position-left page-post-detail">
+    <div class="headband"></div>
+
+    <header id="header" class="header" itemscope="" itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-wrapper">
+  <div class="site-meta ">
+    
+
+    <div class="custom-logo-site-title">
+      <a href="/" class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">blog</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+      
+        <h1 class="site-subtitle" itemprop="description"></h1>
+      
+  </div>
+
+  <div class="site-nav-toggle">
+    <button>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+    </button>
+  </div>
+</div>
+
+<nav class="site-nav">
+  
+
+  
+    <ul id="menu" class="menu">
+      
+        
+        <li class="menu-item menu-item-home">
+          <a href="/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-home"></i> <br>
+            
+            Home
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-archives">
+          <a href="/archives/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-archive"></i> <br>
+            
+            Archives
+          </a>
+        </li>
+      
+
+      
+    </ul>
+  
+
+  
+</nav>
+
+
+
+ </div>
+    </header>
+
+    <main id="main" class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          <div id="content" class="content">
+            
+
+  <div id="posts" class="posts-expand">
+    
+
+  
+
+  
+  
+  
+
+  <article class="post post-type-normal" itemscope="" itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block">
+    <link itemprop="mainEntityOfPage" href="https://zhmin.github.io/2019/01/03/spark-rdd-dependency/">
+
+    <span hidden itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="zhmin">
+      <meta itemprop="description" content="">
+      <meta itemprop="image" content="/images/avatar.gif">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope="" itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="blog">
+    </span>
+
+    
+      <header class="post-header">
+
+        
+        
+          <h2 class="post-title" itemprop="name headline">spark-rdd-dependency</h2>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">Posted on</span>
+              
+              <time title="Post created" itemprop="dateCreated datePublished" datetime="2019-01-03T21:41:59+08:00">
+                2019-01-03
+              </time>
+            
+
+            
+
+            
+          </span>
+
+          
+
+          
+            
+          
+
+          
+          
+
+          
+
+          
+
+          
+
+        </div>
+      </header>
+    
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+      
+
+      
+        <h1 id="RDD之间的依赖"><a href="#RDD之间的依赖" class="headerlink" title="RDD之间的依赖"></a>RDD之间的依赖</h1><p>当RDD执行transform操作时(比如map，filter，groupby)，就会创造新的RDD。RDD之间的联系类型，就是由Dependency表示。根据rdd分区之间的联系，可以分为两大类，窄依赖NarrowDependency， 宽依赖ShuffleDependency。</p>
+<h2 id="窄依赖"><a href="#窄依赖" class="headerlink" title="窄依赖"></a>窄依赖</h2><p>当父RDD的每个分区只对应于子RDD的一个分区，这种情况是窄依赖。这里分为两种情形：</p>
+<h3 id="OneToOneDependency"><a href="#OneToOneDependency" class="headerlink" title="OneToOneDependency"></a>OneToOneDependency</h3><p>父RDD的分区索引与子RDD的分区索引相同，比如map和filter操作</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">class OneToOneDependency[T](rdd: RDD[T]) extends NarrowDependency[T](rdd) &#123;</span><br><span class="line">  // 返回父RDD对应的partition</span><br><span class="line">  override def getParents(partitionId: Int): List[Int] = List(partitionId)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h3 id="RangeDependency"><a href="#RangeDependency" class="headerlink" title="RangeDependency"></a>RangeDependency</h3><p>父RDD的分区索引与子RDD的分区索引，存在线性关系，比如union操作</p>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// inStart表示父RDD的起始索引，一般是0</span></span><br><span class="line"><span class="comment">// outStart表示父RDD对应子RDD的起始索引</span></span><br><span class="line"><span class="comment">// length表示父RDD的分区数目</span></span><br><span class="line"><span class="class"><span class="keyword">class</span> <span class="title">RangeDependency</span>[<span class="type">T</span>](<span class="params">rdd: <span class="type">RDD</span>[<span class="type">T</span>], inStart: <span class="type">Int</span>, outStart: <span class="type">Int</span>, length: <span class="type">Int</span></span>)</span></span><br><span class="line"><span class="class">  <span class="keyword">extends</span> <span class="title">NarrowDependency</span>[<span class="type">T</span>](<span class="params">rdd</span>) </span>&#123;</span><br><span class="line">  <span class="comment">// 线性计算出父RDD的分区索引</span></span><br><span class="line">  <span class="keyword">override</span> <span class="function"><span class="keyword">def</span> <span class="title">getParents</span></span>(partitionId: <span class="type">Int</span>): <span class="type">List</span>[<span class="type">Int</span>] = &#123;</span><br><span class="line">    <span class="keyword">if</span> (partitionId &gt;= outStart &amp;&amp; partitionId &lt; outStart + length) &#123;</span><br><span class="line">      <span class="type">List</span>(partitionId - outStart + inStart)</span><br><span class="line">    &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">      <span class="type">Nil</span></span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br></pre></td></tr></table></figure>
+<h3 id="PruneDependency"><a href="#PruneDependency" class="headerlink" title="PruneDependency"></a>PruneDependency</h3><p>子RDD的分区数目小于父RDD的分区数目，但子RDD的分区与只对应于父RDD的一个分区。 比如从一个有序的rdd，提取出指定范围内的记录</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line">// rdd表示父RDD</span><br><span class="line">// partitionFilterFunc表示需要保留那些分区</span><br><span class="line">class PruneDependency[T](rdd: RDD[T], partitionFilterFunc: Int =&gt; Boolean)</span><br><span class="line">  extends NarrowDependency[T](rdd) &#123;</span><br><span class="line"></span><br><span class="line">  // 从父RDD提取需要保留的分区</span><br><span class="line">  val partitions: Array[Partition] = rdd.partitions</span><br><span class="line">    .filter(s =&gt; partitionFilterFunc(s.index)).zipWithIndex</span><br><span class="line">    // split表示父RDD的分区索引</span><br><span class="line">    // idx表示子RDD的分区索引</span><br><span class="line">    .map &#123; case(split, idx) =&gt; new PartitionPruningRDDPartition(idx, split) : Partition &#125;</span><br><span class="line"></span><br><span class="line">  override def getParents(partitionId: Int): List[Int] = &#123;</span><br><span class="line">    List(partitions(partitionId).asInstanceOf[PartitionPruningRDDPartition].parentSplit.index)</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h2 id="宽依赖"><a href="#宽依赖" class="headerlink" title="宽依赖"></a>宽依赖</h2><p>当子RDD的分区数据来源于父RDD的多个分区时，两者之间的依赖关系就是宽依赖。宽依赖由ShuffleDependency表示，它有以下属性：</p>
+<ul>
+<li>rdd， 指向父RDD</li>
+<li>partitioner， 子RDD的分区器</li>
+<li>keyClassName， key值类型</li>
+<li>valueClassName， value值类型</li>
+<li>aggregator， 聚合</li>
+</ul>
+<h2 id="RDD的种类"><a href="#RDD的种类" class="headerlink" title="RDD的种类"></a>RDD的种类</h2><p>RDD的种类对应着不停的的依赖关系，它们的区别在于怎么计算出分区数据。RDD有两个重要的方法，关于计算分区数据</p>
+<p>iterator，返回RDD中指定分区的数据，如果没有则调用compute方法</p>
+<p>compute， 计算指定分区的数据</p>
+<h3 id="源数据RDD"><a href="#源数据RDD" class="headerlink" title="源数据RDD"></a>源数据RDD</h3><p>spark支持读取不同的数据源，如下：</p>
+<ul>
+<li>支持hdfs文件读取， HadoopRDD</li>
+<li>支持jdbc读取数据库，JdbcRDD</li>
+</ul>
+<h3 id="MapPartitionsRDD"><a href="#MapPartitionsRDD" class="headerlink" title="MapPartitionsRDD"></a>MapPartitionsRDD</h3><p>当rdd调用map或filter操作时，会返回MapPartitionsRDD。MapPartitionsRDD对应的依赖关系是OneToOneDependency。</p>
+<p>很明显MapPartitionsRDD的compute方法，调用父RDD的iterator方法获取数据，然后调用函数 f 计算值。</p>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">override</span> <span class="function"><span class="keyword">def</span> <span class="title">compute</span></span>(split: <span class="type">Partition</span>, context: <span class="type">TaskContext</span>): <span class="type">Iterator</span>[<span class="type">U</span>] =</span><br><span class="line">  f(context, split.index, firstParent[<span class="type">T</span>].iterator(split, context))</span><br></pre></td></tr></table></figure>
+<h3 id="ShuffledRDD"><a href="#ShuffledRDD" class="headerlink" title="ShuffledRDD"></a>ShuffledRDD</h3><figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">override</span> <span class="function"><span class="keyword">def</span> <span class="title">compute</span></span>(split: <span class="type">Partition</span>, context: <span class="type">TaskContext</span>): <span class="type">Iterator</span>[(<span class="type">K</span>, <span class="type">C</span>)] = &#123;</span><br><span class="line">  <span class="keyword">val</span> dep = dependencies.head.asInstanceOf[<span class="type">ShuffleDependency</span>[<span class="type">K</span>, <span class="type">V</span>, <span class="type">C</span>]]</span><br><span class="line">  <span class="type">SparkEnv</span>.get.shuffleManager.getReader(dep.shuffleHandle, split.index, split.index + <span class="number">1</span>, context)</span><br><span class="line">    .read()</span><br><span class="line">    .asInstanceOf[<span class="type">Iterator</span>[(<span class="type">K</span>, <span class="type">C</span>)]]</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>当rdd调用groupby或reduce操作时，会返回ShuffledRDD。ShuffledRDD对应的关系是ShuffleDependency。它计算分区的数据时，是调用了ShuffleReader读取上一步rdd产生的数据。</p>
+<h3 id="PartitionPruningRDD"><a href="#PartitionPruningRDD" class="headerlink" title="PartitionPruningRDD"></a>PartitionPruningRDD</h3><p>PartitionPruningRDD只是简单的从对应的父分区读取数据</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">override def compute(split: Partition, context: TaskContext): Iterator[T] = &#123;</span><br><span class="line">  // split的类型是PartitionPruningRDDPartition， </span><br><span class="line">  // 它有parentSplit，表示父RDD的分区</span><br><span class="line">  firstParent[T].iterator(</span><br><span class="line">    split.asInstanceOf[PartitionPruningRDDPartition].parentSplit, context)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+      
+    </div>
+    
+    
+    
+
+    
+
+    
+
+    
+
+    <footer class="post-footer">
+      
+        <div class="post-tags">
+          
+            <a href="/tags/spark-rdd-dependency/" rel="tag"># spark, rdd, dependency</a>
+          
+        </div>
+      
+
+      
+      
+      
+
+      
+        <div class="post-nav">
+          <div class="post-nav-next post-nav-item">
+            
+              <a href="/2019/01/02/spark-on-yarn/" rel="next" title="spark-on-yarn">
+                <i class="fa fa-chevron-left"></i> spark-on-yarn
+              </a>
+            
+          </div>
+
+          <span class="post-nav-divider"></span>
+
+          <div class="post-nav-prev post-nav-item">
+            
+          </div>
+        </div>
+      
+
+      
+      
+    </footer>
+  </div>
+  
+  
+  
+  </article>
+
+
+
+    <div class="post-spread">
+      
+    </div>
+  </div>
+
+
+          </div>
+          
+
+
+          
+
+  
+
+
+
+        </div>
+        
+          
+  
+  <div class="sidebar-toggle">
+    <div class="sidebar-toggle-line-wrap">
+      <span class="sidebar-toggle-line sidebar-toggle-line-first"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-middle"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-last"></span>
+    </div>
+  </div>
+
+  <aside id="sidebar" class="sidebar">
+    
+    <div class="sidebar-inner">
+
+      
+
+      
+        <ul class="sidebar-nav motion-element">
+          <li class="sidebar-nav-toc sidebar-nav-active" data-target="post-toc-wrap">
+            Table of Contents
+          </li>
+          <li class="sidebar-nav-overview" data-target="site-overview-wrap">
+            Overview
+          </li>
+        </ul>
+      
+
+      <section class="site-overview-wrap sidebar-panel">
+        <div class="site-overview">
+          <div class="site-author motion-element" itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+            
+              <p class="site-author-name" itemprop="name">zhmin</p>
+              <p class="site-description motion-element" itemprop="description"></p>
+          </div>
+
+          <nav class="site-state motion-element">
+
+            
+              <div class="site-state-item site-state-posts">
+              
+                <a href="/archives/">
+              
+                  <span class="site-state-item-count">9</span>
+                  <span class="site-state-item-name">posts</span>
+                </a>
+              </div>
+            
+
+            
+
+            
+              
+              
+              <div class="site-state-item site-state-tags">
+                
+                  <span class="site-state-item-count">8</span>
+                  <span class="site-state-item-name">tags</span>
+                
+              </div>
+            
+
+          </nav>
+
+          
+
+          
+            <div class="links-of-author motion-element">
+                
+                  <span class="links-of-author-item">
+                    <a href="https://github.com/zhmin" target="_blank" title="GitHub">
+                      
+                        <i class="fa fa-fw fa-github"></i>GitHub</a>
+                  </span>
+                
+            </div>
+          
+
+          
+          
+
+          
+          
+
+          
+
+        </div>
+      </section>
+
+      
+      <!--noindex-->
+        <section class="post-toc-wrap motion-element sidebar-panel sidebar-panel-active">
+          <div class="post-toc">
+
+            
+              
+            
+
+            
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#RDD之间的依赖"><span class="nav-number">1.</span> <span class="nav-text">RDD之间的依赖</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#窄依赖"><span class="nav-number">1.1.</span> <span class="nav-text">窄依赖</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#OneToOneDependency"><span class="nav-number">1.1.1.</span> <span class="nav-text">OneToOneDependency</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#RangeDependency"><span class="nav-number">1.1.2.</span> <span class="nav-text">RangeDependency</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#PruneDependency"><span class="nav-number">1.1.3.</span> <span class="nav-text">PruneDependency</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#宽依赖"><span class="nav-number">1.2.</span> <span class="nav-text">宽依赖</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#RDD的种类"><span class="nav-number">1.3.</span> <span class="nav-text">RDD的种类</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#源数据RDD"><span class="nav-number">1.3.1.</span> <span class="nav-text">源数据RDD</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#MapPartitionsRDD"><span class="nav-number">1.3.2.</span> <span class="nav-text">MapPartitionsRDD</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#ShuffledRDD"><span class="nav-number">1.3.3.</span> <span class="nav-text">ShuffledRDD</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#PartitionPruningRDD"><span class="nav-number">1.3.4.</span> <span class="nav-text">PartitionPruningRDD</span></a></li></ol></li></ol></li></ol></div>
+            
+
+          </div>
+        </section>
+      <!--/noindex-->
+      
+
+      
+
+    </div>
+  </aside>
+
+
+        
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="footer-inner">
+        <div class="copyright">&copy; <span itemprop="copyrightYear">2019</span>
+  <span class="with-love">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">zhmin</span>
+
+  
+</div>
+
+
+
+
+
+
+
+
+
+
+
+  <script src="https://unpkg.com/mermaid@7.1.2/dist/mermaid.min.js"></script>
+  <script>
+    if (window.mermaid) {
+      mermaid.initialize({"startOnload":"true  // default true","theme":"forest"});
+    }
+  </script>
+
+
+
+<script async src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+<span id="busuanzi_container_site_pv">
+    访问量<span id="busuanzi_value_site_pv"></span>
+</span>
+<span class="post-meta-divider">|</span>
+<span id="busuanzi_container_site_uv">
+  访客数<span id="busuanzi_value_site_uv"></span>
+</span>
+
+        
+
+
+
+
+
+
+
+        
+      </div>
+    </footer>
+
+    
+      <div class="back-to-top">
+        <i class="fa fa-arrow-up"></i>
+        
+      </div>
+    
+
+    
+
+  </div>
+
+  
+
+<script type="text/javascript">
+  if (Object.prototype.toString.call(window.Promise) !== '[object Function]') {
+    window.Promise = null;
+  }
+</script>
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery/index.js?v=2.1.3"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fastclick/lib/fastclick.min.js?v=1.0.6"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery_lazyload/jquery.lazyload.js?v=1.9.7"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.ui.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fancybox/source/jquery.fancybox.pack.js?v=2.1.5"></script>
+  
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/utils.js?v=5.1.4"></script>
+
+  <script type="text/javascript" src="/js/src/motion.js?v=5.1.4"></script>
+
+
+
+  
+  
+
+  
+  <script type="text/javascript" src="/js/src/scrollspy.js?v=5.1.4"></script>
+<script type="text/javascript" src="/js/src/post-details.js?v=5.1.4"></script>
+
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/bootstrap.js?v=5.1.4"></script>
+
+
+
+  
+
+
+  
+
+
+
+
+	
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+</body>
+</html>
