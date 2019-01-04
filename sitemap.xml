@@ -2,6 +2,13 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   
   <url>
+    <loc>https://zhmin.github.io/2018/12/27/datax-flow/</loc>
+    
+    <lastmod>2019-01-04T13:52:44.552Z</lastmod>
+    
+  </url>
+  
+  <url>
     <loc>https://zhmin.github.io/2019/01/02/spark-on-yarn/</loc>
     
     <lastmod>2019-01-04T13:43:59.148Z</lastmod>
@@ -40,13 +47,6 @@
     <loc>https://zhmin.github.io/2018/12/22/python-meomory-leak/</loc>
     
     <lastmod>2018-12-27T14:04:19.548Z</lastmod>
-    
-  </url>
-  
-  <url>
-    <loc>https://zhmin.github.io/2018/12/27/datax-flow/</loc>
-    
-    <lastmod>2018-12-27T14:04:19.547Z</lastmod>
     
   </url>
   
