@@ -79,20 +79,20 @@
 
 
 
-<meta name="description" content="Spark 运行在 Yarn 的原理Rpc 服务Spark运行在Yarn上，会涉及到下列Rpc 服务。YarnDriverEndpoint和YarnSchedulerEndpoint运行在同一个进程  YarnDriverEndpoint， 继承DriverEndpoint，主要负责与Executor的通信 YarnSchedulerEndpoint， 负责与AMEndpoint沟通 AMEndp">
+<meta name="description" content="Spark 运行在 Yarn 上的原理Rpc 服务Spark运行在Yarn上，会涉及到下列Rpc 服务。YarnDriverEndpoint和YarnSchedulerEndpoint运行在同一个进程  YarnDriverEndpoint， 继承DriverEndpoint，主要负责与Executor的通信 YarnSchedulerEndpoint， 负责与AMEndpoint沟通 AMEnd">
 <meta name="keywords" content="spark, yarn">
 <meta property="og:type" content="article">
-<meta property="og:title" content="spark-on-yarn">
+<meta property="og:title" content="Spark 运行在Yarn上的原理">
 <meta property="og:url" content="https://zhmin.github.io/2019/01/02/spark-on-yarn/index.html">
 <meta property="og:site_name" content="blog">
-<meta property="og:description" content="Spark 运行在 Yarn 的原理Rpc 服务Spark运行在Yarn上，会涉及到下列Rpc 服务。YarnDriverEndpoint和YarnSchedulerEndpoint运行在同一个进程  YarnDriverEndpoint， 继承DriverEndpoint，主要负责与Executor的通信 YarnSchedulerEndpoint， 负责与AMEndpoint沟通 AMEndp">
+<meta property="og:description" content="Spark 运行在 Yarn 上的原理Rpc 服务Spark运行在Yarn上，会涉及到下列Rpc 服务。YarnDriverEndpoint和YarnSchedulerEndpoint运行在同一个进程  YarnDriverEndpoint， 继承DriverEndpoint，主要负责与Executor的通信 YarnSchedulerEndpoint， 负责与AMEndpoint沟通 AMEnd">
 <meta property="og:locale" content="default">
 <meta property="og:image" content="https://zhmin.github.io/2019/01/02/spark-on-yarn/cluster-mode.jpg">
 <meta property="og:image" content="https://zhmin.github.io/2019/01/02/spark-on-yarn/client-mode.jpg">
-<meta property="og:updated_time" content="2019-01-03T12:55:25.639Z">
+<meta property="og:updated_time" content="2019-01-04T13:43:59.148Z">
 <meta name="twitter:card" content="summary">
-<meta name="twitter:title" content="spark-on-yarn">
-<meta name="twitter:description" content="Spark 运行在 Yarn 的原理Rpc 服务Spark运行在Yarn上，会涉及到下列Rpc 服务。YarnDriverEndpoint和YarnSchedulerEndpoint运行在同一个进程  YarnDriverEndpoint， 继承DriverEndpoint，主要负责与Executor的通信 YarnSchedulerEndpoint， 负责与AMEndpoint沟通 AMEndp">
+<meta name="twitter:title" content="Spark 运行在Yarn上的原理">
+<meta name="twitter:description" content="Spark 运行在 Yarn 上的原理Rpc 服务Spark运行在Yarn上，会涉及到下列Rpc 服务。YarnDriverEndpoint和YarnSchedulerEndpoint运行在同一个进程  YarnDriverEndpoint， 继承DriverEndpoint，主要负责与Executor的通信 YarnSchedulerEndpoint， 负责与AMEndpoint沟通 AMEnd">
 <meta name="twitter:image" content="https://zhmin.github.io/2019/01/02/spark-on-yarn/cluster-mode.jpg">
 
 
@@ -129,7 +129,7 @@
 
 
 
-  <title>spark-on-yarn | blog</title>
+  <title>Spark 运行在Yarn上的原理 | blog</title>
   
 
 
@@ -253,7 +253,7 @@
 
         
         
-          <h2 class="post-title" itemprop="name headline">spark-on-yarn</h2>
+          <h2 class="post-title" itemprop="name headline">Spark 运行在Yarn上的原理</h2>
         
 
         <div class="post-meta">
@@ -303,7 +303,7 @@
       
 
       
-        <h1 id="Spark-运行在-Yarn-的原理"><a href="#Spark-运行在-Yarn-的原理" class="headerlink" title="Spark 运行在 Yarn 的原理"></a>Spark 运行在 Yarn 的原理</h1><h2 id="Rpc-服务"><a href="#Rpc-服务" class="headerlink" title="Rpc 服务"></a>Rpc 服务</h2><p>Spark运行在Yarn上，会涉及到下列Rpc 服务。YarnDriverEndpoint和YarnSchedulerEndpoint运行在同一个进程</p>
+        <h1 id="Spark-运行在-Yarn-上的原理"><a href="#Spark-运行在-Yarn-上的原理" class="headerlink" title="Spark 运行在 Yarn 上的原理"></a>Spark 运行在 Yarn 上的原理</h1><h2 id="Rpc-服务"><a href="#Rpc-服务" class="headerlink" title="Rpc 服务"></a>Rpc 服务</h2><p>Spark运行在Yarn上，会涉及到下列Rpc 服务。YarnDriverEndpoint和YarnSchedulerEndpoint运行在同一个进程</p>
 <ul>
 <li>YarnDriverEndpoint， 继承DriverEndpoint，主要负责与Executor的通信</li>
 <li>YarnSchedulerEndpoint， 负责与AMEndpoint沟通</li>
@@ -381,8 +381,8 @@
 
           <div class="post-nav-prev post-nav-item">
             
-              <a href="/2019/01/03/spark-rdd-dependency/" rel="prev" title="spark-rdd-dependency">
-                spark-rdd-dependency <i class="fa fa-chevron-right"></i>
+              <a href="/2019/01/03/spark-rdd-dependency/" rel="prev" title="Spark RDD之间的依赖">
+                Spark RDD之间的依赖 <i class="fa fa-chevron-right"></i>
               </a>
             
           </div>
@@ -516,7 +516,7 @@
             
 
             
-              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#Spark-运行在-Yarn-的原理"><span class="nav-number">1.</span> <span class="nav-text">Spark 运行在 Yarn 的原理</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#Rpc-服务"><span class="nav-number">1.1.</span> <span class="nav-text">Rpc 服务</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#YarnDriverEndpoint"><span class="nav-number">1.1.1.</span> <span class="nav-text">YarnDriverEndpoint</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#YarnSchedulerEndpoint"><span class="nav-number">1.1.2.</span> <span class="nav-text">YarnSchedulerEndpoint</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#AMEndpoint"><span class="nav-number">1.1.3.</span> <span class="nav-text">AMEndpoint</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#ApplicationMaster启动"><span class="nav-number">1.2.</span> <span class="nav-text">ApplicationMaster启动</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Yarn运行模式"><span class="nav-number">1.3.</span> <span class="nav-text">Yarn运行模式</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#cluster模式"><span class="nav-number">1.3.1.</span> <span class="nav-text">cluster模式</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#client模式"><span class="nav-number">1.3.2.</span> <span class="nav-text">client模式</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#AMEndpoint-启动"><span class="nav-number">1.4.</span> <span class="nav-text">AMEndpoint 启动</span></a></li></ol></li></ol></div>
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#Spark-运行在-Yarn-上的原理"><span class="nav-number">1.</span> <span class="nav-text">Spark 运行在 Yarn 上的原理</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#Rpc-服务"><span class="nav-number">1.1.</span> <span class="nav-text">Rpc 服务</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#YarnDriverEndpoint"><span class="nav-number">1.1.1.</span> <span class="nav-text">YarnDriverEndpoint</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#YarnSchedulerEndpoint"><span class="nav-number">1.1.2.</span> <span class="nav-text">YarnSchedulerEndpoint</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#AMEndpoint"><span class="nav-number">1.1.3.</span> <span class="nav-text">AMEndpoint</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#ApplicationMaster启动"><span class="nav-number">1.2.</span> <span class="nav-text">ApplicationMaster启动</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Yarn运行模式"><span class="nav-number">1.3.</span> <span class="nav-text">Yarn运行模式</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#cluster模式"><span class="nav-number">1.3.1.</span> <span class="nav-text">cluster模式</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#client模式"><span class="nav-number">1.3.2.</span> <span class="nav-text">client模式</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#AMEndpoint-启动"><span class="nav-number">1.4.</span> <span class="nav-text">AMEndpoint 启动</span></a></li></ol></li></ol></div>
             
 
           </div>
