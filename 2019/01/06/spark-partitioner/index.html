@@ -1,0 +1,872 @@
+<!DOCTYPE html>
+
+
+
+  
+
+
+<html class="theme-next mist use-motion" lang="">
+<head><meta name="generator" content="Hexo 3.8.0">
+  <meta charset="UTF-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="theme-color" content="#222">
+
+
+
+
+
+
+
+
+
+<meta http-equiv="Cache-Control" content="no-transform">
+<meta http-equiv="Cache-Control" content="no-siteapp">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+  <link href="/lib/fancybox/source/jquery.fancybox.css?v=2.1.5" rel="stylesheet" type="text/css">
+
+
+
+
+
+
+
+<link href="/lib/font-awesome/css/font-awesome.min.css?v=4.6.2" rel="stylesheet" type="text/css">
+
+<link href="/css/main.css?v=5.1.4" rel="stylesheet" type="text/css">
+
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png?v=5.1.4">
+
+
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png?v=5.1.4">
+
+
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png?v=5.1.4">
+
+
+  <link rel="mask-icon" href="/images/logo.svg?v=5.1.4" color="#222">
+
+
+
+
+
+  <meta name="keywords" content="spark, partitioner,">
+
+
+
+
+
+
+
+
+
+
+<meta name="description" content="分区器当触发到shuffle的时候，会将数据重新打乱分配。分区器会决定数据分配到哪个分区。分区器的接口很简单， 123456abstract class Partitioner extends Serializable &amp;#123;  // 分区的数目  def numPartitions: Int  // 计算key对应的分区索引  def getPartition(key: Any): Int">
+<meta name="keywords" content="spark, partitioner">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Spark Partitioner 原理">
+<meta property="og:url" content="https://zhmin.github.io/2019/01/06/spark-partitioner/index.html">
+<meta property="og:site_name" content="blog">
+<meta property="og:description" content="分区器当触发到shuffle的时候，会将数据重新打乱分配。分区器会决定数据分配到哪个分区。分区器的接口很简单， 123456abstract class Partitioner extends Serializable &amp;#123;  // 分区的数目  def numPartitions: Int  // 计算key对应的分区索引  def getPartition(key: Any): Int">
+<meta property="og:locale" content="default">
+<meta property="og:updated_time" content="2019-01-06T14:14:44.631Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Spark Partitioner 原理">
+<meta name="twitter:description" content="分区器当触发到shuffle的时候，会将数据重新打乱分配。分区器会决定数据分配到哪个分区。分区器的接口很简单， 123456abstract class Partitioner extends Serializable &amp;#123;  // 分区的数目  def numPartitions: Int  // 计算key对应的分区索引  def getPartition(key: Any): Int">
+
+
+
+<script type="text/javascript" id="hexo.configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '/',
+    scheme: 'Mist',
+    version: '5.1.4',
+    sidebar: {"position":"left","display":"hide","offset":12,"b2t":false,"scrollpercent":false,"onmobile":false},
+    fancybox: true,
+    tabs: true,
+    motion: {"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},
+    duoshuo: {
+      userId: '0',
+      author: 'Author'
+    },
+    algolia: {
+      applicationID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    }
+  };
+</script>
+
+
+
+  <link rel="canonical" href="https://zhmin.github.io/2019/01/06/spark-partitioner/">
+
+
+
+
+
+  <title>Spark Partitioner 原理 | blog</title>
+  
+
+
+
+
+
+
+
+
+</head>
+
+<body itemscope="" itemtype="http://schema.org/WebPage" lang="default">
+
+  
+  
+    
+  
+
+  <div class="container sidebar-position-left page-post-detail">
+    <div class="headband"></div>
+
+    <header id="header" class="header" itemscope="" itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-wrapper">
+  <div class="site-meta ">
+    
+
+    <div class="custom-logo-site-title">
+      <a href="/" class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">blog</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+      
+        <h1 class="site-subtitle" itemprop="description"></h1>
+      
+  </div>
+
+  <div class="site-nav-toggle">
+    <button>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+    </button>
+  </div>
+</div>
+
+<nav class="site-nav">
+  
+
+  
+    <ul id="menu" class="menu">
+      
+        
+        <li class="menu-item menu-item-home">
+          <a href="/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-home"></i> <br>
+            
+            Home
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-archives">
+          <a href="/archives/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-archive"></i> <br>
+            
+            Archives
+          </a>
+        </li>
+      
+
+      
+    </ul>
+  
+
+  
+</nav>
+
+
+
+ </div>
+    </header>
+
+    <main id="main" class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          <div id="content" class="content">
+            
+
+  <div id="posts" class="posts-expand">
+    
+
+  
+
+  
+  
+  
+
+  <article class="post post-type-normal" itemscope="" itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block">
+    <link itemprop="mainEntityOfPage" href="https://zhmin.github.io/2019/01/06/spark-partitioner/">
+
+    <span hidden itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="zhmin">
+      <meta itemprop="description" content="">
+      <meta itemprop="image" content="/images/avatar.gif">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope="" itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="blog">
+    </span>
+
+    
+      <header class="post-header">
+
+        
+        
+          <h2 class="post-title" itemprop="name headline">Spark Partitioner 原理</h2>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">Posted on</span>
+              
+              <time title="Post created" itemprop="dateCreated datePublished" datetime="2019-01-06T22:11:41+08:00">
+                2019-01-06
+              </time>
+            
+
+            
+
+            
+          </span>
+
+          
+
+          
+            
+              <span class="post-comments-count">
+                <span class="post-meta-divider">|</span>
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-comment-o"></i>
+                </span>
+                <a href="/2019/01/06/spark-partitioner/#comments" itemprop="discussionUrl">
+                  <span class="post-comments-count valine-comment-count" data-xid="/2019/01/06/spark-partitioner/" itemprop="commentCount"></span>
+                </a>
+              </span>
+            
+          
+
+          
+          
+             <span id="/2019/01/06/spark-partitioner/" class="leancloud_visitors" data-flag-title="Spark Partitioner 原理">
+               <span class="post-meta-divider">|</span>
+               <span class="post-meta-item-icon">
+                 <i class="fa fa-eye"></i>
+               </span>
+               
+                 <span class="post-meta-item-text">Visitors&#58;</span>
+               
+                 <span class="leancloud-visitors-count"></span>
+             </span>
+          
+
+          
+
+          
+
+          
+
+        </div>
+      </header>
+    
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+      
+
+      
+        <h1 id="分区器"><a href="#分区器" class="headerlink" title="分区器"></a>分区器</h1><p>当触发到shuffle的时候，会将数据重新打乱分配。分区器会决定数据分配到哪个分区。分区器的接口很简单，</p>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">abstract</span> <span class="class"><span class="keyword">class</span> <span class="title">Partitioner</span> <span class="keyword">extends</span> <span class="title">Serializable</span> </span>&#123;</span><br><span class="line">  <span class="comment">// 分区的数目</span></span><br><span class="line">  <span class="function"><span class="keyword">def</span> <span class="title">numPartitions</span></span>: <span class="type">Int</span></span><br><span class="line">  <span class="comment">// 计算key对应的分区索引</span></span><br><span class="line">  <span class="function"><span class="keyword">def</span> <span class="title">getPartition</span></span>(key: <span class="type">Any</span>): <span class="type">Int</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>spark有两种内置的分区器，HashPartitioner和RangePartitioner。</p>
+<h2 id="HashPartitioner"><a href="#HashPartitioner" class="headerlink" title="HashPartitioner"></a>HashPartitioner</h2><p>HashPartitioner的原理很简单，只是计算key的hashcode，然后对新分区的数目取余。所以HashPartitioner最重要的属性是新分区的数量。注意HashPartition不能支持key为数组类型。</p>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">getPartition</span></span>(key: <span class="type">Any</span>): <span class="type">Int</span> = key <span class="keyword">match</span> &#123;</span><br><span class="line">  <span class="keyword">case</span> <span class="literal">null</span> =&gt; <span class="number">0</span></span><br><span class="line">  <span class="keyword">case</span> _ =&gt; <span class="type">Utils</span>.nonNegativeMod(key.hashCode, numPartitions)</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">nonNegativeMod</span></span>(x: <span class="type">Int</span>, mod: <span class="type">Int</span>): <span class="type">Int</span> = &#123;</span><br><span class="line">  <span class="keyword">val</span> rawMod = x % mod</span><br><span class="line">  rawMod + (<span class="keyword">if</span> (rawMod &lt; <span class="number">0</span>) mod <span class="keyword">else</span> <span class="number">0</span>)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h2 id="RangePartitioner"><a href="#RangePartitioner" class="headerlink" title="RangePartitioner"></a>RangePartitioner</h2><p>RangePartitioner的原理会稍微复杂一些，会遍历rdd的所有分区，从每个分区都会采样，然后根据样本，生成新分区的边界值，这样就可以根据key把数据分布到对应的新分区。</p>
+<h3 id="蓄水池采样"><a href="#蓄水池采样" class="headerlink" title="蓄水池采样"></a>蓄水池采样</h3><p>采样算法使用的是蓄水池采样。它的使用场景是从不知道大小的集合里，只需要一次遍历，就能够等概率的提取k个元素。算法原理是：</p>
+<ol>
+<li>先从集合的前k个元素，存储到蓄水池</li>
+<li>依次遍历余下的元素，比如遍历第m个元素，然后生成[0, m)区间的随机数 i。如果 i 小于 k，则替换掉原来的第 i 个元素</li>
+</ol>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">reservoirSampleAndCount</span></span>[<span class="type">T</span>: <span class="type">ClassTag</span>](</span><br><span class="line">    input: <span class="type">Iterator</span>[<span class="type">T</span>],</span><br><span class="line">    k: <span class="type">Int</span>,</span><br><span class="line">    seed: <span class="type">Long</span> = <span class="type">Random</span>.nextLong())</span><br><span class="line">  : (<span class="type">Array</span>[<span class="type">T</span>], <span class="type">Long</span>) = &#123;</span><br><span class="line">  <span class="comment">// 结果集合</span></span><br><span class="line">  <span class="keyword">val</span> reservoir = <span class="keyword">new</span> <span class="type">Array</span>[<span class="type">T</span>](k)</span><br><span class="line">  <span class="keyword">var</span> i = <span class="number">0</span></span><br><span class="line">  <span class="comment">// 取出前 k 个元素</span></span><br><span class="line">  <span class="keyword">while</span> (i &lt; k &amp;&amp; input.hasNext) &#123;</span><br><span class="line">    <span class="keyword">val</span> item = input.next()</span><br><span class="line">    reservoir(i) = item</span><br><span class="line">    i += <span class="number">1</span></span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  </span><br><span class="line">  <span class="keyword">if</span> (i &lt; k) &#123;</span><br><span class="line">    <span class="comment">// 如果分区的数据都已经遍历完，则直接返回</span></span><br><span class="line">    <span class="keyword">val</span> trimReservoir = <span class="keyword">new</span> <span class="type">Array</span>[<span class="type">T</span>](i)</span><br><span class="line">    <span class="type">System</span>.arraycopy(reservoir, <span class="number">0</span>, trimReservoir, <span class="number">0</span>, i)</span><br><span class="line">    <span class="comment">// 返回采样结果和已遍历的数目</span></span><br><span class="line">    (trimReservoir, i)</span><br><span class="line">  &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">    <span class="comment">// 如果数据还有剩余，则进行蓄水池采样</span></span><br><span class="line">    <span class="keyword">var</span> l = i.toLong</span><br><span class="line">    <span class="keyword">val</span> rand = <span class="keyword">new</span> <span class="type">XORShiftRandom</span>(seed)</span><br><span class="line">    <span class="keyword">while</span> (input.hasNext) &#123;</span><br><span class="line">      <span class="keyword">val</span> item = input.next()</span><br><span class="line">      l += <span class="number">1</span></span><br><span class="line">      <span class="comment">// 生成随机数</span></span><br><span class="line">      <span class="keyword">val</span> replacementIndex = (rand.nextDouble() * l).toLong</span><br><span class="line">      <span class="keyword">if</span> (replacementIndex &lt; k) &#123;</span><br><span class="line">      	<span class="comment">// 如果随机数小于k， 则替代原来的元素</span></span><br><span class="line">        reservoir(replacementIndex.toInt) = item</span><br><span class="line">      &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">// 返回采样结果和已遍历的数目</span></span><br><span class="line">    (reservoir, l)</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>RangePartitioner会调用reservoirSampleAndCount对每个分区采样，并且调用collect返回采样结果。</p>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">sketch</span></span>[<span class="type">K</span> : <span class="type">ClassTag</span>](</span><br><span class="line">    rdd: <span class="type">RDD</span>[<span class="type">K</span>],</span><br><span class="line">    sampleSizePerPartition: <span class="type">Int</span>): (<span class="type">Long</span>, <span class="type">Array</span>[(<span class="type">Int</span>, <span class="type">Long</span>, <span class="type">Array</span>[<span class="type">K</span>])]) = &#123;</span><br><span class="line">  <span class="keyword">val</span> shift = rdd.id</span><br><span class="line">  <span class="keyword">val</span> sketched = rdd.mapPartitionsWithIndex &#123; (idx, iter) =&gt;</span><br><span class="line">    <span class="keyword">val</span> seed = byteswap32(idx ^ (shift &lt;&lt; <span class="number">16</span>))</span><br><span class="line">    <span class="keyword">val</span> (sample, n) = <span class="type">SamplingUtils</span>.reservoirSampleAndCount(</span><br><span class="line">      iter, sampleSizePerPartition, seed)</span><br><span class="line">    <span class="type">Iterator</span>((idx, n, sample))</span><br><span class="line">  &#125;.collect()</span><br><span class="line">  <span class="keyword">val</span> numItems = sketched.map(_._2).sum</span><br><span class="line">  <span class="comment">// 返回采样结果的数目和采样结果</span></span><br><span class="line">  (numItems, sketched)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h3 id="生成边界值"><a href="#生成边界值" class="headerlink" title="生成边界值"></a>生成边界值</h3><p>采样结果出来后，还需要处理。这里首先会将分区的采样结果分成两种情况，一种是采样的数目小于预期，这种情况需要重新采样，获取足够的样本。</p>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 设置采样总数</span></span><br><span class="line"><span class="keyword">val</span> sampleSize = math.min(<span class="number">20.0</span> * partitions, <span class="number">1e6</span>)</span><br><span class="line"><span class="comment">// 每个分区的采样数，这里乘以3，是为了防止某些分区过小，导致采样总量不足</span></span><br><span class="line"><span class="keyword">val</span> sampleSizePerPartition = math.ceil(<span class="number">3.0</span> * sampleSize / rdd.partitions.length).toInt</span><br><span class="line"><span class="comment">// 抽样， numItems为遍历的数量， sketched为采样结果</span></span><br><span class="line"><span class="keyword">val</span> (numItems, sketched) = <span class="type">RangePartitioner</span>.sketch(rdd.map(_._1), sampleSizePerPartition)</span><br><span class="line"></span><br><span class="line"><span class="comment">// 计算平均系数，表明每遍历一个元素，获得采样的数目</span></span><br><span class="line"><span class="keyword">val</span> fraction = math.min(sampleSize / math.max(numItems, <span class="number">1</span>L), <span class="number">1.0</span>)</span><br><span class="line"><span class="comment">// 存储结果， 存储类型为 (key, 权重)</span></span><br><span class="line"><span class="keyword">val</span> candidates = <span class="type">ArrayBuffer</span>.empty[(<span class="type">K</span>, <span class="type">Float</span>)]</span><br><span class="line"><span class="comment">// 采样数目小于预期的partition</span></span><br><span class="line"><span class="keyword">val</span> imbalancedPartitions = mutable.<span class="type">Set</span>.empty[<span class="type">Int</span>]</span><br><span class="line"><span class="comment">// 遍历采样结果，idx表示分区索引，n表示遍历数目，sample为该分区的样本值</span></span><br><span class="line">sketched.foreach &#123; <span class="keyword">case</span> (idx, n, sample) =&gt;</span><br><span class="line">    <span class="keyword">if</span> (fraction * n &gt; sampleSizePerPartition) &#123;</span><br><span class="line">        <span class="comment">// 如果预期的采样结果数量，大于实际的采样结果数量，则该分区需要重新采样</span></span><br><span class="line">        imbalancedPartitions += idx</span><br><span class="line">    &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">        <span class="comment">// 计算权重，遍历数目越多，则表明可信度更高，权重也越高</span></span><br><span class="line">        <span class="keyword">val</span> weight = (n.toDouble / sample.length).toFloat</span><br><span class="line">        <span class="comment">// 添加到candidates</span></span><br><span class="line">        <span class="keyword">for</span> (key &lt;- sample) &#123;</span><br><span class="line">            candidates += ((key, weight))</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">// 分区重新采样</span></span><br><span class="line">    <span class="keyword">if</span> (imbalancedPartitions.nonEmpty) &#123;</span><br><span class="line">        <span class="comment">// 实例PartitionPruningRDD，使用imbalancedPartitions挑选出，哪些分区需要重新采样</span></span><br><span class="line">        <span class="keyword">val</span> imbalanced = <span class="keyword">new</span> <span class="type">PartitionPruningRDD</span>(rdd.map(_._1), imbalancedPartitions.contains)</span><br><span class="line">        <span class="comment">// 调用rdd的sample取样</span></span><br><span class="line">        <span class="keyword">val</span> reSampled = imbalanced.sample(withReplacement = <span class="literal">false</span>, fraction, seed).collect()</span><br><span class="line">        <span class="comment">// 计算权重</span></span><br><span class="line">        <span class="keyword">val</span> weight = (<span class="number">1.0</span> / fraction).toFloat</span><br><span class="line">        <span class="comment">// 添加到candidates</span></span><br><span class="line">        candidates ++= reSampled.map(x =&gt; (x, weight))</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">// 排序candidates，生成rangeBounds</span></span><br><span class="line">    <span class="type">RangePartitioner</span>.determineBounds(candidates, partitions)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>生成rangeBounds的原理比较简单，首先将candidates按照key排序。然后根据weight的总和，计算每个分区的元素的weight和。</p>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">determineBounds</span></span>[<span class="type">K</span> : <span class="type">Ordering</span> : <span class="type">ClassTag</span>](</span><br><span class="line">    candidates: <span class="type">ArrayBuffer</span>[(<span class="type">K</span>, <span class="type">Float</span>)],</span><br><span class="line">    partitions: <span class="type">Int</span>): <span class="type">Array</span>[<span class="type">K</span>] = &#123;</span><br><span class="line">    <span class="comment">// 按照key排序</span></span><br><span class="line">    <span class="keyword">val</span> ordered = candidates.sortBy(_._1)</span><br><span class="line">    <span class="comment">// 计算权重和</span></span><br><span class="line">    <span class="keyword">val</span> sumWeights = ordered.map(_._2.toDouble).sum</span><br><span class="line">    <span class="comment">// 计算每个分区的weight和</span></span><br><span class="line">    <span class="keyword">val</span> step = sumWeights / partitions</span><br><span class="line">    <span class="comment">// 遍历元素</span></span><br><span class="line">    <span class="keyword">var</span> cumWeight = <span class="number">0.0</span></span><br><span class="line">    <span class="keyword">while</span> ((i &lt; numCandidates) &amp;&amp; (j &lt; partitions - <span class="number">1</span>)) &#123;</span><br><span class="line">        <span class="keyword">val</span> (key, weight) = ordered(i)</span><br><span class="line">        cumWeight += weight</span><br><span class="line">        <span class="keyword">if</span> (cumWeight &gt;= target) &#123;</span><br><span class="line">            <span class="comment">// 更新rangeBounder值</span></span><br><span class="line">            ....</span><br><span class="line">        &#125;</span><br><span class="line">        .....</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h2 id="默认分区器"><a href="#默认分区器" class="headerlink" title="默认分区器"></a>默认分区器</h2><p>当触发shuffle，但没有指定partitioner。spark会自动生成默认的分区器。</p>
+<p>首先去寻找父类rdd（注意不是所有祖先的rdd，而仅仅是上一级的rdd）的partitioner，则返回其中的最大partitioner (按照分区数量排序)。</p>
+<p>如果父类rdd没有指定partitioner，但是spark.default.parallelism有在配置中指定，则使用该数值，创建HashPartitioner。</p>
+<p>否则，就找到父类rdd的最大分区数目，使用该数值，创建HashPartitioner。</p>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">defaultPartitioner</span></span>(rdd: <span class="type">RDD</span>[_], others: <span class="type">RDD</span>[_]*): <span class="type">Partitioner</span> = &#123;</span><br><span class="line">  <span class="keyword">val</span> rdds = (<span class="type">Seq</span>(rdd) ++ others)</span><br><span class="line">  <span class="keyword">val</span> hasPartitioner = rdds.filter(_.partitioner.exists(_.numPartitions &gt; <span class="number">0</span>))</span><br><span class="line">  <span class="keyword">if</span> (hasPartitioner.nonEmpty) &#123;</span><br><span class="line">    hasPartitioner.maxBy(_.partitions.length).partitioner.get</span><br><span class="line">  &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">    <span class="keyword">if</span> (rdd.context.conf.contains(<span class="string">"spark.default.parallelism"</span>)) &#123;</span><br><span class="line">      <span class="keyword">new</span> <span class="type">HashPartitioner</span>(rdd.context.defaultParallelism)</span><br><span class="line">    &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">      <span class="keyword">new</span> <span class="type">HashPartitioner</span>(rdds.map(_.partitions.length).max)</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h2 id="自定义partitioner"><a href="#自定义partitioner" class="headerlink" title="自定义partitioner"></a>自定义partitioner</h2><p>HashPartitioner的性能会比较好，但是容易造成划分不均衡，这样会导致shuffle倾斜。RangePartitioner的划分会比较公平，但是性能相对比较差，因为它需要遍历一次所有的数据，才能完成抽样。如果我们对于数据本身，有着比较好的理解，那么可以自定义partitioner，既能防止shuffle倾斜，也不需要像RangePartitioner那样遍历一次数据。</p>
+<p>比如有一批数据，是关于所有商品销售记录。我们需要计算出各种商品的销售情况。我们根据以往的经验，商品a卖的比较好，占了整个销售总和的10%， 其余的都差不多。那么可以实现自定义partitioner，将商品a的划分到一个分区，其余的商品根据hashCode随机分配。</p>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">class</span> <span class="title">MyPartitioner</span> <span class="keyword">extends</span> <span class="title">Partitioner</span> </span>&#123;</span><br><span class="line">    <span class="comment">// 分区的数目</span></span><br><span class="line">    <span class="function"><span class="keyword">def</span> <span class="title">numPartitions</span></span>: <span class="type">Int</span> = <span class="number">10</span></span><br><span class="line">    </span><br><span class="line">    <span class="comment">// 计算key对应的分区索引</span></span><br><span class="line">    <span class="function"><span class="keyword">def</span> <span class="title">getPartition</span></span>(key: <span class="type">Any</span>): <span class="type">Int</span> = &#123;</span><br><span class="line">        <span class="keyword">val</span> value = key.asInstanceOf(<span class="type">String</span>)</span><br><span class="line">        value <span class="keyword">match</span> &#123;</span><br><span class="line">            <span class="keyword">case</span> <span class="string">"商品a"</span> =&gt; <span class="number">0</span></span><br><span class="line">            <span class="keyword">case</span> _ =&gt; <span class="type">Utils</span>.nonNegativeMod(key.hashCode, numPartitions<span class="number">-1</span>) + <span class="number">1</span>   </span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+      
+    </div>
+    
+    
+    
+
+    
+
+    
+
+    
+
+    <footer class="post-footer">
+      
+        <div class="post-tags">
+          
+            <a href="/tags/spark-partitioner/" rel="tag"># spark, partitioner</a>
+          
+        </div>
+      
+
+      
+      
+      
+
+      
+        <div class="post-nav">
+          <div class="post-nav-next post-nav-item">
+            
+              <a href="/2019/01/03/spark-rdd-dependency/" rel="next" title="Spark RDD之间的依赖">
+                <i class="fa fa-chevron-left"></i> Spark RDD之间的依赖
+              </a>
+            
+          </div>
+
+          <span class="post-nav-divider"></span>
+
+          <div class="post-nav-prev post-nav-item">
+            
+          </div>
+        </div>
+      
+
+      
+      
+    </footer>
+  </div>
+  
+  
+  
+  </article>
+
+
+
+    <div class="post-spread">
+      
+    </div>
+  </div>
+
+
+          </div>
+          
+
+
+          
+
+  
+    <div class="comments" id="comments">
+    </div>
+  
+
+
+
+        </div>
+        
+          
+  
+  <div class="sidebar-toggle">
+    <div class="sidebar-toggle-line-wrap">
+      <span class="sidebar-toggle-line sidebar-toggle-line-first"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-middle"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-last"></span>
+    </div>
+  </div>
+
+  <aside id="sidebar" class="sidebar">
+    
+    <div class="sidebar-inner">
+
+      
+
+      
+        <ul class="sidebar-nav motion-element">
+          <li class="sidebar-nav-toc sidebar-nav-active" data-target="post-toc-wrap">
+            Table of Contents
+          </li>
+          <li class="sidebar-nav-overview" data-target="site-overview-wrap">
+            Overview
+          </li>
+        </ul>
+      
+
+      <section class="site-overview-wrap sidebar-panel">
+        <div class="site-overview">
+          <div class="site-author motion-element" itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+            
+              <p class="site-author-name" itemprop="name">zhmin</p>
+              <p class="site-description motion-element" itemprop="description"></p>
+          </div>
+
+          <nav class="site-state motion-element">
+
+            
+              <div class="site-state-item site-state-posts">
+              
+                <a href="/archives/">
+              
+                  <span class="site-state-item-count">10</span>
+                  <span class="site-state-item-name">posts</span>
+                </a>
+              </div>
+            
+
+            
+
+            
+              
+              
+              <div class="site-state-item site-state-tags">
+                
+                  <span class="site-state-item-count">9</span>
+                  <span class="site-state-item-name">tags</span>
+                
+              </div>
+            
+
+          </nav>
+
+          
+
+          
+            <div class="links-of-author motion-element">
+                
+                  <span class="links-of-author-item">
+                    <a href="https://github.com/zhmin" target="_blank" title="GitHub">
+                      
+                        <i class="fa fa-fw fa-github"></i>GitHub</a>
+                  </span>
+                
+            </div>
+          
+
+          
+          
+
+          
+          
+
+          
+
+        </div>
+      </section>
+
+      
+      <!--noindex-->
+        <section class="post-toc-wrap motion-element sidebar-panel sidebar-panel-active">
+          <div class="post-toc">
+
+            
+              
+            
+
+            
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#分区器"><span class="nav-number">1.</span> <span class="nav-text">分区器</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#HashPartitioner"><span class="nav-number">1.1.</span> <span class="nav-text">HashPartitioner</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#RangePartitioner"><span class="nav-number">1.2.</span> <span class="nav-text">RangePartitioner</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#蓄水池采样"><span class="nav-number">1.2.1.</span> <span class="nav-text">蓄水池采样</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#生成边界值"><span class="nav-number">1.2.2.</span> <span class="nav-text">生成边界值</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#默认分区器"><span class="nav-number">1.3.</span> <span class="nav-text">默认分区器</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#自定义partitioner"><span class="nav-number">1.4.</span> <span class="nav-text">自定义partitioner</span></a></li></ol></li></ol></div>
+            
+
+          </div>
+        </section>
+      <!--/noindex-->
+      
+
+      
+
+    </div>
+  </aside>
+
+
+        
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="footer-inner">
+        <div class="copyright">&copy; <span itemprop="copyrightYear">2019</span>
+  <span class="with-love">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">zhmin</span>
+
+  
+</div>
+
+
+
+
+
+
+
+
+
+
+
+  <script src="https://unpkg.com/mermaid@7.1.2/dist/mermaid.min.js"></script>
+  <script>
+    if (window.mermaid) {
+      mermaid.initialize({"startOnload":"true  // default true","theme":"forest"});
+    }
+  </script>
+
+
+
+<script async src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+<span id="busuanzi_container_site_pv">
+    访问量<span id="busuanzi_value_site_pv"></span>
+</span>
+<span class="post-meta-divider">|</span>
+<span id="busuanzi_container_site_uv">
+  访客数<span id="busuanzi_value_site_uv"></span>
+</span>
+
+        
+
+
+
+
+
+
+
+        
+      </div>
+    </footer>
+
+    
+      <div class="back-to-top">
+        <i class="fa fa-arrow-up"></i>
+        
+      </div>
+    
+
+    
+
+  </div>
+
+  
+
+<script type="text/javascript">
+  if (Object.prototype.toString.call(window.Promise) !== '[object Function]') {
+    window.Promise = null;
+  }
+</script>
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery/index.js?v=2.1.3"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fastclick/lib/fastclick.min.js?v=1.0.6"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery_lazyload/jquery.lazyload.js?v=1.9.7"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.ui.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fancybox/source/jquery.fancybox.pack.js?v=2.1.5"></script>
+  
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/utils.js?v=5.1.4"></script>
+
+  <script type="text/javascript" src="/js/src/motion.js?v=5.1.4"></script>
+
+
+
+  
+  
+
+  
+  <script type="text/javascript" src="/js/src/scrollspy.js?v=5.1.4"></script>
+<script type="text/javascript" src="/js/src/post-details.js?v=5.1.4"></script>
+
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/bootstrap.js?v=5.1.4"></script>
+
+
+
+  
+
+
+  
+
+
+
+
+	
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+  <script src="//cdn1.lncld.net/static/js/3.0.4/av-min.js"></script>
+  <script src="//unpkg.com/valine/dist/Valine.min.js"></script>
+  
+  <script type="text/javascript">
+    var GUEST = ['nick','mail','link'];
+    var guest = 'nick';
+    guest = guest.split(',').filter(item=>{
+      return GUEST.indexOf(item)>-1;
+    });
+    new Valine({
+        el: '#comments' ,
+        verify: false,
+        notify: false,
+        appId: 'iYiPQlDR2X2zg2QIql2UEe2o-gzGzoHsz',
+        appKey: 'EW8G4sftwX1pef1zS9EsOeKE',
+        placeholder: 'comment here',
+        avatar:'mm',
+        guest_info:guest,
+        pageSize:'10' || 10,
+    });
+  </script>
+
+
+
+  
+
+
+
+
+
+  
+
+  
+  <script src="https://cdn1.lncld.net/static/js/av-core-mini-0.6.4.js"></script>
+  <script>AV.initialize("iYiPQlDR2X2zg2QIql2UEe2o-gzGzoHsz", "EW8G4sftwX1pef1zS9EsOeKE");</script>
+  <script>
+    function showTime(Counter) {
+      var query = new AV.Query(Counter);
+      var entries = [];
+      var $visitors = $(".leancloud_visitors");
+
+      $visitors.each(function () {
+        entries.push( $(this).attr("id").trim() );
+      });
+
+      query.containedIn('url', entries);
+      query.find()
+        .done(function (results) {
+          var COUNT_CONTAINER_REF = '.leancloud-visitors-count';
+
+          if (results.length === 0) {
+            $visitors.find(COUNT_CONTAINER_REF).text(0);
+            return;
+          }
+
+          for (var i = 0; i < results.length; i++) {
+            var item = results[i];
+            var url = item.get('url');
+            var time = item.get('time');
+            var element = document.getElementById(url);
+
+            $(element).find(COUNT_CONTAINER_REF).text(time);
+          }
+          for(var i = 0; i < entries.length; i++) {
+            var url = entries[i];
+            var element = document.getElementById(url);
+            var countSpan = $(element).find(COUNT_CONTAINER_REF);
+            if( countSpan.text() == '') {
+              countSpan.text(0);
+            }
+          }
+        })
+        .fail(function (object, error) {
+          console.log("Error: " + error.code + " " + error.message);
+        });
+    }
+
+    function addCount(Counter) {
+      var $visitors = $(".leancloud_visitors");
+      var url = $visitors.attr('id').trim();
+      var title = $visitors.attr('data-flag-title').trim();
+      var query = new AV.Query(Counter);
+
+      query.equalTo("url", url);
+      query.find({
+        success: function(results) {
+          if (results.length > 0) {
+            var counter = results[0];
+            counter.fetchWhenSave(true);
+            counter.increment("time");
+            counter.save(null, {
+              success: function(counter) {
+                var $element = $(document.getElementById(url));
+                $element.find('.leancloud-visitors-count').text(counter.get('time'));
+              },
+              error: function(counter, error) {
+                console.log('Failed to save Visitor num, with error message: ' + error.message);
+              }
+            });
+          } else {
+            var newcounter = new Counter();
+            /* Set ACL */
+            var acl = new AV.ACL();
+            acl.setPublicReadAccess(true);
+            acl.setPublicWriteAccess(true);
+            newcounter.setACL(acl);
+            /* End Set ACL */
+            newcounter.set("title", title);
+            newcounter.set("url", url);
+            newcounter.set("time", 1);
+            newcounter.save(null, {
+              success: function(newcounter) {
+                var $element = $(document.getElementById(url));
+                $element.find('.leancloud-visitors-count').text(newcounter.get('time'));
+              },
+              error: function(newcounter, error) {
+                console.log('Failed to create');
+              }
+            });
+          }
+        },
+        error: function(error) {
+          console.log('Error:' + error.code + " " + error.message);
+        }
+      });
+    }
+
+    $(function() {
+      var Counter = AV.Object.extend("Counter");
+      if ($('.leancloud_visitors').length == 1) {
+        addCount(Counter);
+      } else if ($('.post-title-link').length > 1) {
+        showTime(Counter);
+      }
+    });
+  </script>
+
+
+
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+</body>
+</html>

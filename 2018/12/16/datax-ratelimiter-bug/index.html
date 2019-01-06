@@ -87,7 +87,7 @@
 <meta property="og:site_name" content="blog">
 <meta property="og:description" content="Datax 限速原理使用官方文档并没有写到怎么配置限速，通过观察源码才得知，需要配置core.transport.channel.speed.byte或core.transport.channel.speed.record值。这两个值是指定每个channel的速度。注意job.setting.speed.byte和job.setting.speed.record也是指定速度，但这个是限制所有cha">
 <meta property="og:locale" content="default">
-<meta property="og:updated_time" content="2018-12-23T14:05:22.556Z">
+<meta property="og:updated_time" content="2019-01-06T14:11:17.949Z">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="Datax限速bug">
 <meta name="twitter:description" content="Datax 限速原理使用官方文档并没有写到怎么配置限速，通过观察源码才得知，需要配置core.transport.channel.speed.byte或core.transport.channel.speed.record值。这两个值是指定每个channel的速度。注意job.setting.speed.byte和job.setting.speed.record也是指定速度，但这个是限制所有cha">
@@ -276,9 +276,30 @@
 
           
             
+              <span class="post-comments-count">
+                <span class="post-meta-divider">|</span>
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-comment-o"></i>
+                </span>
+                <a href="/2018/12/16/datax-ratelimiter-bug/#comments" itemprop="discussionUrl">
+                  <span class="post-comments-count valine-comment-count" data-xid="/2018/12/16/datax-ratelimiter-bug/" itemprop="commentCount"></span>
+                </a>
+              </span>
+            
           
 
           
+          
+             <span id="/2018/12/16/datax-ratelimiter-bug/" class="leancloud_visitors" data-flag-title="Datax限速bug">
+               <span class="post-meta-divider">|</span>
+               <span class="post-meta-item-icon">
+                 <i class="fa fa-eye"></i>
+               </span>
+               
+                 <span class="post-meta-item-text">Visitors&#58;</span>
+               
+                 <span class="leancloud-visitors-count"></span>
+             </span>
           
 
           
@@ -303,7 +324,7 @@
         <h1 id="Datax-限速原理"><a href="#Datax-限速原理" class="headerlink" title="Datax 限速原理"></a>Datax 限速原理</h1><h2 id="使用"><a href="#使用" class="headerlink" title="使用"></a>使用</h2><p>官方文档并没有写到怎么配置限速，通过观察源码才得知，需要配置core.transport.channel.speed.byte或core.transport.channel.speed.record值。这两个值是指定每个channel的速度。注意job.setting.speed.byte和job.setting.speed.record也是指定速度，但这个是限制所有channel的总速度。</p>
 <p>我们使用限速功能时，可以通过制定job.setting.speed和core.transport.channel.speed的值，这样datax会自动的计算出channel数目。也可以指定core.transport.channel.speed和channel数目。</p>
 <p>配置文件示例如下，指定了channel的数目为5，每个channel的数据读取条数为100：</p>
-<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br></pre></td><td class="code"><pre><span class="line">&#123;</span><br><span class="line">    <span class="attr">"core"</span>: &#123;</span><br><span class="line">         <span class="attr">"transport"</span> : &#123;</span><br><span class="line">              <span class="attr">"channel"</span>: &#123;</span><br><span class="line">                   <span class="attr">"speed"</span>: &#123;</span><br><span class="line">                       <span class="attr">"record"</span>: <span class="number">100</span></span><br><span class="line">                    &#125;</span><br><span class="line">               &#125;</span><br><span class="line">         &#125;</span><br><span class="line">    &#125;,</span><br><span class="line">    <span class="attr">"job"</span>: &#123;</span><br><span class="line">        <span class="attr">"setting"</span>: &#123;</span><br><span class="line">            <span class="attr">"speed"</span>: &#123;</span><br><span class="line">                <span class="attr">"channel"</span>: <span class="number">5</span>,</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;,</span><br><span class="line">        <span class="attr">"content"</span>: [</span><br><span class="line">            &#123;</span><br><span class="line">                <span class="attr">"reader"</span>: &#123;</span><br><span class="line">                    <span class="attr">"name"</span>: <span class="string">"sqlserverreader"</span>,</span><br><span class="line">                    <span class="attr">"parameter"</span>: &#123;</span><br><span class="line"></span><br><span class="line">                        <span class="attr">"username"</span>: <span class="string">"xx"</span>,</span><br><span class="line">                        <span class="attr">"password"</span>: <span class="string">"xx"</span>,</span><br><span class="line">                        <span class="attr">"connection"</span>: [</span><br><span class="line">                            &#123;</span><br><span class="line">                                <span class="attr">"querySql"</span>: [</span><br><span class="line">                                    <span class="string">"SELECT * from mytable LIMIT 100 "</span></span><br><span class="line">                                ],</span><br><span class="line">                                <span class="attr">"jdbcUrl"</span>: [</span><br><span class="line">                                    <span class="string">"jdbc:postgresql://host:port/database"</span></span><br><span class="line">                                ]</span><br><span class="line">                            &#125;</span><br><span class="line">                        ]</span><br><span class="line">                    &#125;</span><br><span class="line">                &#125;,</span><br><span class="line">               <span class="attr">"writer"</span>: &#123;</span><br><span class="line">                    <span class="attr">"name"</span>: <span class="string">"streamwriter"</span>,</span><br><span class="line">                    <span class="attr">"parameter"</span>: &#123;</span><br><span class="line">                        <span class="attr">"print"</span>: <span class="literal">false</span>,</span><br><span class="line">                        <span class="attr">"encoding"</span>: <span class="string">"UTF-8"</span></span><br><span class="line">                    &#125;</span><br><span class="line">                &#125;</span><br><span class="line">            &#125;</span><br><span class="line">        ]</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br></pre></td><td class="code"><pre><span class="line">&#123;</span><br><span class="line">    <span class="attr">"core"</span>: &#123;</span><br><span class="line">         <span class="attr">"transport"</span> : &#123;</span><br><span class="line">              <span class="attr">"channel"</span>: &#123;</span><br><span class="line">                   <span class="attr">"speed"</span>: &#123;</span><br><span class="line">                       <span class="attr">"record"</span>: <span class="number">100</span></span><br><span class="line">                    &#125;</span><br><span class="line">               &#125;</span><br><span class="line">         &#125;</span><br><span class="line">    &#125;,</span><br><span class="line">    <span class="attr">"job"</span>: &#123;</span><br><span class="line">        <span class="attr">"setting"</span>: &#123;</span><br><span class="line">            <span class="attr">"speed"</span>: &#123;</span><br><span class="line">                <span class="attr">"channel"</span>: <span class="number">5</span>,</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;,</span><br><span class="line">        <span class="attr">"content"</span>: [</span><br><span class="line">            &#123;</span><br><span class="line">                <span class="attr">"reader"</span>: &#123;</span><br><span class="line">                    <span class="attr">"name"</span>: <span class="string">"postgresqlreader"</span>,</span><br><span class="line">                    <span class="attr">"parameter"</span>: &#123;</span><br><span class="line"></span><br><span class="line">                        <span class="attr">"username"</span>: <span class="string">"xx"</span>,</span><br><span class="line">                        <span class="attr">"password"</span>: <span class="string">"xx"</span>,</span><br><span class="line">                        <span class="attr">"connection"</span>: [</span><br><span class="line">                            &#123;</span><br><span class="line">                                <span class="attr">"querySql"</span>: [</span><br><span class="line">                                    <span class="string">"SELECT * from mytable LIMIT 100 "</span></span><br><span class="line">                                ],</span><br><span class="line">                                <span class="attr">"jdbcUrl"</span>: [</span><br><span class="line">                                    <span class="string">"jdbc:postgresql://host:port/database"</span></span><br><span class="line">                                ]</span><br><span class="line">                            &#125;</span><br><span class="line">                        ]</span><br><span class="line">                    &#125;</span><br><span class="line">                &#125;,</span><br><span class="line">               <span class="attr">"writer"</span>: &#123;</span><br><span class="line">                    <span class="attr">"name"</span>: <span class="string">"streamwriter"</span>,</span><br><span class="line">                    <span class="attr">"parameter"</span>: &#123;</span><br><span class="line">                        <span class="attr">"print"</span>: <span class="literal">false</span>,</span><br><span class="line">                        <span class="attr">"encoding"</span>: <span class="string">"UTF-8"</span></span><br><span class="line">                    &#125;</span><br><span class="line">                &#125;</span><br><span class="line">            &#125;</span><br><span class="line">        ]</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
 <h2 id="Bug"><a href="#Bug" class="headerlink" title="Bug"></a>Bug</h2><p>当指定了ob.setting.speed配置，是必须同时指定core.transport.channel.speed的配置，但是目前datax却没有抛出错误。这里可以看看datax的源码，是如何检查值的。</p>
 <figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br></pre></td><td class="code"><pre><span class="line">public class JobContainer extends AbstractContainer &#123;</span><br><span class="line">	private void adjustChannelNumber() &#123;</span><br><span class="line">        int needChannelNumberByByte = Integer.MAX_VALUE;</span><br><span class="line">        int needChannelNumberByRecord = Integer.MAX_VALUE;</span><br><span class="line">        </span><br><span class="line">	    // 是否配置了总的速度限制job.setting.speed.byte</span><br><span class="line">        boolean isByteLimit = (this.configuration.getInt(</span><br><span class="line">                CoreConstant.DATAX_JOB_SETTING_SPEED_BYTE, 0) &gt; 0);</span><br><span class="line">        if (isByteLimit) &#123;</span><br><span class="line">            long globalLimitedByteSpeed = this.configuration.getInt(</span><br><span class="line">                    CoreConstant.DATAX_JOB_SETTING_SPEED_BYTE, 10 * 1024 * 1024);</span><br><span class="line"></span><br><span class="line">            // CoreConstant.DATAX_CORE_TRANSPORT_CHANNEL_SPEED_BYTE在默认文件core.json中指定了，</span><br><span class="line">            // 默认为-1</span><br><span class="line">            Long channelLimitedByteSpeed = this.configuration</span><br><span class="line">                    .getLong(CoreConstant.DATAX_CORE_TRANSPORT_CHANNEL_SPEED_BYTE);</span><br><span class="line">            if (channelLimitedByteSpeed == null || channelLimitedByteSpeed &lt;= 0) &#123;</span><br><span class="line">                /* 如果没有指定core.transport.channel.speed.byte， 则这里本应该抛出错误</span><br><span class="line">                   但是这里DataXException.asDataXException仅仅是返回了异常，并没有throw</span><br><span class="line">                */</span><br><span class="line">                DataXException.asDataXException(</span><br><span class="line">                        FrameworkErrorCode.CONFIG_ERROR,</span><br><span class="line">                        &quot;在有总bps限速条件下，单个channel的bps值不能为空，也不能为非正数&quot;);</span><br><span class="line">            &#125;</span><br><span class="line"></span><br><span class="line">            needChannelNumberByByte =</span><br><span class="line">                    (int) (globalLimitedByteSpeed / channelLimitedByteSpeed);</span><br><span class="line">            needChannelNumberByByte =</span><br><span class="line">                    needChannelNumberByByte &gt; 0 ? needChannelNumberByByte : 1;</span><br><span class="line">            LOG.info(&quot;Job set Max-Byte-Speed to &quot; + globalLimitedByteSpeed + &quot; bytes.&quot;);</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        boolean isRecordLimit = (this.configuration.getInt(</span><br><span class="line">                CoreConstant.DATAX_JOB_SETTING_SPEED_RECORD, 0)) &gt; 0;</span><br><span class="line">        if (isRecordLimit) &#123;</span><br><span class="line">            long globalLimitedRecordSpeed = this.configuration.getInt(</span><br><span class="line">                    CoreConstant.DATAX_JOB_SETTING_SPEED_RECORD, 100000);</span><br><span class="line">            Long channelLimitedRecordSpeed = this.configuration.getLong(</span><br><span class="line">                    CoreConstant.DATAX_CORE_TRANSPORT_CHANNEL_SPEED_RECORD);</span><br><span class="line">            if (channelLimitedRecordSpeed == null || channelLimitedRecordSpeed &lt;= 0) &#123;</span><br><span class="line">                throw DataXException.asDataXException(FrameworkErrorCode.CONFIG_ERROR,</span><br><span class="line">                        &quot;在有总tps限速条件下，单个channel的tps值不能为空，也不能为非正数&quot;);</span><br><span class="line">            &#125;</span><br><span class="line"></span><br><span class="line">            needChannelNumberByRecord =</span><br><span class="line">                    (int) (globalLimitedRecordSpeed / channelLimitedRecordSpeed);</span><br><span class="line">            needChannelNumberByRecord =</span><br><span class="line">                    needChannelNumberByRecord &gt; 0 ? needChannelNumberByRecord : 1;</span><br><span class="line">            LOG.info(&quot;Job set Max-Record-Speed to &quot; + globalLimitedRecordSpeed + &quot; records.&quot;);</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        ........</span><br><span class="line">    &#125;</span><br></pre></td></tr></table></figure>
 <p>可以看到Datax是检查了配置参数，但是这里没有抛出异常，所以需要在DataXException.asDataXException的前面加上throw，将异常抛出来。否则仅仅指定了job.setting.speed，是没有任何限速作用的。</p>
@@ -376,6 +397,9 @@
           
 
   
+    <div class="comments" id="comments">
+    </div>
+  
 
 
 
@@ -423,7 +447,7 @@
               
                 <a href="/archives/">
               
-                  <span class="site-state-item-count">9</span>
+                  <span class="site-state-item-count">10</span>
                   <span class="site-state-item-name">posts</span>
                 </a>
               </div>
@@ -436,7 +460,7 @@
               
               <div class="site-state-item site-state-tags">
                 
-                  <span class="site-state-item-count">8</span>
+                  <span class="site-state-item-count">9</span>
                   <span class="site-state-item-name">tags</span>
                 
               </div>
@@ -675,6 +699,28 @@
 
 
 
+  <script src="//cdn1.lncld.net/static/js/3.0.4/av-min.js"></script>
+  <script src="//unpkg.com/valine/dist/Valine.min.js"></script>
+  
+  <script type="text/javascript">
+    var GUEST = ['nick','mail','link'];
+    var guest = 'nick';
+    guest = guest.split(',').filter(item=>{
+      return GUEST.indexOf(item)>-1;
+    });
+    new Valine({
+        el: '#comments' ,
+        verify: false,
+        notify: false,
+        appId: 'iYiPQlDR2X2zg2QIql2UEe2o-gzGzoHsz',
+        appKey: 'EW8G4sftwX1pef1zS9EsOeKE',
+        placeholder: 'comment here',
+        avatar:'mm',
+        guest_info:guest,
+        pageSize:'10' || 10,
+    });
+  </script>
+
 
 
   
@@ -684,6 +730,113 @@
 
 
   
+
+  
+  <script src="https://cdn1.lncld.net/static/js/av-core-mini-0.6.4.js"></script>
+  <script>AV.initialize("iYiPQlDR2X2zg2QIql2UEe2o-gzGzoHsz", "EW8G4sftwX1pef1zS9EsOeKE");</script>
+  <script>
+    function showTime(Counter) {
+      var query = new AV.Query(Counter);
+      var entries = [];
+      var $visitors = $(".leancloud_visitors");
+
+      $visitors.each(function () {
+        entries.push( $(this).attr("id").trim() );
+      });
+
+      query.containedIn('url', entries);
+      query.find()
+        .done(function (results) {
+          var COUNT_CONTAINER_REF = '.leancloud-visitors-count';
+
+          if (results.length === 0) {
+            $visitors.find(COUNT_CONTAINER_REF).text(0);
+            return;
+          }
+
+          for (var i = 0; i < results.length; i++) {
+            var item = results[i];
+            var url = item.get('url');
+            var time = item.get('time');
+            var element = document.getElementById(url);
+
+            $(element).find(COUNT_CONTAINER_REF).text(time);
+          }
+          for(var i = 0; i < entries.length; i++) {
+            var url = entries[i];
+            var element = document.getElementById(url);
+            var countSpan = $(element).find(COUNT_CONTAINER_REF);
+            if( countSpan.text() == '') {
+              countSpan.text(0);
+            }
+          }
+        })
+        .fail(function (object, error) {
+          console.log("Error: " + error.code + " " + error.message);
+        });
+    }
+
+    function addCount(Counter) {
+      var $visitors = $(".leancloud_visitors");
+      var url = $visitors.attr('id').trim();
+      var title = $visitors.attr('data-flag-title').trim();
+      var query = new AV.Query(Counter);
+
+      query.equalTo("url", url);
+      query.find({
+        success: function(results) {
+          if (results.length > 0) {
+            var counter = results[0];
+            counter.fetchWhenSave(true);
+            counter.increment("time");
+            counter.save(null, {
+              success: function(counter) {
+                var $element = $(document.getElementById(url));
+                $element.find('.leancloud-visitors-count').text(counter.get('time'));
+              },
+              error: function(counter, error) {
+                console.log('Failed to save Visitor num, with error message: ' + error.message);
+              }
+            });
+          } else {
+            var newcounter = new Counter();
+            /* Set ACL */
+            var acl = new AV.ACL();
+            acl.setPublicReadAccess(true);
+            acl.setPublicWriteAccess(true);
+            newcounter.setACL(acl);
+            /* End Set ACL */
+            newcounter.set("title", title);
+            newcounter.set("url", url);
+            newcounter.set("time", 1);
+            newcounter.save(null, {
+              success: function(newcounter) {
+                var $element = $(document.getElementById(url));
+                $element.find('.leancloud-visitors-count').text(newcounter.get('time'));
+              },
+              error: function(newcounter, error) {
+                console.log('Failed to create');
+              }
+            });
+          }
+        },
+        error: function(error) {
+          console.log('Error:' + error.code + " " + error.message);
+        }
+      });
+    }
+
+    $(function() {
+      var Counter = AV.Object.extend("Counter");
+      if ($('.leancloud_visitors').length == 1) {
+        addCount(Counter);
+      } else if ($('.post-title-link').length > 1) {
+        showTime(Counter);
+      }
+    });
+  </script>
+
+
 
   
 
