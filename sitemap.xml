@@ -2,6 +2,13 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   
   <url>
+    <loc>https://zhmin.github.io/2019/01/08/spark-serializer/</loc>
+    
+    <lastmod>2019-01-08T15:32:14.730Z</lastmod>
+    
+  </url>
+  
+  <url>
     <loc>https://zhmin.github.io/2019/01/06/spark-partitioner/</loc>
     
     <lastmod>2019-01-06T14:14:44.631Z</lastmod>
