@@ -1,0 +1,912 @@
+<!DOCTYPE html>
+
+
+
+  
+
+
+<html class="theme-next mist use-motion" lang="">
+<head><meta name="generator" content="Hexo 3.8.0">
+  <meta charset="UTF-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="theme-color" content="#222">
+
+
+
+
+
+
+
+
+
+<meta http-equiv="Cache-Control" content="no-transform">
+<meta http-equiv="Cache-Control" content="no-siteapp">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+  <link href="/lib/fancybox/source/jquery.fancybox.css?v=2.1.5" rel="stylesheet" type="text/css">
+
+
+
+
+
+
+
+<link href="/lib/font-awesome/css/font-awesome.min.css?v=4.6.2" rel="stylesheet" type="text/css">
+
+<link href="/css/main.css?v=5.1.4" rel="stylesheet" type="text/css">
+
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png?v=5.1.4">
+
+
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png?v=5.1.4">
+
+
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png?v=5.1.4">
+
+
+  <link rel="mask-icon" href="/images/logo.svg?v=5.1.4" color="#222">
+
+
+
+
+
+  <meta name="keywords" content="spark, rpc, client,">
+
+
+
+
+
+
+
+
+
+
+<meta name="description" content="Spark Rpc 客户端原理Spark Rpc 客户端涉及到多个组件，根据发送消息和接收消息的流程，逐一介绍这些组件。可以参见流程图 Spark Rpc 原理介绍  RpcEndpointRefRpcEndpointRef表示客户端，它提供了两个接口发送请求。send方法表示发送请求但不需要返回值，ask方法表示发送请求并且需要获取返回值。 RpcEndpointRef目前只有一个实现类Nett">
+<meta name="keywords" content="spark, rpc, client">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Spark Rpc 客户端原理">
+<meta property="og:url" content="https://zhmin.github.io/2019/01/13/spark-rpc-client/index.html">
+<meta property="og:site_name" content="blog">
+<meta property="og:description" content="Spark Rpc 客户端原理Spark Rpc 客户端涉及到多个组件，根据发送消息和接收消息的流程，逐一介绍这些组件。可以参见流程图 Spark Rpc 原理介绍  RpcEndpointRefRpcEndpointRef表示客户端，它提供了两个接口发送请求。send方法表示发送请求但不需要返回值，ask方法表示发送请求并且需要获取返回值。 RpcEndpointRef目前只有一个实现类Nett">
+<meta property="og:locale" content="default">
+<meta property="og:updated_time" content="2019-01-14T13:57:14.668Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Spark Rpc 客户端原理">
+<meta name="twitter:description" content="Spark Rpc 客户端原理Spark Rpc 客户端涉及到多个组件，根据发送消息和接收消息的流程，逐一介绍这些组件。可以参见流程图 Spark Rpc 原理介绍  RpcEndpointRefRpcEndpointRef表示客户端，它提供了两个接口发送请求。send方法表示发送请求但不需要返回值，ask方法表示发送请求并且需要获取返回值。 RpcEndpointRef目前只有一个实现类Nett">
+
+
+
+<script type="text/javascript" id="hexo.configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '/',
+    scheme: 'Mist',
+    version: '5.1.4',
+    sidebar: {"position":"left","display":"hide","offset":12,"b2t":false,"scrollpercent":false,"onmobile":false},
+    fancybox: true,
+    tabs: true,
+    motion: {"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},
+    duoshuo: {
+      userId: '0',
+      author: 'Author'
+    },
+    algolia: {
+      applicationID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    }
+  };
+</script>
+
+
+
+  <link rel="canonical" href="https://zhmin.github.io/2019/01/13/spark-rpc-client/">
+
+
+
+
+
+  <title>Spark Rpc 客户端原理 | blog</title>
+  
+
+
+
+
+
+
+
+
+</head>
+
+<body itemscope="" itemtype="http://schema.org/WebPage" lang="default">
+
+  
+  
+    
+  
+
+  <div class="container sidebar-position-left page-post-detail">
+    <div class="headband"></div>
+
+    <header id="header" class="header" itemscope="" itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-wrapper">
+  <div class="site-meta ">
+    
+
+    <div class="custom-logo-site-title">
+      <a href="/" class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">blog</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+      
+        <h1 class="site-subtitle" itemprop="description"></h1>
+      
+  </div>
+
+  <div class="site-nav-toggle">
+    <button>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+    </button>
+  </div>
+</div>
+
+<nav class="site-nav">
+  
+
+  
+    <ul id="menu" class="menu">
+      
+        
+        <li class="menu-item menu-item-home">
+          <a href="/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-home"></i> <br>
+            
+            Home
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-archives">
+          <a href="/archives/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-archive"></i> <br>
+            
+            Archives
+          </a>
+        </li>
+      
+
+      
+    </ul>
+  
+
+  
+</nav>
+
+
+
+ </div>
+    </header>
+
+    <main id="main" class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          <div id="content" class="content">
+            
+
+  <div id="posts" class="posts-expand">
+    
+
+  
+
+  
+  
+  
+
+  <article class="post post-type-normal" itemscope="" itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block">
+    <link itemprop="mainEntityOfPage" href="https://zhmin.github.io/2019/01/13/spark-rpc-client/">
+
+    <span hidden itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="zhmin">
+      <meta itemprop="description" content="">
+      <meta itemprop="image" content="/images/avatar.gif">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope="" itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="blog">
+    </span>
+
+    
+      <header class="post-header">
+
+        
+        
+          <h2 class="post-title" itemprop="name headline">Spark Rpc 客户端原理</h2>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">Posted on</span>
+              
+              <time title="Post created" itemprop="dateCreated datePublished" datetime="2019-01-13T21:34:54+08:00">
+                2019-01-13
+              </time>
+            
+
+            
+
+            
+          </span>
+
+          
+
+          
+            
+              <span class="post-comments-count">
+                <span class="post-meta-divider">|</span>
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-comment-o"></i>
+                </span>
+                <a href="/2019/01/13/spark-rpc-client/#comments" itemprop="discussionUrl">
+                  <span class="post-comments-count valine-comment-count" data-xid="/2019/01/13/spark-rpc-client/" itemprop="commentCount"></span>
+                </a>
+              </span>
+            
+          
+
+          
+          
+             <span id="/2019/01/13/spark-rpc-client/" class="leancloud_visitors" data-flag-title="Spark Rpc 客户端原理">
+               <span class="post-meta-divider">|</span>
+               <span class="post-meta-item-icon">
+                 <i class="fa fa-eye"></i>
+               </span>
+               
+                 <span class="post-meta-item-text">Visitors&#58;</span>
+               
+                 <span class="leancloud-visitors-count"></span>
+             </span>
+          
+
+          
+
+          
+
+          
+
+        </div>
+      </header>
+    
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+      
+
+      
+        <h1 id="Spark-Rpc-客户端原理"><a href="#Spark-Rpc-客户端原理" class="headerlink" title="Spark Rpc 客户端原理"></a>Spark Rpc 客户端原理</h1><p>Spark Rpc 客户端涉及到多个组件，根据发送消息和接收消息的流程，逐一介绍这些组件。可以参见流程图 <a href="/2019/01/13/spark-rpc-flow/" title="Spark Rpc 原理介绍">Spark Rpc 原理介绍</a> </p>
+<h2 id="RpcEndpointRef"><a href="#RpcEndpointRef" class="headerlink" title="RpcEndpointRef"></a>RpcEndpointRef</h2><p>RpcEndpointRef表示客户端，它提供了两个接口发送请求。send方法表示发送请求但不需要返回值，ask方法表示发送请求并且需要获取返回值。</p>
+<p>RpcEndpointRef目前只有一个实现类NettyRpcEndpointRef，基于Netty框架实现的。</p>
+<p>NettyRpcEndpointRef有两个比较重要的属性，</p>
+<ul>
+<li>endpointAddress， 请求的server地址</li>
+<li>NettyRpcEnv实例，表示rpc的运行环境</li>
+</ul>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">class</span> <span class="title">NettyRpcEndpointRef</span>(<span class="params"></span></span></span><br><span class="line"><span class="class"><span class="params">    @transient private val conf: <span class="type">SparkConf</span>,</span></span></span><br><span class="line"><span class="class"><span class="params">    private val endpointAddress: <span class="type">RpcEndpointAddress</span>,</span></span></span><br><span class="line"><span class="class"><span class="params">    @transient @volatile private var nettyEnv: <span class="type">NettyRpcEnv</span></span>) <span class="keyword">extends</span> <span class="title">RpcEndpointRef</span>(<span class="params">conf</span>) </span>&#123;</span><br><span class="line">  </span><br><span class="line">  <span class="comment">// 调用NettyRpcEnv的ask方法发送请求</span></span><br><span class="line">  <span class="keyword">override</span> <span class="function"><span class="keyword">def</span> <span class="title">ask</span></span>[<span class="type">T</span>: <span class="type">ClassTag</span>](message: <span class="type">Any</span>, timeout: <span class="type">RpcTimeout</span>): <span class="type">Future</span>[<span class="type">T</span>] = &#123;</span><br><span class="line">    nettyEnv.ask(<span class="keyword">new</span> <span class="type">RequestMessage</span>(nettyEnv.address, <span class="keyword">this</span>, message), timeout)</span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  <span class="comment">// 调用NettyRpcEnv的send方法发送请求</span></span><br><span class="line">  <span class="keyword">override</span> <span class="function"><span class="keyword">def</span> <span class="title">send</span></span>(message: <span class="type">Any</span>): <span class="type">Unit</span> = &#123;</span><br><span class="line">    require(message != <span class="literal">null</span>, <span class="string">"Message is null"</span>)</span><br><span class="line">    nettyEnv.send(<span class="keyword">new</span> <span class="type">RequestMessage</span>(nettyEnv.address, <span class="keyword">this</span>, message))</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>NettyRpcEndpointRef的send和ask方法，都是转交给了NettyRpcEnv发送。</p>
+<h2 id="客户端的NettyRpcEnv"><a href="#客户端的NettyRpcEnv" class="headerlink" title="客户端的NettyRpcEnv"></a>客户端的NettyRpcEnv</h2><p>所有的rpc客户端和服务，都是在NettyRpcEnv环境下才能运行。NettyRpcEnv有比较多的属性，涉及到客户端的属性，主要如下</p>
+<ul>
+<li>outboxes， 表示Outbox集合。每个Outbox对应着一个server的地址( 主机地址， 端口号)</li>
+<li><p>address， 表示server运行的监听地址。如果该NettyRpcEnv中没有运行的server，则为null</p>
+</li>
+<li><p>dispatcher， 将请求消息分发给对应的inbox。只有当客户端和server运行在同一个NettyRpcEnv，才会调用dispatcher直接发送。否则都需要建立socket连接</p>
+</li>
+</ul>
+<p>首先看看NettyRpcEnv的send方法，</p>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">class</span> <span class="title">NettyRpcEnv</span> </span>&#123;</span><br><span class="line">    </span><br><span class="line">  <span class="comment">// OutBox集合，Key为server的地址</span></span><br><span class="line">  <span class="keyword">private</span> <span class="keyword">val</span> outboxes = <span class="keyword">new</span> <span class="type">ConcurrentHashMap</span>[<span class="type">RpcAddress</span>, <span class="type">Outbox</span>]()</span><br><span class="line">    </span><br><span class="line">  <span class="keyword">private</span>[netty] <span class="function"><span class="keyword">def</span> <span class="title">send</span></span>(message: <span class="type">RequestMessage</span>): <span class="type">Unit</span> = &#123;</span><br><span class="line">    <span class="keyword">val</span> remoteAddr = message.receiver.address</span><br><span class="line">    <span class="keyword">if</span> (remoteAddr == address) &#123;</span><br><span class="line">      <span class="comment">// 如果要请求的地址，是正在同一个NettyRpcEnv运行的server,</span></span><br><span class="line">     <span class="comment">// 则直接通过dispatcher转发，而不需要建立socket连接</span></span><br><span class="line">      <span class="keyword">try</span> &#123;</span><br><span class="line">        dispatcher.postOneWayMessage(message)</span><br><span class="line">      &#125; <span class="keyword">catch</span> &#123;</span><br><span class="line">        <span class="keyword">case</span> e: <span class="type">RpcEnvStoppedException</span> =&gt; logWarning(e.getMessage)</span><br><span class="line">      &#125;</span><br><span class="line">    &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">      <span class="comment">// 如果是远端server，则调用postToOutbox方法发送</span></span><br><span class="line">      <span class="comment">// 这里序列化了消息，并生成OneWayOutboxMessage消息</span></span><br><span class="line">      postToOutbox(message.receiver, <span class="type">OneWayOutboxMessage</span>(message.serialize(<span class="keyword">this</span>)))</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br><span class="line">    </span><br><span class="line">  <span class="comment">// 通过Outbox发送消息</span></span><br><span class="line">  <span class="keyword">private</span> <span class="function"><span class="keyword">def</span> <span class="title">postToOutbox</span></span>(receiver: <span class="type">NettyRpcEndpointRef</span>, message: <span class="type">OutboxMessage</span>): <span class="type">Unit</span> = &#123;</span><br><span class="line">    <span class="comment">// NettyRpcEndpointRef的client不为空</span></span><br><span class="line">    <span class="keyword">if</span> (receiver.client != <span class="literal">null</span>) &#123;</span><br><span class="line">      message.sendWith(receiver.client)</span><br><span class="line">    &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">      require(receiver.address != <span class="literal">null</span>,</span><br><span class="line">        <span class="string">"Cannot send message to client endpoint with no listen address."</span>)</span><br><span class="line">     <span class="comment">// 根据server地址，寻找Outbox。如果没找到，则新建</span></span><br><span class="line">      <span class="keyword">val</span> targetOutbox = &#123;</span><br><span class="line">        <span class="comment">// 从Outbox集合寻找</span></span><br><span class="line">        <span class="keyword">val</span> outbox = outboxes.get(receiver.address)</span><br><span class="line">        <span class="keyword">if</span> (outbox == <span class="literal">null</span>) &#123;</span><br><span class="line">          <span class="comment">// 新建Outbox</span></span><br><span class="line">          <span class="keyword">val</span> newOutbox = <span class="keyword">new</span> <span class="type">Outbox</span>(<span class="keyword">this</span>, receiver.address)</span><br><span class="line">          <span class="comment">// 这里调用了putIfAbsent，防止线程竞争</span></span><br><span class="line">          <span class="keyword">val</span> oldOutbox = outboxes.putIfAbsent(receiver.address, newOutbox)</span><br><span class="line">          <span class="keyword">if</span> (oldOutbox == <span class="literal">null</span>) &#123;</span><br><span class="line">            newOutbox</span><br><span class="line">          &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">            oldOutbox</span><br><span class="line">          &#125;</span><br><span class="line">        &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">          outbox</span><br><span class="line">        &#125;</span><br><span class="line">      &#125;</span><br><span class="line">      <span class="comment">// stopped属性表示rpc服务是否已经关闭</span></span><br><span class="line">      <span class="keyword">if</span> (stopped.get) &#123;</span><br><span class="line">        <span class="comment">// It's possible that we put `targetOutbox` after stopping. So we need to clean it.</span></span><br><span class="line">        outboxes.remove(receiver.address)</span><br><span class="line">        targetOutbox.stop()</span><br><span class="line">      &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">        <span class="comment">// 调用Outbox发送消息</span></span><br><span class="line">        targetOutbox.send(message)</span><br><span class="line">      &#125;</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>继续看ask方法， ask方法需要返回server的返回值，它使用了异步请求。这里使用了promise，当请求完成时，会将结果保存在promise里。通过访问promise的Future就可以获取结果。</p>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">ask</span></span>[<span class="type">T</span>: <span class="type">ClassTag</span>](message: <span class="type">RequestMessage</span>, timeout: <span class="type">RpcTimeout</span>): <span class="type">Future</span>[<span class="type">T</span>] = &#123;</span><br><span class="line">  <span class="keyword">val</span> promise = <span class="type">Promise</span>[<span class="type">Any</span>]()</span><br><span class="line">  <span class="keyword">val</span> remoteAddr = message.receiver.address</span><br><span class="line"></span><br><span class="line">  <span class="comment">// server返回失败时的回调函数</span></span><br><span class="line">  <span class="comment">// 设置promise的结果为失败</span></span><br><span class="line">  <span class="function"><span class="keyword">def</span> <span class="title">onFailure</span></span>(e: <span class="type">Throwable</span>): <span class="type">Unit</span> = &#123;</span><br><span class="line">    <span class="keyword">if</span> (!promise.tryFailure(e)) &#123;</span><br><span class="line">      logWarning(<span class="string">s"Ignored failure: <span class="subst">$e</span>"</span>)</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  <span class="comment">// server返回成功时的回调函数</span></span><br><span class="line">  <span class="comment">// 设置promise的结果为成功，数据为server的返回值</span></span><br><span class="line">  <span class="function"><span class="keyword">def</span> <span class="title">onSuccess</span></span>(reply: <span class="type">Any</span>): <span class="type">Unit</span> = reply <span class="keyword">match</span> &#123;</span><br><span class="line">    <span class="keyword">case</span> <span class="type">RpcFailure</span>(e) =&gt; onFailure(e)</span><br><span class="line">    <span class="keyword">case</span> rpcReply =&gt;</span><br><span class="line">      <span class="keyword">if</span> (!promise.trySuccess(rpcReply)) &#123;</span><br><span class="line">        logWarning(<span class="string">s"Ignored message: <span class="subst">$reply</span>"</span>)</span><br><span class="line">      &#125;</span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  <span class="keyword">try</span> &#123;</span><br><span class="line">    <span class="comment">// 如果client和server是同一个进程内</span></span><br><span class="line">    <span class="keyword">if</span> (remoteAddr == address) &#123;</span><br><span class="line">      <span class="keyword">val</span> p = <span class="type">Promise</span>[<span class="type">Any</span>]()</span><br><span class="line">      p.future.onComplete &#123;</span><br><span class="line">        <span class="keyword">case</span> <span class="type">Success</span>(response) =&gt; onSuccess(response)</span><br><span class="line">        <span class="keyword">case</span> <span class="type">Failure</span>(e) =&gt; onFailure(e)</span><br><span class="line">      &#125;(<span class="type">ThreadUtils</span>.sameThread)</span><br><span class="line">      <span class="comment">// 直接调用dispatcher转发消息</span></span><br><span class="line">      dispatcher.postLocalMessage(message, p)</span><br><span class="line">    &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">      <span class="comment">// 生成RpcOutboxMessage消息 </span></span><br><span class="line">      <span class="comment">// 设置RpcOutboxMessage消息的回调函数</span></span><br><span class="line">      <span class="keyword">val</span> rpcMessage = <span class="type">RpcOutboxMessage</span>(message.serialize(<span class="keyword">this</span>),</span><br><span class="line">        onFailure,</span><br><span class="line">        (client, response) =&gt; onSuccess(deserialize[<span class="type">Any</span>](client, response)))</span><br><span class="line">      <span class="comment">// 通过Outbox发送消息</span></span><br><span class="line">      postToOutbox(message.receiver, rpcMessage)</span><br><span class="line">      promise.future.onFailure &#123;</span><br><span class="line">        <span class="keyword">case</span> _: <span class="type">TimeoutException</span> =&gt; rpcMessage.onTimeout()</span><br><span class="line">        <span class="keyword">case</span> _ =&gt;</span><br><span class="line">      &#125;(<span class="type">ThreadUtils</span>.sameThread)</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 设置超时机制，如果超时还没接收响应，则调用onFailure函数</span></span><br><span class="line">    <span class="keyword">val</span> timeoutCancelable = timeoutScheduler.schedule(<span class="keyword">new</span> <span class="type">Runnable</span> &#123;</span><br><span class="line">      <span class="keyword">override</span> <span class="function"><span class="keyword">def</span> <span class="title">run</span></span>(): <span class="type">Unit</span> = &#123;</span><br><span class="line">        onFailure(<span class="keyword">new</span> <span class="type">TimeoutException</span>(<span class="string">s"Cannot receive any reply from <span class="subst">$&#123;remoteAddr&#125;</span> "</span></span><br><span class="line">                                       + <span class="string">s"in <span class="subst">$&#123;timeout.duration&#125;</span>"</span>))</span><br><span class="line">      &#125;</span><br><span class="line">    &#125;, timeout.duration.toNanos, <span class="type">TimeUnit</span>.<span class="type">NANOSECONDS</span>)</span><br><span class="line">    </span><br><span class="line">    <span class="comment">// 如果在超时前，完成响应，则取消这个请求的超时</span></span><br><span class="line">    promise.future.onComplete &#123; v =&gt;</span><br><span class="line">      timeoutCancelable.cancel(<span class="literal">true</span>)</span><br><span class="line">    &#125;(<span class="type">ThreadUtils</span>.sameThread)</span><br><span class="line">  &#125; <span class="keyword">catch</span> &#123;</span><br><span class="line">    <span class="keyword">case</span> <span class="type">NonFatal</span>(e) =&gt;</span><br><span class="line">      onFailure(e)</span><br><span class="line">  &#125;</span><br><span class="line">  <span class="comment">// 等待响应完成，等待时间不超过timeout</span></span><br><span class="line">  promise.future.mapTo[<span class="type">T</span>].recover(timeout.addMessageIfTimeout)(<span class="type">ThreadUtils</span>.sameThread)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h2 id="OutBox"><a href="#OutBox" class="headerlink" title="OutBox"></a>OutBox</h2><p>Outbox接收两种消息，OneWayOutboxMessage和RpcOutboxMessage。两个都是继承OutboxMessage类。</p>
+<p>OneWayOutboxMessage表示，请求不需要返回结果。RpcOutboxMessage表示，需要返回结果。</p>
+<h3 id="OneWayOutboxMessage"><a href="#OneWayOutboxMessage" class="headerlink" title="OneWayOutboxMessage"></a>OneWayOutboxMessage</h3><p>OneWayOutboxMessage提供了sendWith方法，将消息发送出去。这里只是直接调用TransportClient的send方法发送。</p>
+<p>OneWayOutboxMessage定义了请求失败的回调函数onFailure</p>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">private</span>[netty] <span class="keyword">case</span> <span class="class"><span class="keyword">class</span> <span class="title">OneWayOutboxMessage</span>(<span class="params">content: <span class="type">ByteBuffer</span></span>) <span class="keyword">extends</span> <span class="title">OutboxMessage</span></span></span><br><span class="line"><span class="class">  <span class="keyword">with</span> <span class="title">Logging</span> </span>&#123;</span><br><span class="line"></span><br><span class="line">  <span class="keyword">override</span> <span class="function"><span class="keyword">def</span> <span class="title">sendWith</span></span>(client: <span class="type">TransportClient</span>): <span class="type">Unit</span> = &#123;</span><br><span class="line">    client.send(content)</span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  <span class="keyword">override</span> <span class="function"><span class="keyword">def</span> <span class="title">onFailure</span></span>(e: <span class="type">Throwable</span>): <span class="type">Unit</span> = &#123;</span><br><span class="line">    e <span class="keyword">match</span> &#123;</span><br><span class="line">      <span class="keyword">case</span> e1: <span class="type">RpcEnvStoppedException</span> =&gt; logWarning(e1.getMessage)</span><br><span class="line">      <span class="keyword">case</span> e1: <span class="type">Throwable</span> =&gt; logWarning(<span class="string">s"Failed to send one-way RPC."</span>, e1)</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h3 id="RpcOutboxMessage"><a href="#RpcOutboxMessage" class="headerlink" title="RpcOutboxMessage"></a>RpcOutboxMessage</h3><p>OneWayOutboxMessage提供了sendWith方法，将消息发送出去。这里只是直接调用TransportClient的sendRpc方法发送。</p>
+<p>OneWayOutboxMessage定义了三个回调函数</p>
+<ul>
+<li>onTimeout代表着超时，在NettyRpcEnv的ask方法有实现。</li>
+<li>onSuccess代表着请求成功返回时，会被调用。</li>
+<li>onFailure代表着失败，当请求失败时，Outbox会调用这个方法。</li>
+</ul>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">class</span> <span class="title">RpcOutboxMessage</span>(<span class="params"></span></span></span><br><span class="line"><span class="class"><span class="params">    content: <span class="type">ByteBuffer</span>,</span></span></span><br><span class="line"><span class="class"><span class="params">    _onFailure: (<span class="type">Throwable</span></span>) <span class="title">=&gt;</span> <span class="title">Unit</span>,</span></span><br><span class="line"><span class="class">    <span class="title">_onSuccess</span></span>: (<span class="type">TransportClient</span>, <span class="type">ByteBuffer</span>) =&gt; <span class="type">Unit</span>)</span><br><span class="line">  <span class="keyword">extends</span> <span class="type">OutboxMessage</span> <span class="keyword">with</span> <span class="type">RpcResponseCallback</span> <span class="keyword">with</span> <span class="type">Logging</span> &#123;</span><br><span class="line">        <span class="keyword">private</span> <span class="keyword">var</span> client: <span class="type">TransportClient</span> = _</span><br><span class="line">  <span class="keyword">private</span> <span class="keyword">var</span> requestId: <span class="type">Long</span> = _</span><br><span class="line"></span><br><span class="line">  <span class="keyword">override</span> <span class="function"><span class="keyword">def</span> <span class="title">sendWith</span></span>(client: <span class="type">TransportClient</span>): <span class="type">Unit</span> = &#123;</span><br><span class="line">    <span class="keyword">this</span>.client = client</span><br><span class="line">    <span class="keyword">this</span>.requestId = client.sendRpc(content, <span class="keyword">this</span>)</span><br><span class="line">  &#125;</span><br><span class="line">      </span><br><span class="line">  <span class="function"><span class="keyword">def</span> <span class="title">onTimeout</span></span>(): <span class="type">Unit</span> = &#123;</span><br><span class="line">    <span class="keyword">if</span> (client != <span class="literal">null</span>) &#123;</span><br><span class="line">      client.removeRpcRequest(requestId)</span><br><span class="line">    &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">      logError(<span class="string">"Ask timeout before connecting successfully"</span>)</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br><span class="line">      </span><br><span class="line">  <span class="keyword">override</span> <span class="function"><span class="keyword">def</span> <span class="title">onFailure</span></span>(e: <span class="type">Throwable</span>): <span class="type">Unit</span> = &#123;</span><br><span class="line">    _onFailure(e)</span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  <span class="keyword">override</span> <span class="function"><span class="keyword">def</span> <span class="title">onSuccess</span></span>(response: <span class="type">ByteBuffer</span>): <span class="type">Unit</span> = &#123;</span><br><span class="line">    _onSuccess(client, response)</span><br><span class="line">  &#125;</span><br></pre></td></tr></table></figure>
+<h3 id="发送消息"><a href="#发送消息" class="headerlink" title="发送消息"></a>发送消息</h3><p>一个Outbox对应着一个server地址。Outbox作为一个消息队列，它提供了send方法添加消息，也提供了drainOutbox消费消息。</p>
+<p>Outbox有下列主要属性：</p>
+<ul>
+<li>messages， 消息队列</li>
+<li>client， TransportClient实例，它作为Netty的客户端，异步发送消息</li>
+<li>connectFuture， 表示新建server连接的异步结果</li>
+<li>draining， 表示是否有线程正在发送消息。Outbox允许同时只有一个线程发送消息，所以在发送消息之前，都会判断draining的值</li>
+</ul>
+<p>首先来看send方法，它的源码比较简单。首先它会将消息添加到队列里，然后调用drainOutbox发送消息</p>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">send</span></span>(message: <span class="type">OutboxMessage</span>): <span class="type">Unit</span> = &#123;</span><br><span class="line">  <span class="comment">// 如果rpc服务停止，则表示此条消息不能发送，需要丢弃</span></span><br><span class="line">  <span class="keyword">val</span> dropped = synchronized &#123;</span><br><span class="line">    <span class="keyword">if</span> (stopped) &#123;</span><br><span class="line">      <span class="literal">true</span></span><br><span class="line">    &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">      messages.add(message)</span><br><span class="line">      <span class="literal">false</span></span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br><span class="line">  <span class="comment">// 如果此条消息被舍弃，调用message的onFailure回调函数</span></span><br><span class="line">  <span class="keyword">if</span> (dropped) &#123;</span><br><span class="line">    message.onFailure(<span class="keyword">new</span> <span class="type">SparkException</span>(<span class="string">"Message is dropped because Outbox is stopped"</span>))</span><br><span class="line">  &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">    <span class="comment">// drainOutbox定义了如何发送队列里的消息</span></span><br><span class="line">    drainOutbox()</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>再来看看drainOutbox方法。这里涉及到与server建立连接，还有多线程竞争， 会有点复杂。</p>
+<p>它首先会判断是否建立server的连接，如果没有连接，则请求后台线程创建连接。如果有，则直接发送。注意到，这里发送消息，有线程冲突。因为后台线程创建完连接后，它也会调用drainOutbox发送消息。</p>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">private</span> <span class="function"><span class="keyword">def</span> <span class="title">drainOutbox</span></span>(): <span class="type">Unit</span> = &#123;</span><br><span class="line">  </span><br><span class="line">  <span class="keyword">var</span> message: <span class="type">OutboxMessage</span> = <span class="literal">null</span></span><br><span class="line">   <span class="comment">// 锁，防止发送消息的主线程，和创建连接的线程有冲突</span></span><br><span class="line">  synchronized &#123;</span><br><span class="line">    <span class="keyword">if</span> (stopped) &#123;</span><br><span class="line">      <span class="keyword">return</span></span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">if</span> (connectFuture != <span class="literal">null</span>) &#123;</span><br><span class="line">      <span class="comment">// connectFuture不为null，表示正在创建连接中，但未完成</span></span><br><span class="line">      <span class="keyword">return</span></span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">if</span> (client == <span class="literal">null</span>) &#123;</span><br><span class="line">      <span class="comment">// 如果connectFuture为null，client也为null，表示没有连接</span></span><br><span class="line">      <span class="comment">// 所以这儿提交创建新连接的任务</span></span><br><span class="line">      launchConnectTask()</span><br><span class="line">      <span class="keyword">return</span></span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">if</span> (draining) &#123;</span><br><span class="line">      <span class="comment">// draining为true，表示有别的线程正在发送消息</span></span><br><span class="line">      <span class="keyword">return</span></span><br><span class="line">    &#125;</span><br><span class="line">    message = messages.poll()</span><br><span class="line">    <span class="comment">// messages.poll返回null，表示消息队列都已经发送完成</span></span><br><span class="line">    <span class="keyword">if</span> (message == <span class="literal">null</span>) &#123;</span><br><span class="line">      <span class="keyword">return</span></span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">// 更新draining为true， 表示消费消息的权利</span></span><br><span class="line">    draining = <span class="literal">true</span></span><br><span class="line">  &#125;</span><br><span class="line">  <span class="keyword">while</span> (<span class="literal">true</span>) &#123;</span><br><span class="line">    <span class="keyword">try</span> &#123;</span><br><span class="line">      <span class="keyword">val</span> _client = synchronized &#123; client &#125;</span><br><span class="line">      <span class="keyword">if</span> (_client != <span class="literal">null</span>) &#123;</span><br><span class="line">        <span class="comment">// 调用消息的sendWith方法，发送消息</span></span><br><span class="line">        message.sendWith(_client)</span><br><span class="line">      &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">        assert(stopped == <span class="literal">true</span>)</span><br><span class="line">      &#125;</span><br><span class="line">    &#125; <span class="keyword">catch</span> &#123;</span><br><span class="line">      <span class="keyword">case</span> <span class="type">NonFatal</span>(e) =&gt;</span><br><span class="line">        handleNetworkFailure(e)</span><br><span class="line">        <span class="keyword">return</span></span><br><span class="line">    &#125;</span><br><span class="line">    synchronized &#123;</span><br><span class="line">      <span class="keyword">if</span> (stopped) &#123;</span><br><span class="line">        <span class="keyword">return</span></span><br><span class="line">      &#125;</span><br><span class="line">      <span class="comment">// 循环从队列获取消息， 直到所有的消息发送完成</span></span><br><span class="line">      message = messages.poll()</span><br><span class="line">      <span class="keyword">if</span> (message == <span class="literal">null</span>) &#123;</span><br><span class="line">        <span class="comment">// 释放消费消息的权利</span></span><br><span class="line">        draining = <span class="literal">false</span></span><br><span class="line">        <span class="keyword">return</span></span><br><span class="line">      &#125;</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h3 id="创建连接"><a href="#创建连接" class="headerlink" title="创建连接"></a>创建连接</h3><p>使用后台线程池连接，这个线程池的大小为配置项spark.rpc.connect.threads，默认60。超时时间为60s。</p>
+<p>注意后台线程创建完连接后，它会主动处理队列的消息，防止消息堆积。如果它不主动发送消息，则只能等待客户的下一次消息的发送，而这个假定是不确定的。</p>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">private</span> <span class="function"><span class="keyword">def</span> <span class="title">launchConnectTask</span></span>(): <span class="type">Unit</span> = &#123;</span><br><span class="line">  <span class="comment">// 提交连接任务给，nettyEnv的的线程池</span></span><br><span class="line">  connectFuture = nettyEnv.clientConnectionExecutor.submit(<span class="keyword">new</span> <span class="type">Callable</span>[<span class="type">Unit</span>] &#123;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">override</span> <span class="function"><span class="keyword">def</span> <span class="title">call</span></span>(): <span class="type">Unit</span> = &#123;</span><br><span class="line">      <span class="keyword">try</span> &#123;</span><br><span class="line">        <span class="comment">// 实例化TransportClient</span></span><br><span class="line">        <span class="keyword">val</span> _client = nettyEnv.createClient(address)</span><br><span class="line">        outbox.synchronized &#123;</span><br><span class="line">          </span><br><span class="line">          client = _client</span><br><span class="line">          <span class="keyword">if</span> (stopped) &#123;</span><br><span class="line">            closeClient()</span><br><span class="line">          &#125;</span><br><span class="line">        &#125;</span><br><span class="line">      &#125; <span class="keyword">catch</span> &#123;</span><br><span class="line">        <span class="keyword">case</span> ie: <span class="type">InterruptedException</span> =&gt;</span><br><span class="line">          <span class="comment">// exit</span></span><br><span class="line">          <span class="keyword">return</span></span><br><span class="line">        <span class="keyword">case</span> <span class="type">NonFatal</span>(e) =&gt;</span><br><span class="line">          outbox.synchronized &#123; connectFuture = <span class="literal">null</span> &#125;</span><br><span class="line">          handleNetworkFailure(e)</span><br><span class="line">          <span class="keyword">return</span></span><br><span class="line">      &#125;</span><br><span class="line">      outbox.synchronized &#123; connectFuture = <span class="literal">null</span> &#125;</span><br><span class="line">      <span class="comment">// 连接完成后，处理堆积的消息</span></span><br><span class="line">      drainOutbox()</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h2 id="TransportClient"><a href="#TransportClient" class="headerlink" title="TransportClient"></a>TransportClient</h2><p>从RpcOutboxMessage的sendWith源码，可以看到消息是调用TransportClient的sendRpc或send方法发送。</p>
+<p>send方法是发送消息，但不需要server的返回值。这里仅仅是调用了channel的writeAndFlush方法</p>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">public void send(<span class="type">ByteBuffer</span> message) &#123;</span><br><span class="line">  channel.writeAndFlush(<span class="keyword">new</span> <span class="type">OneWayMessage</span>(<span class="keyword">new</span> <span class="type">NioManagedBuffer</span>(message)));</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>sendRpc方法是是需要处理server的返回值的。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">TransportClient</span> <span class="keyword">implements</span> <span class="title">Closeable</span> </span>&#123;</span><br><span class="line">    </span><br><span class="line">    <span class="keyword">private</span> <span class="keyword">final</span> Channel channel;</span><br><span class="line">    <span class="keyword">private</span> <span class="keyword">final</span> TransportResponseHandler handler;</span><br><span class="line">    </span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">long</span> <span class="title">sendRpc</span><span class="params">(ByteBuffer message, RpcResponseCallback callback)</span> </span>&#123;</span><br><span class="line">      <span class="comment">// 为此次请求分配requestId</span></span><br><span class="line">      <span class="keyword">long</span> requestId = Math.abs(UUID.randomUUID().getLeastSignificantBits());</span><br><span class="line">      <span class="comment">// 注意这里将请求信息添加到TransportResponseHandler里，</span></span><br><span class="line">      <span class="comment">// TransportResponseHandler会在响应完成时，调用此次响应完成的回调函数callback</span></span><br><span class="line">      handler.addRpcRequest(requestId, callback);</span><br><span class="line"></span><br><span class="line">      channel.writeAndFlush(<span class="keyword">new</span> RpcRequest(requestId, <span class="keyword">new</span> NioManagedBuffer(message)))</span><br><span class="line">          .addListener(future -&gt; &#123;</span><br><span class="line">            <span class="keyword">if</span> (future.isSuccess()) &#123;</span><br><span class="line">                ...</span><br><span class="line">            &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">              <span class="comment">// 处理请求失败的情况</span></span><br><span class="line">              handler.removeRpcRequest(requestId);</span><br><span class="line">              channel.close();</span><br><span class="line">              <span class="keyword">try</span> &#123;</span><br><span class="line">                callback.onFailure(<span class="keyword">new</span> IOException(errorMsg, future.cause()));</span><br><span class="line">              &#125; <span class="keyword">catch</span> (Exception e) &#123;</span><br><span class="line">                logger.error(<span class="string">"Uncaught exception in RPC response callback handler!"</span>, e);</span><br><span class="line">              &#125;</span><br><span class="line">            &#125;</span><br><span class="line">          &#125;);</span><br><span class="line"></span><br><span class="line">      <span class="keyword">return</span> requestId;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>TransportClient是基于Netty框架的，每个TransportClient有着一个Netty的Channel实例，通过它发送数据。接下来先看看它是如何初始化Netty的。</p>
+<p>TransportClientFactory提供了实例化TransportClient的方法</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">TransportClientFactory</span> <span class="keyword">implements</span> <span class="title">Closeable</span> </span>&#123;</span><br><span class="line">    </span><br><span class="line">     <span class="function">TransportClient <span class="title">createClient</span><span class="params">(InetSocketAddress address)</span></span></span><br><span class="line"><span class="function">          <span class="keyword">throws</span> IOException, InterruptedException </span>&#123;</span><br><span class="line">       </span><br><span class="line">        <span class="comment">// 使用Netty的Bootstrap初始化Client</span></span><br><span class="line">        Bootstrap bootstrap = <span class="keyword">new</span> Bootstrap();</span><br><span class="line">        bootstrap.group(workerGroup)</span><br><span class="line">          .channel(socketChannelClass)</span><br><span class="line">          .option(ChannelOption.TCP_NODELAY, <span class="keyword">true</span>)</span><br><span class="line">          .option(ChannelOption.SO_KEEPALIVE, <span class="keyword">true</span>)</span><br><span class="line">          .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, conf.connectionTimeoutMs())</span><br><span class="line">          .option(ChannelOption.ALLOCATOR, pooledAllocator);</span><br><span class="line"></span><br><span class="line">        <span class="keyword">final</span> AtomicReference&lt;TransportClient&gt; clientRef = <span class="keyword">new</span> AtomicReference&lt;&gt;();</span><br><span class="line">        <span class="keyword">final</span> AtomicReference&lt;Channel&gt; channelRef = <span class="keyword">new</span> AtomicReference&lt;&gt;();</span><br><span class="line">        </span><br><span class="line">        <span class="comment">// 初始化ChannelHandler</span></span><br><span class="line">        bootstrap.handler(<span class="keyword">new</span> ChannelInitializer&lt;SocketChannel&gt;() &#123;</span><br><span class="line">          <span class="meta">@Override</span></span><br><span class="line">          <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">initChannel</span><span class="params">(SocketChannel ch)</span> </span>&#123;</span><br><span class="line">            <span class="comment">// 调用了TransportContext的initializePipeline</span></span><br><span class="line">            TransportChannelHandler clientHandler = context.initializePipeline(ch);</span><br><span class="line">            clientRef.set(clientHandler.getClient());</span><br><span class="line">            channelRef.set(ch);</span><br><span class="line">          &#125;</span><br><span class="line">        &#125;);</span><br><span class="line"></span><br><span class="line">        <span class="comment">// 连接到服务器</span></span><br><span class="line">        <span class="keyword">long</span> preConnect = System.nanoTime();</span><br><span class="line">        ChannelFuture cf = bootstrap.connect(address);</span><br><span class="line"></span><br><span class="line">         <span class="comment">// 执行连接后的动作，比如身份权限验证</span></span><br><span class="line">        <span class="keyword">for</span> (TransportClientBootstrap clientBootstrap : clientBootstraps) &#123;</span><br><span class="line">             clientBootstrap.doBootstrap(client, channel);</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        <span class="keyword">return</span> client;</span><br><span class="line">      &#125;</span><br></pre></td></tr></table></figure>
+<p>createClient方法通过Bootstrap，初始化了Netty的客户端。注意到最主要的，调用了TransportContext的initializePipeline来配置Channel Pipeline。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">TransportContext</span> </span>&#123;</span><br><span class="line">    </span><br><span class="line">  <span class="keyword">private</span> <span class="keyword">final</span> RpcHandler rpcHandler;</span><br><span class="line">    </span><br><span class="line">  <span class="function"><span class="keyword">public</span> TransportChannelHandler <span class="title">initializePipeline</span><span class="params">(SocketChannel channel)</span> </span>&#123;</span><br><span class="line">    <span class="keyword">return</span> initializePipeline(channel, rpcHandler);</span><br><span class="line">  &#125;</span><br><span class="line">  </span><br><span class="line">  <span class="function"><span class="keyword">public</span> TransportChannelHandler <span class="title">initializePipeline</span><span class="params">(</span></span></span><br><span class="line"><span class="function"><span class="params">      SocketChannel channel,</span></span></span><br><span class="line"><span class="function"><span class="params">      RpcHandler channelRpcHandler)</span> </span>&#123;</span><br><span class="line">    </span><br><span class="line">    <span class="keyword">try</span> &#123;</span><br><span class="line">      <span class="comment">// 创建 channelHandler</span></span><br><span class="line">      TransportChannelHandler channelHandler = createChannelHandler(channel, channelRpcHandler);</span><br><span class="line">      channel.pipeline()</span><br><span class="line">        .addLast(<span class="string">"encoder"</span>, ENCODER)</span><br><span class="line">        .addLast(TransportFrameDecoder.HANDLER_NAME, NettyUtils.createFrameDecoder())</span><br><span class="line">        .addLast(<span class="string">"decoder"</span>, DECODER)</span><br><span class="line">        .addLast(<span class="string">"idleStateHandler"</span>, <span class="keyword">new</span> IdleStateHandler(<span class="number">0</span>, <span class="number">0</span>, conf.connectionTimeoutMs() / <span class="number">1000</span>))</span><br><span class="line">        <span class="comment">// 添加 TransportChannelHandler</span></span><br><span class="line">        .addLast(<span class="string">"handler"</span>, channelHandler);</span><br><span class="line">      <span class="keyword">return</span> channelHandler;</span><br><span class="line">    &#125; <span class="keyword">catch</span> (RuntimeException e) &#123;</span><br><span class="line">      logger.error(<span class="string">"Error while initializing Netty pipeline"</span>, e);</span><br><span class="line">      <span class="keyword">throw</span> e;</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>注意上面的TransportChannelHandler类，它继承ChannelInboundHandlerAdapter</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">TransportChannelHandler</span> <span class="keyword">extends</span> <span class="title">ChannelInboundHandlerAdapter</span> </span>&#123;</span><br><span class="line">  </span><br><span class="line">  <span class="meta">@Override</span></span><br><span class="line">  <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">channelRead</span><span class="params">(ChannelHandlerContext ctx, Object request)</span> <span class="keyword">throws</span> Exception </span>&#123;</span><br><span class="line">    <span class="keyword">if</span> (request <span class="keyword">instanceof</span> RequestMessage) &#123;</span><br><span class="line">      requestHandler.handle((RequestMessage) request);</span><br><span class="line">    &#125; <span class="keyword">else</span> <span class="keyword">if</span> (request <span class="keyword">instanceof</span> ResponseMessage) &#123;</span><br><span class="line">      responseHandler.handle((ResponseMessage) request);</span><br><span class="line">    &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">      ctx.fireChannelRead(request);</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>TransportChannelHandler在接收响应时，会触发channelRead函数。这里调用TransportResponseHandler的handle函数。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">TransportResponseHandler</span> <span class="keyword">extends</span> <span class="title">MessageHandler</span>&lt;<span class="title">ResponseMessage</span>&gt; </span>&#123;</span><br><span class="line">  <span class="meta">@Override</span></span><br><span class="line">  <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">handle</span><span class="params">(ResponseMessage message)</span> <span class="keyword">throws</span> Exception </span>&#123;</span><br><span class="line">    <span class="keyword">if</span> (message <span class="keyword">instanceof</span> RpcResponse) &#123;</span><br><span class="line">      RpcResponse resp = (RpcResponse) message;</span><br><span class="line">      <span class="comment">// 根据requestId，取出对应的回调函数</span></span><br><span class="line">      RpcResponseCallback listener = outstandingRpcs.get(resp.requestId);</span><br><span class="line">      </span><br><span class="line">      ...... </span><br><span class="line">          </span><br><span class="line">      <span class="keyword">if</span> (listener == <span class="keyword">null</span>) &#123;</span><br><span class="line">          ......</span><br><span class="line">      &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">        <span class="comment">// 调用onSuccess回调，参数为响应数据</span></span><br><span class="line">        outstandingRpcs.remove(resp.requestId);</span><br><span class="line">        <span class="keyword">try</span> &#123;</span><br><span class="line">          listener.onSuccess(resp.body().nioByteBuffer());</span><br><span class="line">        &#125; <span class="keyword">finally</span> &#123;</span><br><span class="line">          resp.body().release();</span><br><span class="line">        &#125;</span><br><span class="line">      &#125;</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+      
+    </div>
+    
+    
+    
+
+    
+
+    
+
+    
+
+    <footer class="post-footer">
+      
+        <div class="post-tags">
+          
+            <a href="/tags/spark-rpc-client/" rel="tag"># spark, rpc, client</a>
+          
+        </div>
+      
+
+      
+      
+      
+
+      
+        <div class="post-nav">
+          <div class="post-nav-next post-nav-item">
+            
+              <a href="/2019/01/13/spark-rpc-flow/" rel="next" title="Spark Rpc 原理介绍">
+                <i class="fa fa-chevron-left"></i> Spark Rpc 原理介绍
+              </a>
+            
+          </div>
+
+          <span class="post-nav-divider"></span>
+
+          <div class="post-nav-prev post-nav-item">
+            
+          </div>
+        </div>
+      
+
+      
+      
+    </footer>
+  </div>
+  
+  
+  
+  </article>
+
+
+
+    <div class="post-spread">
+      
+    </div>
+  </div>
+
+
+          </div>
+          
+
+
+          
+
+  
+    <div class="comments" id="comments">
+    </div>
+  
+
+
+
+        </div>
+        
+          
+  
+  <div class="sidebar-toggle">
+    <div class="sidebar-toggle-line-wrap">
+      <span class="sidebar-toggle-line sidebar-toggle-line-first"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-middle"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-last"></span>
+    </div>
+  </div>
+
+  <aside id="sidebar" class="sidebar">
+    
+    <div class="sidebar-inner">
+
+      
+
+      
+        <ul class="sidebar-nav motion-element">
+          <li class="sidebar-nav-toc sidebar-nav-active" data-target="post-toc-wrap">
+            Table of Contents
+          </li>
+          <li class="sidebar-nav-overview" data-target="site-overview-wrap">
+            Overview
+          </li>
+        </ul>
+      
+
+      <section class="site-overview-wrap sidebar-panel">
+        <div class="site-overview">
+          <div class="site-author motion-element" itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+            
+              <p class="site-author-name" itemprop="name">zhmin</p>
+              <p class="site-description motion-element" itemprop="description"></p>
+          </div>
+
+          <nav class="site-state motion-element">
+
+            
+              <div class="site-state-item site-state-posts">
+              
+                <a href="/archives/">
+              
+                  <span class="site-state-item-count">13</span>
+                  <span class="site-state-item-name">posts</span>
+                </a>
+              </div>
+            
+
+            
+
+            
+              
+              
+              <div class="site-state-item site-state-tags">
+                
+                  <span class="site-state-item-count">12</span>
+                  <span class="site-state-item-name">tags</span>
+                
+              </div>
+            
+
+          </nav>
+
+          
+
+          
+            <div class="links-of-author motion-element">
+                
+                  <span class="links-of-author-item">
+                    <a href="https://github.com/zhmin" target="_blank" title="GitHub">
+                      
+                        <i class="fa fa-fw fa-github"></i>GitHub</a>
+                  </span>
+                
+            </div>
+          
+
+          
+          
+
+          
+          
+
+          
+
+        </div>
+      </section>
+
+      
+      <!--noindex-->
+        <section class="post-toc-wrap motion-element sidebar-panel sidebar-panel-active">
+          <div class="post-toc">
+
+            
+              
+            
+
+            
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#Spark-Rpc-客户端原理"><span class="nav-number">1.</span> <span class="nav-text">Spark Rpc 客户端原理</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#RpcEndpointRef"><span class="nav-number">1.1.</span> <span class="nav-text">RpcEndpointRef</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#客户端的NettyRpcEnv"><span class="nav-number">1.2.</span> <span class="nav-text">客户端的NettyRpcEnv</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#OutBox"><span class="nav-number">1.3.</span> <span class="nav-text">OutBox</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#OneWayOutboxMessage"><span class="nav-number">1.3.1.</span> <span class="nav-text">OneWayOutboxMessage</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#RpcOutboxMessage"><span class="nav-number">1.3.2.</span> <span class="nav-text">RpcOutboxMessage</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#发送消息"><span class="nav-number">1.3.3.</span> <span class="nav-text">发送消息</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#创建连接"><span class="nav-number">1.3.4.</span> <span class="nav-text">创建连接</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#TransportClient"><span class="nav-number">1.4.</span> <span class="nav-text">TransportClient</span></a></li></ol></li></ol></div>
+            
+
+          </div>
+        </section>
+      <!--/noindex-->
+      
+
+      
+
+    </div>
+  </aside>
+
+
+        
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="footer-inner">
+        <div class="copyright">&copy; <span itemprop="copyrightYear">2019</span>
+  <span class="with-love">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">zhmin</span>
+
+  
+</div>
+
+
+
+
+
+
+
+
+
+
+
+  <script src="https://unpkg.com/mermaid@7.1.2/dist/mermaid.min.js"></script>
+  <script>
+    if (window.mermaid) {
+      mermaid.initialize({"startOnload":"true  // default true","theme":"forest"});
+    }
+  </script>
+
+
+
+<script async src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+<span id="busuanzi_container_site_pv">
+    访问量<span id="busuanzi_value_site_pv"></span>
+</span>
+<span class="post-meta-divider">|</span>
+<span id="busuanzi_container_site_uv">
+  访客数<span id="busuanzi_value_site_uv"></span>
+</span>
+
+        
+
+
+
+
+
+
+
+        
+      </div>
+    </footer>
+
+    
+      <div class="back-to-top">
+        <i class="fa fa-arrow-up"></i>
+        
+      </div>
+    
+
+    
+
+  </div>
+
+  
+
+<script type="text/javascript">
+  if (Object.prototype.toString.call(window.Promise) !== '[object Function]') {
+    window.Promise = null;
+  }
+</script>
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery/index.js?v=2.1.3"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fastclick/lib/fastclick.min.js?v=1.0.6"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery_lazyload/jquery.lazyload.js?v=1.9.7"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.ui.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fancybox/source/jquery.fancybox.pack.js?v=2.1.5"></script>
+  
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/utils.js?v=5.1.4"></script>
+
+  <script type="text/javascript" src="/js/src/motion.js?v=5.1.4"></script>
+
+
+
+  
+  
+
+  
+  <script type="text/javascript" src="/js/src/scrollspy.js?v=5.1.4"></script>
+<script type="text/javascript" src="/js/src/post-details.js?v=5.1.4"></script>
+
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/bootstrap.js?v=5.1.4"></script>
+
+
+
+  
+
+
+  
+
+
+
+
+	
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+  <script src="//cdn1.lncld.net/static/js/3.0.4/av-min.js"></script>
+  <script src="//unpkg.com/valine/dist/Valine.min.js"></script>
+  
+  <script type="text/javascript">
+    var GUEST = ['nick','mail','link'];
+    var guest = 'nick';
+    guest = guest.split(',').filter(item=>{
+      return GUEST.indexOf(item)>-1;
+    });
+    new Valine({
+        el: '#comments' ,
+        verify: false,
+        notify: false,
+        appId: 'iYiPQlDR2X2zg2QIql2UEe2o-gzGzoHsz',
+        appKey: 'EW8G4sftwX1pef1zS9EsOeKE',
+        placeholder: 'comment here',
+        avatar:'mm',
+        guest_info:guest,
+        pageSize:'10' || 10,
+    });
+  </script>
+
+
+
+  
+
+
+
+
+
+  
+
+  
+  <script src="https://cdn1.lncld.net/static/js/av-core-mini-0.6.4.js"></script>
+  <script>AV.initialize("iYiPQlDR2X2zg2QIql2UEe2o-gzGzoHsz", "EW8G4sftwX1pef1zS9EsOeKE");</script>
+  <script>
+    function showTime(Counter) {
+      var query = new AV.Query(Counter);
+      var entries = [];
+      var $visitors = $(".leancloud_visitors");
+
+      $visitors.each(function () {
+        entries.push( $(this).attr("id").trim() );
+      });
+
+      query.containedIn('url', entries);
+      query.find()
+        .done(function (results) {
+          var COUNT_CONTAINER_REF = '.leancloud-visitors-count';
+
+          if (results.length === 0) {
+            $visitors.find(COUNT_CONTAINER_REF).text(0);
+            return;
+          }
+
+          for (var i = 0; i < results.length; i++) {
+            var item = results[i];
+            var url = item.get('url');
+            var time = item.get('time');
+            var element = document.getElementById(url);
+
+            $(element).find(COUNT_CONTAINER_REF).text(time);
+          }
+          for(var i = 0; i < entries.length; i++) {
+            var url = entries[i];
+            var element = document.getElementById(url);
+            var countSpan = $(element).find(COUNT_CONTAINER_REF);
+            if( countSpan.text() == '') {
+              countSpan.text(0);
+            }
+          }
+        })
+        .fail(function (object, error) {
+          console.log("Error: " + error.code + " " + error.message);
+        });
+    }
+
+    function addCount(Counter) {
+      var $visitors = $(".leancloud_visitors");
+      var url = $visitors.attr('id').trim();
+      var title = $visitors.attr('data-flag-title').trim();
+      var query = new AV.Query(Counter);
+
+      query.equalTo("url", url);
+      query.find({
+        success: function(results) {
+          if (results.length > 0) {
+            var counter = results[0];
+            counter.fetchWhenSave(true);
+            counter.increment("time");
+            counter.save(null, {
+              success: function(counter) {
+                var $element = $(document.getElementById(url));
+                $element.find('.leancloud-visitors-count').text(counter.get('time'));
+              },
+              error: function(counter, error) {
+                console.log('Failed to save Visitor num, with error message: ' + error.message);
+              }
+            });
+          } else {
+            var newcounter = new Counter();
+            /* Set ACL */
+            var acl = new AV.ACL();
+            acl.setPublicReadAccess(true);
+            acl.setPublicWriteAccess(true);
+            newcounter.setACL(acl);
+            /* End Set ACL */
+            newcounter.set("title", title);
+            newcounter.set("url", url);
+            newcounter.set("time", 1);
+            newcounter.save(null, {
+              success: function(newcounter) {
+                var $element = $(document.getElementById(url));
+                $element.find('.leancloud-visitors-count').text(newcounter.get('time'));
+              },
+              error: function(newcounter, error) {
+                console.log('Failed to create');
+              }
+            });
+          }
+        },
+        error: function(error) {
+          console.log('Error:' + error.code + " " + error.message);
+        }
+      });
+    }
+
+    $(function() {
+      var Counter = AV.Object.extend("Counter");
+      if ($('.leancloud_visitors').length == 1) {
+        addCount(Counter);
+      } else if ($('.post-title-link').length > 1) {
+        showTime(Counter);
+      }
+    });
+  </script>
+
+
+
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+</body>
+</html>
