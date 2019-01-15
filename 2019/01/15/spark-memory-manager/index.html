@@ -1,0 +1,907 @@
+<!DOCTYPE html>
+
+
+
+  
+
+
+<html class="theme-next mist use-motion" lang="">
+<head><meta name="generator" content="Hexo 3.8.0">
+  <meta charset="UTF-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="theme-color" content="#222">
+
+
+
+
+
+
+
+
+
+<meta http-equiv="Cache-Control" content="no-transform">
+<meta http-equiv="Cache-Control" content="no-siteapp">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+  <link href="/lib/fancybox/source/jquery.fancybox.css?v=2.1.5" rel="stylesheet" type="text/css">
+
+
+
+
+
+
+
+<link href="/lib/font-awesome/css/font-awesome.min.css?v=4.6.2" rel="stylesheet" type="text/css">
+
+<link href="/css/main.css?v=5.1.4" rel="stylesheet" type="text/css">
+
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png?v=5.1.4">
+
+
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png?v=5.1.4">
+
+
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png?v=5.1.4">
+
+
+  <link rel="mask-icon" href="/images/logo.svg?v=5.1.4" color="#222">
+
+
+
+
+
+  <meta name="keywords" content="spark, memory,">
+
+
+
+
+
+
+
+
+
+
+<meta name="description" content="Spark 内存管理spark自己实现了一套内存的管理，为了精准的控制内存。因为JVM的垃圾回收不可控制，尤其是大内存的回收，会造成程序暂停长时间。spark为了避免这种情况，实现了内存的管理，尤其是针对大内存。对于大内存，spark会使用内存池的方法，避免了垃圾回收的次数，提高了程序的稳定性。目前spark支持堆内内存分配和堆外内存分配。 内存分配spark分配内存是以内存块为单位。内存块包含内">
+<meta name="keywords" content="spark, memory">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Spark 内存管理">
+<meta property="og:url" content="https://zhmin.github.io/2019/01/15/spark-memory-manager/index.html">
+<meta property="og:site_name" content="blog">
+<meta property="og:description" content="Spark 内存管理spark自己实现了一套内存的管理，为了精准的控制内存。因为JVM的垃圾回收不可控制，尤其是大内存的回收，会造成程序暂停长时间。spark为了避免这种情况，实现了内存的管理，尤其是针对大内存。对于大内存，spark会使用内存池的方法，避免了垃圾回收的次数，提高了程序的稳定性。目前spark支持堆内内存分配和堆外内存分配。 内存分配spark分配内存是以内存块为单位。内存块包含内">
+<meta property="og:locale" content="default">
+<meta property="og:updated_time" content="2019-01-15T14:52:28.049Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Spark 内存管理">
+<meta name="twitter:description" content="Spark 内存管理spark自己实现了一套内存的管理，为了精准的控制内存。因为JVM的垃圾回收不可控制，尤其是大内存的回收，会造成程序暂停长时间。spark为了避免这种情况，实现了内存的管理，尤其是针对大内存。对于大内存，spark会使用内存池的方法，避免了垃圾回收的次数，提高了程序的稳定性。目前spark支持堆内内存分配和堆外内存分配。 内存分配spark分配内存是以内存块为单位。内存块包含内">
+
+
+
+<script type="text/javascript" id="hexo.configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '/',
+    scheme: 'Mist',
+    version: '5.1.4',
+    sidebar: {"position":"left","display":"hide","offset":12,"b2t":false,"scrollpercent":false,"onmobile":false},
+    fancybox: true,
+    tabs: true,
+    motion: {"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},
+    duoshuo: {
+      userId: '0',
+      author: 'Author'
+    },
+    algolia: {
+      applicationID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    }
+  };
+</script>
+
+
+
+  <link rel="canonical" href="https://zhmin.github.io/2019/01/15/spark-memory-manager/">
+
+
+
+
+
+  <title>Spark 内存管理 | blog</title>
+  
+
+
+
+
+
+
+
+
+</head>
+
+<body itemscope="" itemtype="http://schema.org/WebPage" lang="default">
+
+  
+  
+    
+  
+
+  <div class="container sidebar-position-left page-post-detail">
+    <div class="headband"></div>
+
+    <header id="header" class="header" itemscope="" itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-wrapper">
+  <div class="site-meta ">
+    
+
+    <div class="custom-logo-site-title">
+      <a href="/" class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">blog</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+      
+        <h1 class="site-subtitle" itemprop="description"></h1>
+      
+  </div>
+
+  <div class="site-nav-toggle">
+    <button>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+    </button>
+  </div>
+</div>
+
+<nav class="site-nav">
+  
+
+  
+    <ul id="menu" class="menu">
+      
+        
+        <li class="menu-item menu-item-home">
+          <a href="/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-home"></i> <br>
+            
+            Home
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-archives">
+          <a href="/archives/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-archive"></i> <br>
+            
+            Archives
+          </a>
+        </li>
+      
+
+      
+    </ul>
+  
+
+  
+</nav>
+
+
+
+ </div>
+    </header>
+
+    <main id="main" class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          <div id="content" class="content">
+            
+
+  <div id="posts" class="posts-expand">
+    
+
+  
+
+  
+  
+  
+
+  <article class="post post-type-normal" itemscope="" itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block">
+    <link itemprop="mainEntityOfPage" href="https://zhmin.github.io/2019/01/15/spark-memory-manager/">
+
+    <span hidden itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="zhmin">
+      <meta itemprop="description" content="">
+      <meta itemprop="image" content="/images/avatar.gif">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope="" itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="blog">
+    </span>
+
+    
+      <header class="post-header">
+
+        
+        
+          <h2 class="post-title" itemprop="name headline">Spark 内存管理</h2>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">Posted on</span>
+              
+              <time title="Post created" itemprop="dateCreated datePublished" datetime="2019-01-15T22:50:44+08:00">
+                2019-01-15
+              </time>
+            
+
+            
+
+            
+          </span>
+
+          
+
+          
+            
+              <span class="post-comments-count">
+                <span class="post-meta-divider">|</span>
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-comment-o"></i>
+                </span>
+                <a href="/2019/01/15/spark-memory-manager/#comments" itemprop="discussionUrl">
+                  <span class="post-comments-count valine-comment-count" data-xid="/2019/01/15/spark-memory-manager/" itemprop="commentCount"></span>
+                </a>
+              </span>
+            
+          
+
+          
+          
+             <span id="/2019/01/15/spark-memory-manager/" class="leancloud_visitors" data-flag-title="Spark 内存管理">
+               <span class="post-meta-divider">|</span>
+               <span class="post-meta-item-icon">
+                 <i class="fa fa-eye"></i>
+               </span>
+               
+                 <span class="post-meta-item-text">Visitors&#58;</span>
+               
+                 <span class="leancloud-visitors-count"></span>
+             </span>
+          
+
+          
+
+          
+
+          
+
+        </div>
+      </header>
+    
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+      
+
+      
+        <h1 id="Spark-内存管理"><a href="#Spark-内存管理" class="headerlink" title="Spark 内存管理"></a>Spark 内存管理</h1><p>spark自己实现了一套内存的管理，为了精准的控制内存。因为JVM的垃圾回收不可控制，尤其是大内存的回收，会造成程序暂停长时间。spark为了避免这种情况，实现了内存的管理，尤其是针对大内存。对于大内存，spark会使用内存池的方法，避免了垃圾回收的次数，提高了程序的稳定性。目前spark支持堆内内存分配和堆外内存分配。</p>
+<h2 id="内存分配"><a href="#内存分配" class="headerlink" title="内存分配"></a>内存分配</h2><p>spark分配内存是以内存块为单位。内存块包含内存地址和内存大小。</p>
+<h3 id="内存块"><a href="#内存块" class="headerlink" title="内存块"></a>内存块</h3><p>内存地址是由MemoryLocation类表示的。它存储着两部分数据，一个是头部，一个是数据。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">MemoryLocation</span> </span>&#123;</span><br><span class="line"></span><br><span class="line">  <span class="meta">@Nullable</span></span><br><span class="line">  Object obj;       <span class="comment">// 内存的起始地址</span></span><br><span class="line"></span><br><span class="line">  <span class="keyword">long</span> offset;     <span class="comment">// 数据的偏移位置</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>内存块由MemoryBlock表示，它除了包含了内存地址，还有内存大小。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">MemoryBlock</span> <span class="keyword">extends</span> <span class="title">MemoryLocation</span> </span>&#123;</span><br><span class="line">  <span class="keyword">private</span> <span class="keyword">final</span> <span class="keyword">long</span> length;     <span class="comment">//  内存中的数据大小</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h3 id="内存分配接口"><a href="#内存分配接口" class="headerlink" title="内存分配接口"></a>内存分配接口</h3><p>MemoryAllocator定义了内存分配的接口。HeapMemoryAllocator类实现了MemoryAllocator接口，支持在堆内分配内存。UnsafeMemoryAllocator则支持在堆外分配内存。</p>
+<h3 id="堆内分配"><a href="#堆内分配" class="headerlink" title="堆内分配"></a>堆内分配</h3><p>HeapMemoryAllocator对于大的数据块，会缓存下来，注意这里是弱引用。当大的内存用完后，但是没有被jvm回收之前，会提供给新的需求。这样可以尽量的减少 jvm 垃圾回收。</p>
+<p>HeapMemoryAllocator的分配，只是实例化一个Long类型的数组。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">HeapMemoryAllocator</span> <span class="keyword">implements</span> <span class="title">MemoryAllocator</span> </span>&#123;</span><br><span class="line">  <span class="comment">// 缓存池， Key的内存块的大小， Value为内存块的弱引用</span></span><br><span class="line">  <span class="meta">@GuardedBy</span>(<span class="string">"this"</span>)</span><br><span class="line">  <span class="keyword">private</span> <span class="keyword">final</span> Map&lt;Long, LinkedList&lt;WeakReference&lt;MemoryBlock&gt;&gt;&gt; bufferPoolsBySize =</span><br><span class="line">    <span class="keyword">new</span> HashMap&lt;&gt;();</span><br><span class="line">  </span><br><span class="line">  <span class="meta">@Override</span></span><br><span class="line">  <span class="function"><span class="keyword">public</span> MemoryBlock <span class="title">allocate</span><span class="params">(<span class="keyword">long</span> size)</span> <span class="keyword">throws</span> OutOfMemoryError </span>&#123;</span><br><span class="line">    <span class="comment">// 首先去寻找是否缓冲池有对应大小的内存块</span></span><br><span class="line">    <span class="keyword">if</span> (shouldPool(size)) &#123;</span><br><span class="line">      <span class="keyword">synchronized</span> (<span class="keyword">this</span>) &#123;</span><br><span class="line">        <span class="keyword">final</span> LinkedList&lt;WeakReference&lt;MemoryBlock&gt;&gt; pool = bufferPoolsBySize.get(size);</span><br><span class="line">        <span class="keyword">if</span> (pool != <span class="keyword">null</span>) &#123;</span><br><span class="line">          <span class="keyword">while</span> (!pool.isEmpty()) &#123;</span><br><span class="line">            <span class="keyword">final</span> WeakReference&lt;MemoryBlock&gt; blockReference = pool.pop();</span><br><span class="line">            <span class="comment">// 返回弱引用</span></span><br><span class="line">            <span class="keyword">final</span> MemoryBlock memory = blockReference.get();</span><br><span class="line">            <span class="comment">// 如果找到内存块，则直接返回</span></span><br><span class="line">            <span class="keyword">if</span> (memory != <span class="keyword">null</span>) &#123;</span><br><span class="line">              <span class="keyword">assert</span> (memory.size() == size);</span><br><span class="line">              <span class="keyword">return</span> memory;</span><br><span class="line">            &#125;</span><br><span class="line">          &#125;</span><br><span class="line">          bufferPoolsBySize.remove(size);</span><br><span class="line">        &#125;</span><br><span class="line">      &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">// 新建数组，数组是属于堆内内存</span></span><br><span class="line">    <span class="comment">// 注意size是指定分配内存的字节数，一个long占有8个字节</span></span><br><span class="line">    <span class="keyword">long</span>[] array = <span class="keyword">new</span> <span class="keyword">long</span>[(<span class="keyword">int</span>) ((size + <span class="number">7</span>) / <span class="number">8</span>)];</span><br><span class="line">    <span class="comment">// 注意这里array是数组的开始地址，但是数组会包含头部，长度为Platform.LONG_ARRAY_OFFSET</span></span><br><span class="line">    <span class="comment">// 真正的数据开始位置是在头部之后</span></span><br><span class="line">    MemoryBlock memory = <span class="keyword">new</span> MemoryBlock(array, Platform.LONG_ARRAY_OFFSET, size);</span><br><span class="line">    <span class="keyword">if</span> (MemoryAllocator.MEMORY_DEBUG_FILL_ENABLED) &#123;</span><br><span class="line">      memory.fill(MemoryAllocator.MEMORY_DEBUG_FILL_CLEAN_VALUE);</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> memory;</span><br><span class="line">  &#125;</span><br><span class="line">        </span><br><span class="line">  <span class="keyword">private</span> <span class="keyword">static</span> <span class="keyword">final</span> <span class="keyword">int</span> POOLING_THRESHOLD_BYTES = <span class="number">1024</span> * <span class="number">1024</span>;</span><br><span class="line">  </span><br><span class="line">  <span class="comment">// 这里倾向于缓存大的内存块，因为大的内存块回收，会很影响jvm的性能</span></span><br><span class="line">  <span class="function"><span class="keyword">private</span> <span class="keyword">boolean</span> <span class="title">shouldPool</span><span class="params">(<span class="keyword">long</span> size)</span> </span>&#123;</span><br><span class="line">    <span class="keyword">return</span> size &gt;= POOLING_THRESHOLD_BYTES;</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>HeapMemoryAllocator的释放内存方法，并没有正在的释放，只是保存了它的弱引用。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">@Override</span></span><br><span class="line"><span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">free</span><span class="params">(MemoryBlock memory)</span> </span>&#123;</span><br><span class="line">  <span class="keyword">final</span> <span class="keyword">long</span> size = memory.size();</span><br><span class="line">  <span class="keyword">if</span> (MemoryAllocator.MEMORY_DEBUG_FILL_ENABLED) &#123;</span><br><span class="line">    memory.fill(MemoryAllocator.MEMORY_DEBUG_FILL_FREED_VALUE);</span><br><span class="line">  &#125;</span><br><span class="line">  <span class="keyword">if</span> (shouldPool(size)) &#123;</span><br><span class="line">    <span class="keyword">synchronized</span> (<span class="keyword">this</span>) &#123;</span><br><span class="line">      LinkedList&lt;WeakReference&lt;MemoryBlock&gt;&gt; pool = bufferPoolsBySize.get(size);</span><br><span class="line">      <span class="keyword">if</span> (pool == <span class="keyword">null</span>) &#123;</span><br><span class="line">        pool = <span class="keyword">new</span> LinkedList&lt;&gt;();</span><br><span class="line">        bufferPoolsBySize.put(size, pool);</span><br><span class="line">      &#125;</span><br><span class="line">      pool.add(<span class="keyword">new</span> WeakReference&lt;&gt;(memory));</span><br><span class="line">    &#125;</span><br><span class="line">  &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">    <span class="comment">// Do nothing</span></span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h3 id="堆外分配"><a href="#堆外分配" class="headerlink" title="堆外分配"></a>堆外分配</h3><p>UnsafeMemoryAllocator调用Platform的allocateMemory方法，分配堆外内存。</p>
+<p>调用Platform的freeMemory方法，释放堆外内存。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">UnsafeMemoryAllocator</span> <span class="keyword">implements</span> <span class="title">MemoryAllocator</span> </span>&#123;</span><br><span class="line"></span><br><span class="line">  <span class="meta">@Override</span></span><br><span class="line">  <span class="function"><span class="keyword">public</span> MemoryBlock <span class="title">allocate</span><span class="params">(<span class="keyword">long</span> size)</span> <span class="keyword">throws</span> OutOfMemoryError </span>&#123;</span><br><span class="line">    <span class="comment">// Platform 使用 unsafe分配堆外内存， 返回内存地址</span></span><br><span class="line">    <span class="keyword">long</span> address = Platform.allocateMemory(size);</span><br><span class="line">    MemoryBlock memory = <span class="keyword">new</span> MemoryBlock(<span class="keyword">null</span>, address, size);</span><br><span class="line">    <span class="keyword">if</span> (MemoryAllocator.MEMORY_DEBUG_FILL_ENABLED) &#123;</span><br><span class="line">      memory.fill(MemoryAllocator.MEMORY_DEBUG_FILL_CLEAN_VALUE);</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> memory;</span><br><span class="line">  &#125;</span><br><span class="line">    </span><br><span class="line">  <span class="meta">@Override</span></span><br><span class="line">  <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">free</span><span class="params">(MemoryBlock memory)</span> </span>&#123;</span><br><span class="line">    <span class="keyword">assert</span> (memory.obj == <span class="keyword">null</span>) :</span><br><span class="line">      <span class="string">"baseObject not null; are you trying to use the off-heap allocator to free on-heap memory?"</span>;</span><br><span class="line">    <span class="keyword">if</span> (MemoryAllocator.MEMORY_DEBUG_FILL_ENABLED) &#123;</span><br><span class="line">      memory.fill(MemoryAllocator.MEMORY_DEBUG_FILL_FREED_VALUE);</span><br><span class="line">    &#125;</span><br><span class="line">    Platform.freeMemory(memory.offset);</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>接下来继续研究Platform的源码，Platform其实是调用了Unsafe来分配和释放堆外内存的。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="keyword">final</span> <span class="class"><span class="keyword">class</span> <span class="title">Platform</span> </span>&#123;</span><br><span class="line">  <span class="comment">// 使用了Unsafe类来分配堆外内存</span></span><br><span class="line">  <span class="keyword">private</span> <span class="keyword">static</span> <span class="keyword">final</span> Unsafe _UNSAFE;</span><br><span class="line">  <span class="comment">// 通过反射获取Unsafe实例</span></span><br><span class="line">  <span class="keyword">static</span> &#123;</span><br><span class="line">    sun.misc.Unsafe unsafe;</span><br><span class="line">    <span class="keyword">try</span> &#123;</span><br><span class="line">      Field unsafeField = Unsafe.class.getDeclaredField(<span class="string">"theUnsafe"</span>);</span><br><span class="line">      unsafeField.setAccessible(<span class="keyword">true</span>);</span><br><span class="line">      unsafe = (sun.misc.Unsafe) unsafeField.get(<span class="keyword">null</span>);</span><br><span class="line">    &#125; <span class="keyword">catch</span> (Throwable cause) &#123;</span><br><span class="line">      unsafe = <span class="keyword">null</span>;</span><br><span class="line">    &#125;</span><br><span class="line">    _UNSAFE = unsafe;</span><br><span class="line">  &#125;</span><br><span class="line">    </span><br><span class="line">  <span class="comment">// 调用Unsafe分配内存</span></span><br><span class="line">  <span class="function"><span class="keyword">public</span> <span class="keyword">static</span> <span class="keyword">long</span> <span class="title">allocateMemory</span><span class="params">(<span class="keyword">long</span> size)</span> </span>&#123;</span><br><span class="line">    <span class="keyword">return</span> _UNSAFE.allocateMemory(size);</span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  <span class="comment">// 调用Unsafe释放内存</span></span><br><span class="line">  <span class="function"><span class="keyword">public</span> <span class="keyword">static</span> <span class="keyword">void</span> <span class="title">freeMemory</span><span class="params">(<span class="keyword">long</span> address)</span> </span>&#123;</span><br><span class="line">    _UNSAFE.freeMemory(address);</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h2 id="内存管理"><a href="#内存管理" class="headerlink" title="内存管理"></a>内存管理</h2><h3 id="内存池"><a href="#内存池" class="headerlink" title="内存池"></a>内存池</h3><p>内存池负责管理内存，它只负责管理下列的数值，比如内存总大小，剩余大小，已使用的大小。但它不负责实际的内存分配。 </p>
+<p>内存池的用处分为两种，一个是用作存储的，一部分用作执行任务的。</p>
+<p>MemoryPool是内存池的基类，它只是简单的提供了，有锁访问内存信息的方法。</p>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">abstract</span> <span class="class"><span class="keyword">class</span> <span class="title">MemoryPool</span>(<span class="params">lock: <span class="type">Object</span></span>) </span>&#123;</span><br><span class="line"></span><br><span class="line">  <span class="meta">@GuardedBy</span>(<span class="string">"lock"</span>)</span><br><span class="line">  <span class="keyword">private</span>[<span class="keyword">this</span>] <span class="keyword">var</span> _poolSize: <span class="type">Long</span> = <span class="number">0</span></span><br><span class="line">    </span><br><span class="line">  <span class="comment">// 返回内存的容量</span></span><br><span class="line">  <span class="keyword">final</span> <span class="function"><span class="keyword">def</span> <span class="title">poolSize</span></span>: <span class="type">Long</span> = lock.synchronized &#123;</span><br><span class="line">    _poolSize</span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  <span class="comment">// 返回剩余的容量</span></span><br><span class="line">  <span class="keyword">final</span> <span class="function"><span class="keyword">def</span> <span class="title">memoryFree</span></span>: <span class="type">Long</span> = lock.synchronized &#123;</span><br><span class="line">    _poolSize - memoryUsed</span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  <span class="comment">// 增大内存容量</span></span><br><span class="line">  <span class="keyword">final</span> <span class="function"><span class="keyword">def</span> <span class="title">incrementPoolSize</span></span>(delta: <span class="type">Long</span>): <span class="type">Unit</span> = lock.synchronized &#123;</span><br><span class="line">    require(delta &gt;= <span class="number">0</span>)</span><br><span class="line">    _poolSize += delta</span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  <span class="comment">// 减少内存容量</span></span><br><span class="line">  <span class="keyword">final</span> <span class="function"><span class="keyword">def</span> <span class="title">decrementPoolSize</span></span>(delta: <span class="type">Long</span>): <span class="type">Unit</span> = lock.synchronized &#123;</span><br><span class="line">    require(delta &gt;= <span class="number">0</span>)</span><br><span class="line">    require(delta &lt;= _poolSize)</span><br><span class="line">    require(_poolSize - delta &gt;= memoryUsed)</span><br><span class="line">    _poolSize -= delta</span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  <span class="comment">// 返回已经使用的内存大小</span></span><br><span class="line">  <span class="function"><span class="keyword">def</span> <span class="title">memoryUsed</span></span>: <span class="type">Long</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>StorageMemoryPool 继承 MemoryPool，表示用来存储数据的内存池。 它支持堆外和堆内内存，由memoryMode参数指定。它提供了增加申请内存接口 acquireMemory。</p>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">private</span>[memory] <span class="class"><span class="keyword">class</span> <span class="title">StorageMemoryPool</span>(<span class="params"></span></span></span><br><span class="line"><span class="class"><span class="params">    lock: <span class="type">Object</span>,</span></span></span><br><span class="line"><span class="class"><span class="params">    memoryMode: <span class="type">MemoryMode</span>       // 指定存储在堆内还是堆外</span></span></span><br><span class="line"><span class="class"><span class="params">  </span>) <span class="keyword">extends</span> <span class="title">MemoryPool</span>(<span class="params">lock</span>) <span class="keyword">with</span> <span class="title">Logging</span> </span>&#123;</span><br><span class="line">    </span><br><span class="line">    <span class="function"><span class="keyword">def</span> <span class="title">acquireMemory</span></span>(blockId: <span class="type">BlockId</span>, numBytes: <span class="type">Long</span>): <span class="type">Boolean</span> = lock.synchronized &#123;</span><br><span class="line">        <span class="comment">// 计算需要额外释放多少内存，才能满足需求</span></span><br><span class="line">        <span class="keyword">val</span> numBytesToFree = math.max(<span class="number">0</span>, numBytes - memoryFree)</span><br><span class="line">        acquireMemory(blockId, numBytes, numBytesToFree)</span><br><span class="line">    &#125;</span><br><span class="line">     </span><br><span class="line">    <span class="function"><span class="keyword">def</span> <span class="title">acquireMemory</span></span>(</span><br><span class="line">      blockId: <span class="type">BlockId</span>,</span><br><span class="line">      numBytesToAcquire: <span class="type">Long</span>,</span><br><span class="line">      numBytesToFree: <span class="type">Long</span>): <span class="type">Boolean</span> = lock.synchronized &#123;</span><br><span class="line">        <span class="comment">// 如果需要额外释放内存，则调用memoryStore将其他block的数据存储到磁盘</span></span><br><span class="line">        <span class="keyword">if</span> (numBytesToFree &gt; <span class="number">0</span>) &#123;</span><br><span class="line">            memoryStore.evictBlocksToFreeSpace(<span class="type">Some</span>(blockId), numBytesToFree, memoryMode)</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="comment">// 检查是否已经有足够的内存</span></span><br><span class="line">        <span class="keyword">val</span> enoughMemory = numBytesToAcquire &lt;= memoryFree</span><br><span class="line">        <span class="comment">// 如果有，则增加内存的使用量</span></span><br><span class="line">        <span class="keyword">if</span> (enoughMemory) &#123;</span><br><span class="line">            _memoryUsed += numBytesToAcquire</span><br><span class="line">        &#125;</span><br><span class="line">        enoughMemory</span><br><span class="line">    &#125;</span><br><span class="line">    </span><br><span class="line">    <span class="comment">// 返回已使用的内存容量</span></span><br><span class="line">    <span class="keyword">override</span> <span class="function"><span class="keyword">def</span> <span class="title">memoryUsed</span></span>: <span class="type">Long</span> = lock.synchronized &#123;</span><br><span class="line">      _memoryUsed</span><br><span class="line">    &#125;</span><br><span class="line"> </span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>ExecutionMemoryPool继承 MemoryPool， 表示用来执行任务的内存池。它支持堆外和堆内内存，由memoryMode参数指定。它提供了增加申请内存接口 acquireMemory。</p>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">class</span> <span class="title">ExecutionMemoryPool</span>(<span class="params"></span></span></span><br><span class="line"><span class="class"><span class="params">    lock: <span class="type">Object</span>,</span></span></span><br><span class="line"><span class="class"><span class="params">    memoryMode: <span class="type">MemoryMode</span></span></span></span><br><span class="line"><span class="class"><span class="params">  </span>) <span class="keyword">extends</span> <span class="title">MemoryPool</span>(<span class="params">lock</span>) <span class="keyword">with</span> <span class="title">Logging</span> </span>&#123;</span><br><span class="line"></span><br><span class="line">  <span class="comment">// 每个任务对应的已分配的内存大小</span></span><br><span class="line">  <span class="keyword">private</span> <span class="keyword">val</span> memoryForTask = <span class="keyword">new</span> mutable.<span class="type">HashMap</span>[<span class="type">Long</span>, <span class="type">Long</span>]()</span><br><span class="line"></span><br><span class="line">  <span class="comment">// maybeGrowPool 函数， 在统一内存管理模式下，会从部分存储内存转到执行内存下</span></span><br><span class="line">  <span class="comment">// computeMaxPoolSize函数， 计算容量的最大值</span></span><br><span class="line">  <span class="keyword">private</span>[memory] <span class="function"><span class="keyword">def</span> <span class="title">acquireMemory</span></span>(</span><br><span class="line">      numBytes: <span class="type">Long</span>,</span><br><span class="line">      taskAttemptId: <span class="type">Long</span>,</span><br><span class="line">      maybeGrowPool: <span class="type">Long</span> =&gt; <span class="type">Unit</span> = (additionalSpaceNeeded: <span class="type">Long</span>) =&gt; <span class="type">Unit</span>,</span><br><span class="line">      computeMaxPoolSize: () =&gt; <span class="type">Long</span> = () =&gt; poolSize): <span class="type">Long</span> = lock.synchronized &#123;</span><br><span class="line">    </span><br><span class="line">    <span class="keyword">while</span> (<span class="literal">true</span>) &#123;</span><br><span class="line">      <span class="comment">// 已经运行的task的数目</span></span><br><span class="line">      <span class="keyword">val</span> numActiveTasks = memoryForTask.keys.size</span><br><span class="line">      <span class="comment">// 当前任务已经分配的内存</span></span><br><span class="line">      <span class="keyword">val</span> curMem = memoryForTask(taskAttemptId)</span><br><span class="line"></span><br><span class="line">      <span class="comment">// 尝试增大内存容量</span></span><br><span class="line">      maybeGrowPool(numBytes - memoryFree)</span><br><span class="line"></span><br><span class="line">      <span class="comment">// 实时计算容量的最大值</span></span><br><span class="line">      <span class="keyword">val</span> maxPoolSize = computeMaxPoolSize()</span><br><span class="line">      <span class="comment">// 计算每个任务的最大和最小的内存</span></span><br><span class="line">      <span class="keyword">val</span> maxMemoryPerTask = maxPoolSize / numActiveTasks</span><br><span class="line">      <span class="keyword">val</span> minMemoryPerTask = poolSize / (<span class="number">2</span> * numActiveTasks)</span><br><span class="line"></span><br><span class="line">      <span class="comment">// 计算此次任务最大的可以分配内存， 每个任务的内存不能超过maxMemoryPerTask</span></span><br><span class="line">      <span class="keyword">val</span> maxToGrant = math.min(numBytes, math.max(<span class="number">0</span>, maxMemoryPerTask - curMem))</span><br><span class="line">      <span class="comment">// 计算可以分配的最大内存， </span></span><br><span class="line">      <span class="keyword">val</span> toGrant = math.min(maxToGrant, memoryFree)</span><br><span class="line"></span><br><span class="line">      <span class="comment">// 如果当前内存不够，并且分配以后当前任务的内存仍然小于minMemoryPerTask</span></span><br><span class="line">      <span class="comment">// 那么等待资源释放</span></span><br><span class="line">      <span class="keyword">if</span> (toGrant &lt; numBytes &amp;&amp; curMem + toGrant &lt; minMemoryPerTask) &#123;</span><br><span class="line">        logInfo(<span class="string">s"TID <span class="subst">$taskAttemptId</span> waiting for at least 1/2N of <span class="subst">$poolName</span> pool to be free"</span>)</span><br><span class="line">        lock.wait()</span><br><span class="line">      &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">        <span class="comment">// 如果内存足够，则返回已分配的内存数目</span></span><br><span class="line">        memoryForTask(taskAttemptId) += toGrant</span><br><span class="line">        <span class="keyword">return</span> toGrant</span><br><span class="line">      &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">// 否则返回0</span></span><br><span class="line">    <span class="number">0</span>L  <span class="comment">// Never reached</span></span><br><span class="line">  &#125;</span><br><span class="line">  </span><br><span class="line">  <span class="comment">// 释放任务的内存</span></span><br><span class="line">  <span class="function"><span class="keyword">def</span> <span class="title">releaseMemory</span></span>(numBytes: <span class="type">Long</span>, taskAttemptId: <span class="type">Long</span>): <span class="type">Unit</span> = lock.synchronized &#123;</span><br><span class="line">    <span class="keyword">val</span> curMem = memoryForTask.getOrElse(taskAttemptId, <span class="number">0</span>L)</span><br><span class="line">    <span class="comment">// 计算任务可以释放的内存</span></span><br><span class="line">    <span class="keyword">var</span> memoryToFree = <span class="keyword">if</span> (curMem &lt; numBytes) &#123;</span><br><span class="line">      logWarning(</span><br><span class="line">        <span class="string">s"Internal error: release called on <span class="subst">$numBytes</span> bytes but task only has <span class="subst">$curMem</span> bytes "</span> +</span><br><span class="line">          <span class="string">s"of memory from the <span class="subst">$poolName</span> pool"</span>)</span><br><span class="line">      curMem</span><br><span class="line">    &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">      numBytes</span><br><span class="line">    &#125;</span><br><span class="line">    </span><br><span class="line">    <span class="comment">// 更新memoryForTask表</span></span><br><span class="line">    <span class="keyword">if</span> (memoryForTask.contains(taskAttemptId)) &#123;</span><br><span class="line">      memoryForTask(taskAttemptId) -= memoryToFree</span><br><span class="line">      <span class="keyword">if</span> (memoryForTask(taskAttemptId) &lt;= <span class="number">0</span>) &#123;</span><br><span class="line">        memoryForTask.remove(taskAttemptId)</span><br><span class="line">      &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">// 通知等待内存释放的线程</span></span><br><span class="line">    lock.notifyAll() <span class="comment">// Notify waiters in acquireMemory() that memory has been freed</span></span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h3 id="内存池管理策略"><a href="#内存池管理策略" class="headerlink" title="内存池管理策略"></a>内存池管理策略</h3><p>MemoryManager 负责管理下列内存池</p>
+<ul>
+<li>onHeapStorageMemoryPool ： StorageMemoryPool，  堆内</li>
+<li>offHeapStorageMemoryPool   :   StorageMemoryPool， 堆外</li>
+<li>onHeapExecutionMemoryPool  :  ExecutionMemoryPool， 堆内</li>
+<li>offHeapExecutionMemoryPool  :  ExecutionMemoryPool， 堆外</li>
+</ul>
+<p>对于内存的管理，spark支持两种策略，静态资源管理，动态资源管理。</p>
+<h4 id="静态资源管理"><a href="#静态资源管理" class="headerlink" title="静态资源管理"></a>静态资源管理</h4><p>静态资源管理会初始化各个内存池的大小，之后内存池的大小不能改变。内存分为两个用途，一个是缓存数据使用的，另一部分是任务执行使用的。静态资源管理不支持用于数据缓存的堆外内存。</p>
+<p>StaticMemoryManager表示静态资源管理，它会根据spark的配置，来计算出各个内存池的容量。</p>
+<p>getMaxStorageMemory方法返回缓存数据的内存容量</p>
+<p>getMaxExecutionMemory方法返回执行任务的内存容量</p>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">private</span>[spark] <span class="class"><span class="keyword">object</span> <span class="title">StaticMemoryManager</span> </span>&#123;</span><br><span class="line"></span><br><span class="line">  <span class="keyword">private</span> <span class="keyword">val</span> <span class="type">MIN_MEMORY_BYTES</span> = <span class="number">32</span> * <span class="number">1024</span> * <span class="number">1024</span></span><br><span class="line"></span><br><span class="line">  <span class="comment">// 返回存储数据的内存容量</span></span><br><span class="line">  <span class="keyword">private</span> <span class="function"><span class="keyword">def</span> <span class="title">getMaxStorageMemory</span></span>(conf: <span class="type">SparkConf</span>): <span class="type">Long</span> = &#123;</span><br><span class="line">    <span class="comment">// 获取</span></span><br><span class="line">    <span class="keyword">val</span> systemMaxMemory = conf.getLong(<span class="string">"spark.testing.memory"</span>, <span class="type">Runtime</span>.getRuntime.maxMemory)</span><br><span class="line">    <span class="keyword">val</span> memoryFraction = conf.getDouble(<span class="string">"spark.storage.memoryFraction"</span>, <span class="number">0.6</span>)</span><br><span class="line">    <span class="keyword">val</span> safetyFraction = conf.getDouble(<span class="string">"spark.storage.safetyFraction"</span>, <span class="number">0.9</span>)</span><br><span class="line">    (systemMaxMemory * memoryFraction * safetyFraction).toLong</span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  <span class="comment">// 返回执行任务使用的内存容量</span></span><br><span class="line">  <span class="keyword">private</span> <span class="function"><span class="keyword">def</span> <span class="title">getMaxExecutionMemory</span></span>(conf: <span class="type">SparkConf</span>): <span class="type">Long</span> = &#123;</span><br><span class="line">    <span class="keyword">val</span> systemMaxMemory = conf.getLong(<span class="string">"spark.testing.memory"</span>, <span class="type">Runtime</span>.getRuntime.maxMemory)</span><br><span class="line">    <span class="keyword">val</span> memoryFraction = conf.getDouble(<span class="string">"spark.shuffle.memoryFraction"</span>, <span class="number">0.2</span>)</span><br><span class="line">    <span class="keyword">val</span> safetyFraction = conf.getDouble(<span class="string">"spark.shuffle.safetyFraction"</span>, <span class="number">0.8</span>)</span><br><span class="line">    (systemMaxMemory * memoryFraction * safetyFraction).toLong</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>StaticMemoryManager对于内存的申请，分别对应 acquireStorageMemory提供申请缓存数据的内存，acquireExecutionMemory提供申请执行任务的内存。</p>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">class</span> <span class="title">StaticMemoryManager</span>(<span class="params"></span></span></span><br><span class="line"><span class="class"><span class="params">    conf: <span class="type">SparkConf</span>,</span></span></span><br><span class="line"><span class="class"><span class="params">    maxOnHeapExecutionMemory: <span class="type">Long</span>,</span></span></span><br><span class="line"><span class="class"><span class="params">    override val maxOnHeapStorageMemory: <span class="type">Long</span>,</span></span></span><br><span class="line"><span class="class"><span class="params">    numCores: <span class="type">Int</span></span>)</span></span><br><span class="line"><span class="class">  <span class="keyword">extends</span> <span class="title">MemoryManager</span>(<span class="params"></span></span></span><br><span class="line"><span class="class"><span class="params">    conf,</span></span></span><br><span class="line"><span class="class"><span class="params">    numCores,</span></span></span><br><span class="line"><span class="class"><span class="params">    maxOnHeapStorageMemory,</span></span></span><br><span class="line"><span class="class"><span class="params">    maxOnHeapExecutionMemory</span>) </span>&#123;</span><br><span class="line"></span><br><span class="line">  <span class="function"><span class="keyword">def</span> <span class="title">this</span></span>(conf: <span class="type">SparkConf</span>, numCores: <span class="type">Int</span>) &#123;</span><br><span class="line">    <span class="keyword">this</span>(</span><br><span class="line">      conf,</span><br><span class="line">      <span class="type">StaticMemoryManager</span>.getMaxExecutionMemory(conf),  <span class="comment">// 从配置文件读取和计算execution的内存容量</span></span><br><span class="line">      <span class="type">StaticMemoryManager</span>.getMaxStorageMemory(conf),    <span class="comment">// 从配置文件读取和计算storage的内存容量</span></span><br><span class="line">      numCores)</span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  <span class="comment">// 不支持堆外的存储内存，所以会将offHeapStorageMemoryPool的内存，</span></span><br><span class="line">  <span class="comment">// 转到offHeapExecutionMemoryPool里面</span></span><br><span class="line">  offHeapExecutionMemoryPool.incrementPoolSize(offHeapStorageMemoryPool.poolSize)</span><br><span class="line">  offHeapStorageMemoryPool.decrementPoolSize(offHeapStorageMemoryPool.poolSize)</span><br><span class="line">  </span><br><span class="line">  <span class="keyword">override</span> <span class="function"><span class="keyword">def</span> <span class="title">acquireStorageMemory</span></span>(</span><br><span class="line">      blockId: <span class="type">BlockId</span>,</span><br><span class="line">      numBytes: <span class="type">Long</span>,</span><br><span class="line">      memoryMode: <span class="type">MemoryMode</span>): <span class="type">Boolean</span> = synchronized &#123;</span><br><span class="line">    <span class="comment">// 不支持堆外的存储内存</span></span><br><span class="line">    require(memoryMode != <span class="type">MemoryMode</span>.<span class="type">OFF_HEAP</span>,</span><br><span class="line">      <span class="string">"StaticMemoryManager does not support off-heap storage memory"</span>)</span><br><span class="line">    <span class="comment">// 如果申请内存大于堆内内存，则直接返回false，表示申请内存失败</span></span><br><span class="line">    <span class="keyword">if</span> (numBytes &gt; maxOnHeapStorageMemory) &#123;</span><br><span class="line">      <span class="comment">// Fail fast if the block simply won't fit</span></span><br><span class="line">      logInfo(<span class="string">s"Will not store <span class="subst">$blockId</span> as the required space (<span class="subst">$numBytes</span> bytes) exceeds our "</span> +</span><br><span class="line">        <span class="string">s"memory limit (<span class="subst">$maxOnHeapStorageMemory</span> bytes)"</span>)</span><br><span class="line">      <span class="literal">false</span></span><br><span class="line">    &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">      <span class="comment">// 向onHeapStorageMemoryPool申请内存</span></span><br><span class="line">      onHeapStorageMemoryPool.acquireMemory(blockId, numBytes)</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br><span class="line">  </span><br><span class="line">  <span class="keyword">override</span> <span class="function"><span class="keyword">def</span> <span class="title">acquireExecutionMemory</span></span>(</span><br><span class="line">      numBytes: <span class="type">Long</span>,</span><br><span class="line">      taskAttemptId: <span class="type">Long</span>,</span><br><span class="line">      memoryMode: <span class="type">MemoryMode</span>): <span class="type">Long</span> = synchronized &#123;</span><br><span class="line">    memoryMode <span class="keyword">match</span> &#123;</span><br><span class="line">      <span class="keyword">case</span> <span class="type">MemoryMode</span>.<span class="type">ON_HEAP</span> =&gt; onHeapExecutionMemoryPool.acquireMemory(numBytes, taskAttemptId)</span><br><span class="line">      <span class="keyword">case</span> <span class="type">MemoryMode</span>.<span class="type">OFF_HEAP</span> =&gt; offHeapExecutionMemoryPool.acquireMemory(numBytes, taskAttemptId)</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br><span class="line">  </span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h4 id="动态资源管理"><a href="#动态资源管理" class="headerlink" title="动态资源管理"></a>动态资源管理</h4><p>动态资源管理的原理是，不严格划分缓存数据和任务执行的内存容量。当其中一个内存不足时，可以相互借用，共享内存。这样就可以提高内存的使用效率。</p>
+<p>acquireStorageMemory方法提供了申请storage用途的内存。如果当前storage的内存不够，则试图向execution借用空闲的内存。</p>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">class</span> <span class="title">UnifiedMemoryManager</span> </span>&#123;</span><br><span class="line">      </span><br><span class="line">  <span class="keyword">override</span> <span class="function"><span class="keyword">def</span> <span class="title">acquireStorageMemory</span></span>(</span><br><span class="line">      blockId: <span class="type">BlockId</span>,</span><br><span class="line">      numBytes: <span class="type">Long</span>,</span><br><span class="line">      memoryMode: <span class="type">MemoryMode</span>): <span class="type">Boolean</span> = synchronized &#123;</span><br><span class="line">    <span class="comment">// 根据内存在堆外还是堆内，返回对应的内存池</span></span><br><span class="line">    <span class="keyword">val</span> (executionPool, storagePool, maxMemory) = memoryMode <span class="keyword">match</span> &#123;</span><br><span class="line">      <span class="keyword">case</span> <span class="type">MemoryMode</span>.<span class="type">ON_HEAP</span> =&gt; (</span><br><span class="line">        onHeapExecutionMemoryPool,</span><br><span class="line">        onHeapStorageMemoryPool,</span><br><span class="line">        maxOnHeapStorageMemory)</span><br><span class="line">      <span class="keyword">case</span> <span class="type">MemoryMode</span>.<span class="type">OFF_HEAP</span> =&gt; (</span><br><span class="line">        offHeapExecutionMemoryPool,</span><br><span class="line">        offHeapStorageMemoryPool,</span><br><span class="line">        maxOffHeapStorageMemory)</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">// 申请内存超过了最大容量，返回false，表示没有申请成功</span></span><br><span class="line">    <span class="keyword">if</span> (numBytes &gt; maxMemory) &#123;</span><br><span class="line">      logInfo(<span class="string">s"Will not store <span class="subst">$blockId</span> as the required space (<span class="subst">$numBytes</span> bytes) exceeds our "</span> +</span><br><span class="line">        <span class="string">s"memory limit (<span class="subst">$maxMemory</span> bytes)"</span>)</span><br><span class="line">      <span class="keyword">return</span> <span class="literal">false</span></span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">// 如果当前storage的内存池不够，则向execution的内存池借用</span></span><br><span class="line">    <span class="keyword">if</span> (numBytes &gt; storagePool.memoryFree) &#123;</span><br><span class="line">      <span class="comment">// 计算需要借用的内存大小，不能小于execution的空闲内存</span></span><br><span class="line">      <span class="keyword">val</span> memoryBorrowedFromExecution = <span class="type">Math</span>.min(executionPool.memoryFree,</span><br><span class="line">        numBytes - storagePool.memoryFree)</span><br><span class="line">      <span class="comment">// 减少execution内存池的容量</span></span><br><span class="line">      executionPool.decrementPoolSize(memoryBorrowedFromExecution)</span><br><span class="line">      <span class="comment">// 增加storage内存池的容量</span></span><br><span class="line">      storagePool.incrementPoolSize(memoryBorrowedFromExecution)</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">// 向storage内存池申请</span></span><br><span class="line">    storagePool.acquireMemory(blockId, numBytes)</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>acquireExecutionMemory方法提供了申请execution用途的内存。如果当execution的内存不够，它会借用storage的内存。</p>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">override</span> <span class="keyword">private</span>[memory] <span class="function"><span class="keyword">def</span> <span class="title">acquireExecutionMemory</span></span>(</span><br><span class="line">    numBytes: <span class="type">Long</span>,</span><br><span class="line">    taskAttemptId: <span class="type">Long</span>,</span><br><span class="line">    memoryMode: <span class="type">MemoryMode</span>): <span class="type">Long</span> = synchronized &#123;</span><br><span class="line">  <span class="comment">// 根据内存在堆外还是堆内，返回对应的内存池</span></span><br><span class="line">  <span class="comment">// storageRegionSize表示storage类型，当内存不足时，可使用的最高容量</span></span><br><span class="line">  <span class="comment">// maxMemory表示总的内存大小，包括storage和execution</span></span><br><span class="line">  <span class="keyword">val</span> (executionPool, storagePool, storageRegionSize, maxMemory) = memoryMode <span class="keyword">match</span> &#123;</span><br><span class="line">    <span class="keyword">case</span> <span class="type">MemoryMode</span>.<span class="type">ON_HEAP</span> =&gt; (</span><br><span class="line">      onHeapExecutionMemoryPool,</span><br><span class="line">      onHeapStorageMemoryPool,</span><br><span class="line">      onHeapStorageRegionSize,</span><br><span class="line">      maxHeapMemory)</span><br><span class="line">    <span class="keyword">case</span> <span class="type">MemoryMode</span>.<span class="type">OFF_HEAP</span> =&gt; (</span><br><span class="line">      offHeapExecutionMemoryPool,</span><br><span class="line">      offHeapStorageMemoryPool,</span><br><span class="line">      offHeapStorageMemory,</span><br><span class="line">      maxOffHeapMemory)</span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  <span class="comment">// 借用storage内存</span></span><br><span class="line">  <span class="function"><span class="keyword">def</span> <span class="title">maybeGrowExecutionPool</span></span>(extraMemoryNeeded: <span class="type">Long</span>): <span class="type">Unit</span> = &#123;</span><br><span class="line">    <span class="keyword">if</span> (extraMemoryNeeded &gt; <span class="number">0</span>) &#123;</span><br><span class="line">      <span class="comment">// 如果storage内存池有空闲内存，</span></span><br><span class="line">      <span class="comment">// 或者storage内存池的容量大于最低容量storageRegionSize</span></span><br><span class="line">      <span class="keyword">val</span> memoryReclaimableFromStorage = math.max(</span><br><span class="line">        storagePool.memoryFree,</span><br><span class="line">        storagePool.poolSize - storageRegionSize)</span><br><span class="line">      <span class="keyword">if</span> (memoryReclaimableFromStorage &gt; <span class="number">0</span>) &#123;</span><br><span class="line">        <span class="comment">// 尝试释放空间，有可能会将缓存的数据块，溢写到磁盘</span></span><br><span class="line">        <span class="keyword">val</span> spaceToReclaim = storagePool.freeSpaceToShrinkPool(</span><br><span class="line">          math.min(extraMemoryNeeded, memoryReclaimableFromStorage))</span><br><span class="line">        <span class="comment">// 减少storage内存池的容量</span></span><br><span class="line">        storagePool.decrementPoolSize(spaceToReclaim)</span><br><span class="line">        <span class="comment">// 增加execution内存池的容量</span></span><br><span class="line">        executionPool.incrementPoolSize(spaceToReclaim)</span><br><span class="line">      &#125;</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  <span class="comment">// 计算最大的execution的内存容量</span></span><br><span class="line">  <span class="function"><span class="keyword">def</span> <span class="title">computeMaxExecutionPoolSize</span></span>(): <span class="type">Long</span> = &#123;</span><br><span class="line">    maxMemory - math.min(storagePool.memoryUsed, storageRegionSize)</span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  <span class="comment">// 向executionPool申请内存，maybeGrowExecutionPool和computeMaxExecutionPoolSize函数，</span></span><br><span class="line">  <span class="comment">// 会在每次尝试申请都会调用</span></span><br><span class="line">  executionPool.acquireMemory(</span><br><span class="line">    numBytes, taskAttemptId, maybeGrowExecutionPool, computeMaxExecutionPoolSize)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h2 id="申请storage内存"><a href="#申请storage内存" class="headerlink" title="申请storage内存"></a>申请storage内存</h2><p>上面介绍了内存的管理和分配，这里介绍了使用者的用法。我们以MemoryStore类为例，当spark缓存数据的时候，会申请storage类型的内存。</p>
+<p>MemoryStore 的 putBytes 方法是将数据缓存到内存中。它申请内存的方法很简单，首先向memoryManager申请，如果memoryManager同意，直接调用_bytes函数，生成ChunkedByteBuffer。</p>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">class</span> <span class="title">MemoryStore</span> </span>&#123;</span><br><span class="line">  </span><br><span class="line">  <span class="function"><span class="keyword">def</span> <span class="title">putBytes</span></span>[<span class="type">T</span>: <span class="type">ClassTag</span>](</span><br><span class="line">      blockId: <span class="type">BlockId</span>,</span><br><span class="line">      size: <span class="type">Long</span>,</span><br><span class="line">      memoryMode: <span class="type">MemoryMode</span>,</span><br><span class="line">      _bytes: () =&gt; <span class="type">ChunkedByteBuffer</span>): <span class="type">Boolean</span> = &#123;</span><br><span class="line">    <span class="comment">// 申请storage内存</span></span><br><span class="line">    <span class="keyword">if</span> (memoryManager.acquireStorageMemory(blockId, size, memoryMode)) &#123;</span><br><span class="line">      <span class="comment">// 生成ChunkedByteBuffer，里面存储着要缓存的数据</span></span><br><span class="line">      <span class="keyword">val</span> bytes = _bytes()</span><br><span class="line">      assert(bytes.size == size)</span><br><span class="line">      <span class="keyword">val</span> entry = <span class="keyword">new</span> <span class="type">SerializedMemoryEntry</span>[<span class="type">T</span>](bytes, memoryMode, implicitly[<span class="type">ClassTag</span>[<span class="type">T</span>]])</span><br><span class="line">      entries.synchronized &#123;</span><br><span class="line">        entries.put(blockId, entry)</span><br><span class="line">      &#125;</span><br><span class="line">      <span class="literal">true</span></span><br><span class="line">    &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">      <span class="literal">false</span></span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h2 id="申请execution内存"><a href="#申请execution内存" class="headerlink" title="申请execution内存"></a>申请execution内存</h2><p>Spark对于execution内存的申请，通过MemoryConsumer抽象类，统一了申请和释放内存的客户端接口，并且支持数据溢写到磁盘。接口如下</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="keyword">abstract</span> <span class="class"><span class="keyword">class</span> <span class="title">MemoryConsumer</span> </span>&#123;</span><br><span class="line">    </span><br><span class="line">  <span class="comment">// taskMemoryManager实例</span></span><br><span class="line">  <span class="keyword">protected</span> <span class="keyword">final</span> TaskMemoryManager taskMemoryManager;</span><br><span class="line">    </span><br><span class="line">  <span class="comment">// 释放内存，将数据溢写到磁盘</span></span><br><span class="line">  <span class="function"><span class="keyword">public</span> <span class="keyword">abstract</span> <span class="keyword">long</span> <span class="title">spill</span><span class="params">(<span class="keyword">long</span> size, MemoryConsumer trigger)</span> <span class="keyword">throws</span> IOException</span>;</span><br><span class="line">    </span><br><span class="line">  <span class="comment">// 分配内存，返回形式为LongArray</span></span><br><span class="line">  <span class="function"><span class="keyword">public</span> LongArray <span class="title">allocateArray</span><span class="params">(<span class="keyword">long</span> size)</span> </span>&#123;&#125;</span><br><span class="line">    </span><br><span class="line">  <span class="comment">// 分配内存，返回形式为MemoryBlock</span></span><br><span class="line">  <span class="function"><span class="keyword">protected</span> MemoryBlock <span class="title">allocatePage</span><span class="params">(<span class="keyword">long</span> required)</span> </span>&#123;&#125;</span><br><span class="line">    </span><br><span class="line">  <span class="comment">// 释放内存</span></span><br><span class="line">  <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">freeMemory</span><span class="params">(<span class="keyword">long</span> size)</span> </span>&#123;&#125;</span><br></pre></td></tr></table></figure>
+<p>MemoryConsumer的源码比较简单，它的申请内存接口，都是调用TaskMemoryManager的方法。</p>
+<h3 id="TaskMemoryManager"><a href="#TaskMemoryManager" class="headerlink" title="TaskMemoryManager"></a>TaskMemoryManager</h3><p>TaskMemoryManager负责管理所有的MemoryConsumer。 当内存不够时，TaskMemoryManager会调用MemoryConsumer的spill方法，释放内存。</p>
+<p>TaskMemoryManager同样也管理已分配的MemoryBlock，对于每个MemoryBlock都有一个唯一的pageNumber，表示它在TaskMemoryManager集合的位置。</p>
+<p>TaskMemoryManager只负责任务执行的内存管理。它提供了allocatePage方法，分配内存 MemoryBlock</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">TaskMemoryManager</span> </span>&#123;</span><br><span class="line">    </span><br><span class="line">    <span class="comment">// 表示内存是堆外还是堆内</span></span><br><span class="line">    <span class="keyword">final</span> MemoryMode tungstenMemoryMode;</span><br><span class="line">    </span><br><span class="line">    <span class="comment">// MemoryConsumer集合</span></span><br><span class="line">    <span class="keyword">private</span> <span class="keyword">final</span> HashSet&lt;MemoryConsumer&gt; consumers;</span><br><span class="line">    </span><br><span class="line">    <span class="comment">// 保存分配的MemoryBlock</span></span><br><span class="line">    <span class="keyword">private</span> <span class="keyword">final</span> MemoryBlock[] pageTable = <span class="keyword">new</span> MemoryBlock[PAGE_TABLE_SIZE];</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 索引为MemoryBlock的pageNumber，对应值为true，表示该MemoryBlock已经分配</span></span><br><span class="line">    <span class="keyword">private</span> <span class="keyword">final</span> BitSet allocatedPages = <span class="keyword">new</span> BitSet(PAGE_TABLE_SIZE);</span><br><span class="line">    </span><br><span class="line">    <span class="comment">// 分配MemoryBlock</span></span><br><span class="line">    <span class="function"><span class="keyword">public</span> MemoryBlock <span class="title">allocatePage</span><span class="params">(<span class="keyword">long</span> size, MemoryConsumer consumer)</span> </span>&#123;</span><br><span class="line">      <span class="keyword">assert</span>(consumer != <span class="keyword">null</span>);</span><br><span class="line">      <span class="comment">// 表示 consumer 的内存类型必须和TaskMemoryManager一致</span></span><br><span class="line">      <span class="keyword">assert</span>(consumer.getMode() == tungstenMemoryMode);</span><br><span class="line">      <span class="comment">// 申请内存，不能超过指定大小</span></span><br><span class="line">      <span class="keyword">if</span> (size &gt; MAXIMUM_PAGE_SIZE_BYTES) &#123;</span><br><span class="line">        <span class="keyword">throw</span> <span class="keyword">new</span> IllegalArgumentException(</span><br><span class="line">          <span class="string">"Cannot allocate a page with more than "</span> + MAXIMUM_PAGE_SIZE_BYTES + <span class="string">" bytes"</span>);</span><br><span class="line">      &#125;</span><br><span class="line"></span><br><span class="line">      <span class="comment">// acquireExecutionMemory会去检测是否有足够的内存，</span></span><br><span class="line">      <span class="comment">// 还会尝试将MemoryConsumer溢写到磁盘来释放内存</span></span><br><span class="line">      <span class="keyword">long</span> acquired = acquireExecutionMemory(size, consumer);</span><br><span class="line">      <span class="keyword">if</span> (acquired &lt;= <span class="number">0</span>) &#123;</span><br><span class="line">        <span class="keyword">return</span> <span class="keyword">null</span>;</span><br><span class="line">      &#125;</span><br><span class="line">        </span><br><span class="line">	 <span class="comment">// 生成MemoryBlock的pageNumber</span></span><br><span class="line">      <span class="keyword">final</span> <span class="keyword">int</span> pageNumber;</span><br><span class="line">      <span class="keyword">synchronized</span> (<span class="keyword">this</span>) &#123;</span><br><span class="line">       <span class="comment">// 寻找allocatedPages中值为0的索引，表示该pageNumber没有分配</span></span><br><span class="line">        pageNumber = allocatedPages.nextClearBit(<span class="number">0</span>);</span><br><span class="line">        <span class="keyword">if</span> (pageNumber &gt;= PAGE_TABLE_SIZE) &#123;</span><br><span class="line">          releaseExecutionMemory(acquired, consumer);</span><br><span class="line">          <span class="keyword">throw</span> <span class="keyword">new</span> IllegalStateException(</span><br><span class="line">            <span class="string">"Have already allocated a maximum of "</span> + PAGE_TABLE_SIZE + <span class="string">" pages"</span>);</span><br><span class="line">        &#125;</span><br><span class="line">        allocatedPages.set(pageNumber);</span><br><span class="line">      &#125;</span><br><span class="line">      MemoryBlock page = <span class="keyword">null</span>;</span><br><span class="line">      <span class="keyword">try</span> &#123;</span><br><span class="line">        <span class="comment">// 调用MemoryAllocator，来分配内存</span></span><br><span class="line">        page = memoryManager.tungstenMemoryAllocator().allocate(acquired);</span><br><span class="line">      &#125; <span class="keyword">catch</span> (OutOfMemoryError e) &#123;</span><br><span class="line">        logger.warn(<span class="string">"Failed to allocate a page (&#123;&#125; bytes), try again."</span>, acquired);</span><br><span class="line">        <span class="keyword">synchronized</span> (<span class="keyword">this</span>) &#123;</span><br><span class="line">          <span class="comment">// acquiredButNotUsed记录了申请失败的内存大小</span></span><br><span class="line">          acquiredButNotUsed += acquired;</span><br><span class="line">          <span class="comment">// 因为申请失败了，所以pageNumber需要回收。</span></span><br><span class="line">          allocatedPages.clear(pageNumber);</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="comment">// 进行下一次尝试</span></span><br><span class="line">        <span class="keyword">return</span> allocatePage(size, consumer);</span><br><span class="line">      &#125;</span><br><span class="line">      <span class="comment">// 更新pageTable集合</span></span><br><span class="line">      page.pageNumber = pageNumber;</span><br><span class="line">      pageTable[pageNumber] = page;</span><br><span class="line">      <span class="keyword">return</span> page;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>注意到上面调用了acquireExecutionMemory方法。acquireExecutionMemory 方法会向 memoryManager 去申请内存，如果申请失败，会尝试释放内存。释放内存的原理是，从已申请的 MemoryConsumer中， 优先挑选出占用内存稍微大于申请内存的MemoryConsumer，如果没有 则按照占用内存从大到小的顺序释放。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">public</span> <span class="keyword">long</span> <span class="title">acquireExecutionMemory</span><span class="params">(<span class="keyword">long</span> required, MemoryConsumer consumer)</span> </span>&#123;</span><br><span class="line">  <span class="keyword">assert</span>(required &gt;= <span class="number">0</span>);</span><br><span class="line">  <span class="keyword">assert</span>(consumer != <span class="keyword">null</span>);</span><br><span class="line">  MemoryMode mode = consumer.getMode();</span><br><span class="line">  <span class="keyword">synchronized</span> (<span class="keyword">this</span>) &#123;</span><br><span class="line">    <span class="comment">// 向memoryManager申请execution内存， 返回申请的内存容量</span></span><br><span class="line">    <span class="keyword">long</span> got = memoryManager.acquireExecutionMemory(required, taskAttemptId, mode);</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 如果获得内存小于申请大小，则需要MemoryConsumer溢写，释放内存</span></span><br><span class="line">    <span class="keyword">if</span> (got &lt; required) &#123;</span><br><span class="line">      <span class="comment">// 记录MemoryConsumer的内存量</span></span><br><span class="line">      <span class="comment">// Key为内存使用量， Value为对应的MemoryConsumer的列表</span></span><br><span class="line">      TreeMap&lt;Long, List&lt;MemoryConsumer&gt;&gt; sortedConsumers = <span class="keyword">new</span> TreeMap&lt;&gt;();</span><br><span class="line">      <span class="keyword">for</span> (MemoryConsumer c: consumers) &#123;</span><br><span class="line">        <span class="keyword">if</span> (c != consumer &amp;&amp; c.getUsed() &gt; <span class="number">0</span> &amp;&amp; c.getMode() == mode) &#123;</span><br><span class="line">          <span class="keyword">long</span> key = c.getUsed();</span><br><span class="line">          List&lt;MemoryConsumer&gt; list =</span><br><span class="line">              sortedConsumers.computeIfAbsent(key, k -&gt; <span class="keyword">new</span> ArrayList&lt;&gt;(<span class="number">1</span>));</span><br><span class="line">          list.add(c);</span><br><span class="line">        &#125;</span><br><span class="line">      &#125;</span><br><span class="line">        </span><br><span class="line">      <span class="comment">// 尝试挑选MemoryConsumer溢写， 直到申请内存满足或者所有的MemoryConsumer已经溢写</span></span><br><span class="line">      <span class="keyword">while</span> (!sortedConsumers.isEmpty()) &#123;</span><br><span class="line">        <span class="comment">// required - got 表示还差多少内存</span></span><br><span class="line">        <span class="comment">// 寻找刚好内存大于或等于需求值的MemoryConsumer</span></span><br><span class="line">        Map.Entry&lt;Long, List&lt;MemoryConsumer&gt;&gt; currentEntry =</span><br><span class="line">          sortedConsumers.ceilingEntry(required - got);</span><br><span class="line">        <span class="comment">// 如果没有找到，则返回最后的一项，也就是最大的一项</span></span><br><span class="line">        <span class="keyword">if</span> (currentEntry == <span class="keyword">null</span>) &#123;</span><br><span class="line">          currentEntry = sortedConsumers.lastEntry();</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="comment">// 获取对应的MemoryConsumer列表</span></span><br><span class="line">        List&lt;MemoryConsumer&gt; cList = currentEntry.getValue();</span><br><span class="line">        <span class="comment">// 从MemoryConsumer列表取出一个元素</span></span><br><span class="line">        MemoryConsumer c = cList.remove(cList.size() - <span class="number">1</span>);</span><br><span class="line">        <span class="keyword">if</span> (cList.isEmpty()) &#123;</span><br><span class="line">          sortedConsumers.remove(currentEntry.getKey());</span><br><span class="line">        &#125;</span><br><span class="line">          </span><br><span class="line">        <span class="keyword">try</span> &#123;</span><br><span class="line">          <span class="comment">// 调用该MemoryConsumer的spill溢写，释放内存</span></span><br><span class="line">          <span class="keyword">long</span> released = c.spill(required - got, consumer);</span><br><span class="line">          <span class="keyword">if</span> (released &gt; <span class="number">0</span>) &#123;</span><br><span class="line">            <span class="comment">// 继续向memoryManager申请execution内存， 并且更新已获取的内存容量got</span></span><br><span class="line">            got += memoryManager.acquireExecutionMemory(required - got, taskAttemptId, mode);</span><br><span class="line">            <span class="comment">// 如果已经申请到了足够的内存，则跳出循环</span></span><br><span class="line">            <span class="keyword">if</span> (got &gt;= required) &#123;</span><br><span class="line">              <span class="keyword">break</span>;</span><br><span class="line">            &#125;</span><br><span class="line">          &#125;</span><br><span class="line">        &#125; <span class="keyword">catch</span> (ClosedByInterruptException e) &#123;</span><br><span class="line">          <span class="comment">// This called by user to kill a task (e.g: speculative task).</span></span><br><span class="line">          logger.error(<span class="string">"error while calling spill() on "</span> + c, e);</span><br><span class="line">          <span class="keyword">throw</span> <span class="keyword">new</span> RuntimeException(e.getMessage());</span><br><span class="line">        &#125; <span class="keyword">catch</span> (IOException e) &#123;</span><br><span class="line">          logger.error(<span class="string">"error while calling spill() on "</span> + c, e);</span><br><span class="line">          <span class="keyword">throw</span> <span class="keyword">new</span> OutOfMemoryError(<span class="string">"error while calling spill() on "</span> + c + <span class="string">" : "</span></span><br><span class="line">            + e.getMessage());</span><br><span class="line">        &#125;</span><br><span class="line">      &#125;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 如果所有的MemoryConsumer都已经溢写，仍旧没有满足</span></span><br><span class="line">    <span class="comment">// 那么只能将申请者MemoryConsumer溢写</span></span><br><span class="line">    <span class="keyword">if</span> (got &lt; required) &#123;</span><br><span class="line">      <span class="keyword">try</span> &#123;</span><br><span class="line">        <span class="comment">// 当前MemoryConsumer溢写</span></span><br><span class="line">        <span class="keyword">long</span> released = consumer.spill(required - got, consumer);</span><br><span class="line">        <span class="keyword">if</span> (released &gt; <span class="number">0</span>) &#123;</span><br><span class="line">          <span class="comment">// 继续向memoryManager申请execution内存， 并且更新已获取的内存容量got</span></span><br><span class="line">          got += memoryManager.acquireExecutionMemory(required - got, taskAttemptId, mode);</span><br><span class="line">        &#125;</span><br><span class="line">      &#125; <span class="keyword">catch</span> (ClosedByInterruptException e) &#123;</span><br><span class="line">        logger.error(<span class="string">"error while calling spill() on "</span> + consumer, e);</span><br><span class="line">        <span class="keyword">throw</span> <span class="keyword">new</span> RuntimeException(e.getMessage());</span><br><span class="line">      &#125; <span class="keyword">catch</span> (IOException e) &#123;</span><br><span class="line">        logger.error(<span class="string">"error while calling spill() on "</span> + consumer, e);</span><br><span class="line">        <span class="keyword">throw</span> <span class="keyword">new</span> OutOfMemoryError(<span class="string">"error while calling spill() on "</span> + consumer + <span class="string">" : "</span></span><br><span class="line">          + e.getMessage());</span><br><span class="line">      &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">// 添加到consumers列表</span></span><br><span class="line">    consumers.add(consumer);</span><br><span class="line">    logger.debug(<span class="string">"Task &#123;&#125; acquired &#123;&#125; for &#123;&#125;"</span>, taskAttemptId, Utils.bytesToString(got), consumer);</span><br><span class="line">    <span class="keyword">return</span> got;</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h3 id="ShuffleExternalSorter例子"><a href="#ShuffleExternalSorter例子" class="headerlink" title="ShuffleExternalSorter例子"></a>ShuffleExternalSorter例子</h3><p>这里以ShuffleExternalSorter为例，它继承 MemoryConsumer， 负责shuffle排序用的。当它排序的时候，会使用到execution内存。</p>
+<p>acquireNewPageIfNecessary方法会申请内存，这里面就是调用了MemoryConsumer的allocatePage方法。</p>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">class</span> <span class="title">ShuffleExternalSorter</span> <span class="keyword">extends</span> <span class="title">MemoryConsumer</span> </span>&#123;</span><br><span class="line"></span><br><span class="line">  <span class="keyword">private</span> void acquireNewPageIfNecessary(int required) &#123;</span><br><span class="line">    <span class="keyword">if</span> (currentPage == <span class="literal">null</span> ||</span><br><span class="line">      pageCursor + required &gt; currentPage.getBaseOffset() + currentPage.size() ) &#123;</span><br><span class="line">      调用</span><br><span class="line">      currentPage = allocatePage(required);</span><br><span class="line">      pageCursor = currentPage.getBaseOffset();</span><br><span class="line">      allocatedPages.add(currentPage);</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"></span><br><span class="line">public <span class="keyword">abstract</span> <span class="class"><span class="keyword">class</span> <span class="title">MemoryConsumer</span> </span>&#123;</span><br><span class="line"></span><br><span class="line">  <span class="keyword">protected</span> <span class="keyword">final</span> <span class="type">TaskMemoryManager</span> taskMemoryManager;</span><br><span class="line">    </span><br><span class="line">  <span class="keyword">protected</span> <span class="type">MemoryBlock</span> allocatePage(long required) &#123;</span><br><span class="line">    <span class="comment">// 向taskMemoryManager申请分配内存</span></span><br><span class="line">    <span class="type">MemoryBlock</span> page = taskMemoryManager.allocatePage(<span class="type">Math</span>.max(pageSize, required), <span class="keyword">this</span>);</span><br><span class="line">    <span class="keyword">if</span> (page == <span class="literal">null</span> || page.size() &lt; required) &#123;</span><br><span class="line">      long got = <span class="number">0</span>;</span><br><span class="line">      <span class="keyword">if</span> (page != <span class="literal">null</span>) &#123;</span><br><span class="line">        got = page.size();</span><br><span class="line">        taskMemoryManager.freePage(page, <span class="keyword">this</span>);</span><br><span class="line">      &#125;</span><br><span class="line">      taskMemoryManager.showMemoryUsage();</span><br><span class="line">      <span class="keyword">throw</span> <span class="keyword">new</span> <span class="type">OutOfMemoryError</span>(<span class="string">"Unable to acquire "</span> + required + <span class="string">" bytes of memory, got "</span> + got);</span><br><span class="line">    &#125;</span><br><span class="line">    used += page.size();</span><br><span class="line">    <span class="keyword">return</span> page;</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+      
+    </div>
+    
+    
+    
+
+    
+
+    
+
+    
+
+    <footer class="post-footer">
+      
+        <div class="post-tags">
+          
+            <a href="/tags/spark-memory/" rel="tag"># spark, memory</a>
+          
+        </div>
+      
+
+      
+      
+      
+
+      
+        <div class="post-nav">
+          <div class="post-nav-next post-nav-item">
+            
+              <a href="/2019/01/13/spark-rpc-client/" rel="next" title="Spark Rpc 客户端原理">
+                <i class="fa fa-chevron-left"></i> Spark Rpc 客户端原理
+              </a>
+            
+          </div>
+
+          <span class="post-nav-divider"></span>
+
+          <div class="post-nav-prev post-nav-item">
+            
+          </div>
+        </div>
+      
+
+      
+      
+    </footer>
+  </div>
+  
+  
+  
+  </article>
+
+
+
+    <div class="post-spread">
+      
+    </div>
+  </div>
+
+
+          </div>
+          
+
+
+          
+
+  
+    <div class="comments" id="comments">
+    </div>
+  
+
+
+
+        </div>
+        
+          
+  
+  <div class="sidebar-toggle">
+    <div class="sidebar-toggle-line-wrap">
+      <span class="sidebar-toggle-line sidebar-toggle-line-first"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-middle"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-last"></span>
+    </div>
+  </div>
+
+  <aside id="sidebar" class="sidebar">
+    
+    <div class="sidebar-inner">
+
+      
+
+      
+        <ul class="sidebar-nav motion-element">
+          <li class="sidebar-nav-toc sidebar-nav-active" data-target="post-toc-wrap">
+            Table of Contents
+          </li>
+          <li class="sidebar-nav-overview" data-target="site-overview-wrap">
+            Overview
+          </li>
+        </ul>
+      
+
+      <section class="site-overview-wrap sidebar-panel">
+        <div class="site-overview">
+          <div class="site-author motion-element" itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+            
+              <p class="site-author-name" itemprop="name">zhmin</p>
+              <p class="site-description motion-element" itemprop="description"></p>
+          </div>
+
+          <nav class="site-state motion-element">
+
+            
+              <div class="site-state-item site-state-posts">
+              
+                <a href="/archives/">
+              
+                  <span class="site-state-item-count">14</span>
+                  <span class="site-state-item-name">posts</span>
+                </a>
+              </div>
+            
+
+            
+
+            
+              
+              
+              <div class="site-state-item site-state-tags">
+                
+                  <span class="site-state-item-count">13</span>
+                  <span class="site-state-item-name">tags</span>
+                
+              </div>
+            
+
+          </nav>
+
+          
+
+          
+            <div class="links-of-author motion-element">
+                
+                  <span class="links-of-author-item">
+                    <a href="https://github.com/zhmin" target="_blank" title="GitHub">
+                      
+                        <i class="fa fa-fw fa-github"></i>GitHub</a>
+                  </span>
+                
+            </div>
+          
+
+          
+          
+
+          
+          
+
+          
+
+        </div>
+      </section>
+
+      
+      <!--noindex-->
+        <section class="post-toc-wrap motion-element sidebar-panel sidebar-panel-active">
+          <div class="post-toc">
+
+            
+              
+            
+
+            
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#Spark-内存管理"><span class="nav-number">1.</span> <span class="nav-text">Spark 内存管理</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#内存分配"><span class="nav-number">1.1.</span> <span class="nav-text">内存分配</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#内存块"><span class="nav-number">1.1.1.</span> <span class="nav-text">内存块</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#内存分配接口"><span class="nav-number">1.1.2.</span> <span class="nav-text">内存分配接口</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#堆内分配"><span class="nav-number">1.1.3.</span> <span class="nav-text">堆内分配</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#堆外分配"><span class="nav-number">1.1.4.</span> <span class="nav-text">堆外分配</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#内存管理"><span class="nav-number">1.2.</span> <span class="nav-text">内存管理</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#内存池"><span class="nav-number">1.2.1.</span> <span class="nav-text">内存池</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#内存池管理策略"><span class="nav-number">1.2.2.</span> <span class="nav-text">内存池管理策略</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#静态资源管理"><span class="nav-number">1.2.2.1.</span> <span class="nav-text">静态资源管理</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#动态资源管理"><span class="nav-number">1.2.2.2.</span> <span class="nav-text">动态资源管理</span></a></li></ol></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#申请storage内存"><span class="nav-number">1.3.</span> <span class="nav-text">申请storage内存</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#申请execution内存"><span class="nav-number">1.4.</span> <span class="nav-text">申请execution内存</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#TaskMemoryManager"><span class="nav-number">1.4.1.</span> <span class="nav-text">TaskMemoryManager</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#ShuffleExternalSorter例子"><span class="nav-number">1.4.2.</span> <span class="nav-text">ShuffleExternalSorter例子</span></a></li></ol></li></ol></li></ol></div>
+            
+
+          </div>
+        </section>
+      <!--/noindex-->
+      
+
+      
+
+    </div>
+  </aside>
+
+
+        
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="footer-inner">
+        <div class="copyright">&copy; <span itemprop="copyrightYear">2019</span>
+  <span class="with-love">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">zhmin</span>
+
+  
+</div>
+
+
+
+
+
+
+
+
+
+
+
+  <script src="https://unpkg.com/mermaid@7.1.2/dist/mermaid.min.js"></script>
+  <script>
+    if (window.mermaid) {
+      mermaid.initialize({"startOnload":"true  // default true","theme":"forest"});
+    }
+  </script>
+
+
+
+<script async src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+<span id="busuanzi_container_site_pv">
+    访问量<span id="busuanzi_value_site_pv"></span>
+</span>
+<span class="post-meta-divider">|</span>
+<span id="busuanzi_container_site_uv">
+  访客数<span id="busuanzi_value_site_uv"></span>
+</span>
+
+        
+
+
+
+
+
+
+
+        
+      </div>
+    </footer>
+
+    
+      <div class="back-to-top">
+        <i class="fa fa-arrow-up"></i>
+        
+      </div>
+    
+
+    
+
+  </div>
+
+  
+
+<script type="text/javascript">
+  if (Object.prototype.toString.call(window.Promise) !== '[object Function]') {
+    window.Promise = null;
+  }
+</script>
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery/index.js?v=2.1.3"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fastclick/lib/fastclick.min.js?v=1.0.6"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery_lazyload/jquery.lazyload.js?v=1.9.7"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.ui.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fancybox/source/jquery.fancybox.pack.js?v=2.1.5"></script>
+  
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/utils.js?v=5.1.4"></script>
+
+  <script type="text/javascript" src="/js/src/motion.js?v=5.1.4"></script>
+
+
+
+  
+  
+
+  
+  <script type="text/javascript" src="/js/src/scrollspy.js?v=5.1.4"></script>
+<script type="text/javascript" src="/js/src/post-details.js?v=5.1.4"></script>
+
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/bootstrap.js?v=5.1.4"></script>
+
+
+
+  
+
+
+  
+
+
+
+
+	
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+  <script src="//cdn1.lncld.net/static/js/3.0.4/av-min.js"></script>
+  <script src="//unpkg.com/valine/dist/Valine.min.js"></script>
+  
+  <script type="text/javascript">
+    var GUEST = ['nick','mail','link'];
+    var guest = 'nick';
+    guest = guest.split(',').filter(item=>{
+      return GUEST.indexOf(item)>-1;
+    });
+    new Valine({
+        el: '#comments' ,
+        verify: false,
+        notify: false,
+        appId: 'iYiPQlDR2X2zg2QIql2UEe2o-gzGzoHsz',
+        appKey: 'EW8G4sftwX1pef1zS9EsOeKE',
+        placeholder: 'comment here',
+        avatar:'mm',
+        guest_info:guest,
+        pageSize:'10' || 10,
+    });
+  </script>
+
+
+
+  
+
+
+
+
+
+  
+
+  
+  <script src="https://cdn1.lncld.net/static/js/av-core-mini-0.6.4.js"></script>
+  <script>AV.initialize("iYiPQlDR2X2zg2QIql2UEe2o-gzGzoHsz", "EW8G4sftwX1pef1zS9EsOeKE");</script>
+  <script>
+    function showTime(Counter) {
+      var query = new AV.Query(Counter);
+      var entries = [];
+      var $visitors = $(".leancloud_visitors");
+
+      $visitors.each(function () {
+        entries.push( $(this).attr("id").trim() );
+      });
+
+      query.containedIn('url', entries);
+      query.find()
+        .done(function (results) {
+          var COUNT_CONTAINER_REF = '.leancloud-visitors-count';
+
+          if (results.length === 0) {
+            $visitors.find(COUNT_CONTAINER_REF).text(0);
+            return;
+          }
+
+          for (var i = 0; i < results.length; i++) {
+            var item = results[i];
+            var url = item.get('url');
+            var time = item.get('time');
+            var element = document.getElementById(url);
+
+            $(element).find(COUNT_CONTAINER_REF).text(time);
+          }
+          for(var i = 0; i < entries.length; i++) {
+            var url = entries[i];
+            var element = document.getElementById(url);
+            var countSpan = $(element).find(COUNT_CONTAINER_REF);
+            if( countSpan.text() == '') {
+              countSpan.text(0);
+            }
+          }
+        })
+        .fail(function (object, error) {
+          console.log("Error: " + error.code + " " + error.message);
+        });
+    }
+
+    function addCount(Counter) {
+      var $visitors = $(".leancloud_visitors");
+      var url = $visitors.attr('id').trim();
+      var title = $visitors.attr('data-flag-title').trim();
+      var query = new AV.Query(Counter);
+
+      query.equalTo("url", url);
+      query.find({
+        success: function(results) {
+          if (results.length > 0) {
+            var counter = results[0];
+            counter.fetchWhenSave(true);
+            counter.increment("time");
+            counter.save(null, {
+              success: function(counter) {
+                var $element = $(document.getElementById(url));
+                $element.find('.leancloud-visitors-count').text(counter.get('time'));
+              },
+              error: function(counter, error) {
+                console.log('Failed to save Visitor num, with error message: ' + error.message);
+              }
+            });
+          } else {
+            var newcounter = new Counter();
+            /* Set ACL */
+            var acl = new AV.ACL();
+            acl.setPublicReadAccess(true);
+            acl.setPublicWriteAccess(true);
+            newcounter.setACL(acl);
+            /* End Set ACL */
+            newcounter.set("title", title);
+            newcounter.set("url", url);
+            newcounter.set("time", 1);
+            newcounter.save(null, {
+              success: function(newcounter) {
+                var $element = $(document.getElementById(url));
+                $element.find('.leancloud-visitors-count').text(newcounter.get('time'));
+              },
+              error: function(newcounter, error) {
+                console.log('Failed to create');
+              }
+            });
+          }
+        },
+        error: function(error) {
+          console.log('Error:' + error.code + " " + error.message);
+        }
+      });
+    }
+
+    $(function() {
+      var Counter = AV.Object.extend("Counter");
+      if ($('.leancloud_visitors').length == 1) {
+        addCount(Counter);
+      } else if ($('.post-title-link').length > 1) {
+        showTime(Counter);
+      }
+    });
+  </script>
+
+
+
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+</body>
+</html>
