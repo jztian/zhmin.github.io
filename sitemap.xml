@@ -2,6 +2,13 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   
   <url>
+    <loc>https://zhmin.github.io/2019/01/02/spark-on-yarn/</loc>
+    
+    <lastmod>2019-01-15T14:13:55.136Z</lastmod>
+    
+  </url>
+  
+  <url>
     <loc>https://zhmin.github.io/2019/01/13/spark-rpc-flow/</loc>
     
     <lastmod>2019-01-14T13:58:05.914Z</lastmod>
@@ -44,13 +51,6 @@
   </url>
   
   <url>
-    <loc>https://zhmin.github.io/2019/01/02/spark-on-yarn/</loc>
-    
-    <lastmod>2019-01-04T13:43:59.148Z</lastmod>
-    
-  </url>
-  
-  <url>
     <loc>https://zhmin.github.io/2019/01/03/spark-rdd-dependency/</loc>
     
     <lastmod>2019-01-04T13:43:33.432Z</lastmod>
@@ -58,14 +58,14 @@
   </url>
   
   <url>
-    <loc>https://zhmin.github.io/2018/12/27/datax-plugin/</loc>
+    <loc>https://zhmin.github.io/2018/12/28/datax-job/</loc>
     
     <lastmod>2018-12-28T14:59:06.088Z</lastmod>
     
   </url>
   
   <url>
-    <loc>https://zhmin.github.io/2018/12/28/datax-job/</loc>
+    <loc>https://zhmin.github.io/2018/12/27/datax-plugin/</loc>
     
     <lastmod>2018-12-28T14:59:06.088Z</lastmod>
     
