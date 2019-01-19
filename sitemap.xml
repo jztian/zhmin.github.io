@@ -2,6 +2,13 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   
   <url>
+    <loc>https://zhmin.github.io/2019/01/19/spark-executor/</loc>
+    
+    <lastmod>2019-01-19T15:55:36.489Z</lastmod>
+    
+  </url>
+  
+  <url>
     <loc>https://zhmin.github.io/2019/01/18/spark-map-output-tracker/</loc>
     
     <lastmod>2019-01-18T15:44:20.782Z</lastmod>
