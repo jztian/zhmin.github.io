@@ -89,7 +89,7 @@
 <meta property="og:locale" content="default">
 <meta property="og:image" content="https://zhmin.github.io/2019/01/18/spark-map-output-tracker/map-output-tracker.svg">
 <meta property="og:image" content="http://www.plantuml.com/plantuml/svg/ut8eBaaiAYdDpU7YIamgBYbAJ2vHICv9B2vMy4qiy2yjAIWj2G4APgSMSN6XYoZOrEZgOgZpJImk0QecJd5uVb4s5iKGCnHmckwQbrAGdvbNmiNba9gN0d8z0000">
-<meta property="og:updated_time" content="2019-01-18T15:44:20.782Z">
+<meta property="og:updated_time" content="2019-01-26T04:18:18.786Z">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="Spark MapOutputTracker 原理">
 <meta name="twitter:description" content="Spark MapOutputTracker 原理Spark的shuffle过程分为writer和reader两块。 writer负责生成中间数据，reader负责整合中间数据。而中间数据的元信息，则由MapOutputTracker负责管理。 它负责writer和reader的沟通。 shuffle writer会将中间数据保存到Block里面，然后将数据的位置发送给MapOutputTrack">
@@ -331,11 +331,12 @@
 <p><img src="map-output-tracker.svg" alt="shuffle"></p>
 <p>rdd1 经过shuffle 生成 rdd2。rdd1有三个分区，对应着三个ShuffleMapTask。每一个ShuffleMapTask执行的结果，对应着一个MapStatus。以rdd1 的 parition 0 分区为例，可以看到它把该分区的数据，根据分区器分成三部分，对应着rdd2 的分区。</p>
 <p>shuffle reader 需要读取rdd1 shuffle的中间数据，才能生成 rdd2。 以rdd2的partition 0 分区为例，它需要 rdd1 计算出的数据，找到所有reduce0 的数据。这些数据的位置，需要从MapOutputTracker获取。</p>
+<p>shuffle reader 需要提供 shuffleId， mapId, reduceId才能确定一个中间数据。shuffleId表示此次shuffle的唯一id。mapId表示map端 rdd的分区索引，表示由哪个父分区产生的数据。reduceId表示reduce端的分区索引，表示属于子分区的那部分数据。</p>
 <h2 id="输出信息-MapStatus"><a href="#输出信息-MapStatus" class="headerlink" title="输出信息 MapStatus"></a>输出信息 MapStatus</h2><p>MapStatus类表示一个ShuffleMapTask执行返回的结果。MapStatus包含了这个ShuffleMapTask的数据输出信息。</p>
 <p>它有两个方法</p>
 <ul>
 <li>location ， 返回数据存储所在 BlockManager 的 Id</li>
-<li>getSizeForBlock， 返回 shufle中间数据中，指定 reduceId 的那部分数据的大小。注意这个值是精度误差的</li>
+<li>getSizeForBlock， 返回 shufle中间数据中，指定 reduceId 的那部分数据的大小。注意这个值是有精度误差的</li>
 </ul>
 <p>以上图的rdd1 的 parition 0 分区为例，它对应着一个ShuffleMapTask。ShuffleMapTask会返回一个MapStatus，该MapStatus会包含了三块数据，分别是reduce0， reduce1， reduce2.</p>
 <p>因为一个MapStatus会包含多个reduce的数据信息，这样会占用太多的内存， 所以MapStatus会将结果进行压缩，主要是对长度的压缩。对于不同的reduce数量，对应着不同的子类，CompressedMapStatus 和 HighlyCompressedMapStatus。当reduceId超过了2000， 就使用HighlyCompressedMapStatus。否则使用CompressedMapStatus 。</p>

@@ -2,16 +2,23 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   
   <url>
-    <loc>https://zhmin.github.io/2019/01/19/spark-executor/</loc>
+    <loc>https://zhmin.github.io/2019/01/18/spark-map-output-tracker/</loc>
     
-    <lastmod>2019-01-21T14:01:14.424Z</lastmod>
+    <lastmod>2019-01-26T04:18:18.786Z</lastmod>
     
   </url>
   
   <url>
-    <loc>https://zhmin.github.io/2019/01/18/spark-map-output-tracker/</loc>
+    <loc>https://zhmin.github.io/2019/01/03/spark-rdd-dependency/</loc>
     
-    <lastmod>2019-01-18T15:44:20.782Z</lastmod>
+    <lastmod>2019-01-26T03:57:26.446Z</lastmod>
+    
+  </url>
+  
+  <url>
+    <loc>https://zhmin.github.io/2019/01/19/spark-executor/</loc>
+    
+    <lastmod>2019-01-21T14:01:14.424Z</lastmod>
     
   </url>
   
@@ -72,21 +79,14 @@
   </url>
   
   <url>
-    <loc>https://zhmin.github.io/2019/01/03/spark-rdd-dependency/</loc>
-    
-    <lastmod>2019-01-04T13:43:33.432Z</lastmod>
-    
-  </url>
-  
-  <url>
-    <loc>https://zhmin.github.io/2018/12/28/datax-job/</loc>
+    <loc>https://zhmin.github.io/2018/12/27/datax-plugin/</loc>
     
     <lastmod>2018-12-28T14:59:06.088Z</lastmod>
     
   </url>
   
   <url>
-    <loc>https://zhmin.github.io/2018/12/27/datax-plugin/</loc>
+    <loc>https://zhmin.github.io/2018/12/28/datax-job/</loc>
     
     <lastmod>2018-12-28T14:59:06.088Z</lastmod>
     
