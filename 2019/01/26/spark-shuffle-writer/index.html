@@ -82,7 +82,7 @@
 <meta name="description" content="Spark ShuffleWriter 原理Spark的shuffle过程比较复杂，涉及到map端和reduce端的共同配合，这篇文章主要介绍map端的运行原理。map端的操作主要由ShuffleWriter实现，它对于不同的情形，会选用不同的算法。 shuffle 算法选择spark 根据不同的情形，提供三种shuffle writer选择。  BypassMergeSortShuffleWri">
 <meta name="keywords" content="spark, shuffle, writer">
 <meta property="og:type" content="article">
-<meta property="og:title" content="spark-shuffle-writer">
+<meta property="og:title" content="Spark ShuffleWriter 原理">
 <meta property="og:url" content="https://zhmin.github.io/2019/01/26/spark-shuffle-writer/index.html">
 <meta property="og:site_name" content="blog">
 <meta property="og:description" content="Spark ShuffleWriter 原理Spark的shuffle过程比较复杂，涉及到map端和reduce端的共同配合，这篇文章主要介绍map端的运行原理。map端的操作主要由ShuffleWriter实现，它对于不同的情形，会选用不同的算法。 shuffle 算法选择spark 根据不同的情形，提供三种shuffle writer选择。  BypassMergeSortShuffleWri">
@@ -90,9 +90,9 @@
 <meta property="og:image" content="http://www.plantuml.com/plantuml/svg/ZLD13e8m4Bpt5Vq07o3664vUk4YCvnKMRAp5R9U3niUBMi12GK_DxinsPhOWDfQ1kBbe8U1ecI1dcMkmLcQdfYmrRi4K6eNuD6K25eD8ShksHufKOLOJ1paPaWAjxbYCOA-KgqSK1OGc7KTS4fwPcJMY32ELa6CNFmK35LAVO53e4Rzs0W5UUBy7KZpS7mxZSsQ1lR5GuWZoogMDBGpynmhAJnQwGoY-ykewFsTS4uvWhtIsVt2x1uYYjV_nobWILigsJbn_QSP5YcM5F4eRO3k3RtRdPuEcUFrHJm00">
 <meta property="og:image" content="https://zhmin.github.io/2019/01/26/spark-shuffle-writer/spark-shuffle-bypass.svg">
 <meta property="og:image" content="https://zhmin.github.io/2019/01/26/spark-shuffle-writer/spark-shuffle-unsafe.svg">
-<meta property="og:updated_time" content="2019-01-28T14:16:42.213Z">
+<meta property="og:updated_time" content="2019-01-28T14:19:19.883Z">
 <meta name="twitter:card" content="summary">
-<meta name="twitter:title" content="spark-shuffle-writer">
+<meta name="twitter:title" content="Spark ShuffleWriter 原理">
 <meta name="twitter:description" content="Spark ShuffleWriter 原理Spark的shuffle过程比较复杂，涉及到map端和reduce端的共同配合，这篇文章主要介绍map端的运行原理。map端的操作主要由ShuffleWriter实现，它对于不同的情形，会选用不同的算法。 shuffle 算法选择spark 根据不同的情形，提供三种shuffle writer选择。  BypassMergeSortShuffleWri">
 <meta name="twitter:image" content="http://www.plantuml.com/plantuml/svg/ZLD13e8m4Bpt5Vq07o3664vUk4YCvnKMRAp5R9U3niUBMi12GK_DxinsPhOWDfQ1kBbe8U1ecI1dcMkmLcQdfYmrRi4K6eNuD6K25eD8ShksHufKOLOJ1paPaWAjxbYCOA-KgqSK1OGc7KTS4fwPcJMY32ELa6CNFmK35LAVO53e4Rzs0W5UUBy7KZpS7mxZSsQ1lR5GuWZoogMDBGpynmhAJnQwGoY-ykewFsTS4uvWhtIsVt2x1uYYjV_nobWILigsJbn_QSP5YcM5F4eRO3k3RtRdPuEcUFrHJm00">
 
@@ -130,7 +130,7 @@
 
 
 
-  <title>spark-shuffle-writer | blog</title>
+  <title>Spark ShuffleWriter 原理 | blog</title>
   
 
 
@@ -254,7 +254,7 @@
 
         
         
-          <h2 class="post-title" itemprop="name headline">spark-shuffle-writer</h2>
+          <h2 class="post-title" itemprop="name headline">Spark ShuffleWriter 原理</h2>
         
 
         <div class="post-meta">
@@ -294,7 +294,7 @@
 
           
           
-             <span id="/2019/01/26/spark-shuffle-writer/" class="leancloud_visitors" data-flag-title="spark-shuffle-writer">
+             <span id="/2019/01/26/spark-shuffle-writer/" class="leancloud_visitors" data-flag-title="Spark ShuffleWriter 原理">
                <span class="post-meta-divider">|</span>
                <span class="post-meta-item-icon">
                  <i class="fa fa-eye"></i>
