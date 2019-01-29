@@ -68,7 +68,7 @@
 
 
 
-  <meta name="keywords" content="Hexo, NexT">
+  <meta name="keywords" content="spark, shuffle, SortShuffleWriter,">
 
 
 
@@ -80,17 +80,18 @@
 
 
 <meta name="description" content="Spark SortShuffleWriter 原理在进行shuffle之前，map端会先将数据进行排序。排序的规则，根据不同的场景，会分为两种。首先会根据Key将元素分成不同的partition。第一种只需要保证元素的partitionId排序，但不会保证同一个partitionId的内部排序。第二种是既保证元素的partitionId排序，也会保证同一个partitionId的内部排序。 因为">
+<meta name="keywords" content="spark, shuffle, SortShuffleWriter">
 <meta property="og:type" content="article">
-<meta property="og:title" content="spark-shuffle-sort-writer-2">
+<meta property="og:title" content="Spark SortShuffleWriter 原理">
 <meta property="og:url" content="https://zhmin.github.io/2019/01/29/spark-shuffle-sort-writer-2/index.html">
 <meta property="og:site_name" content="blog">
 <meta property="og:description" content="Spark SortShuffleWriter 原理在进行shuffle之前，map端会先将数据进行排序。排序的规则，根据不同的场景，会分为两种。首先会根据Key将元素分成不同的partition。第一种只需要保证元素的partitionId排序，但不会保证同一个partitionId的内部排序。第二种是既保证元素的partitionId排序，也会保证同一个partitionId的内部排序。 因为">
 <meta property="og:locale" content="default">
 <meta property="og:image" content="http://www.plantuml.com/plantuml/svg/ut8eBaaiAYdDpU7YIiv9B2vM22_AB4bCoaaD00fdbcJcvwMc12Hc5Zddv-Ia9eFuK7L8yeu51QbvAVvvEPM-YGMOqY3jJgLfQQb5N5m4JLUmgT7LnMquwVgHRNS0cWJoAW00">
 <meta property="og:image" content="https://zhmin.github.io/2019/01/29/spark-shuffle-sort-writer-2/spark-sort-shuffle-writer.svg">
-<meta property="og:updated_time" content="2019-01-29T14:10:33.040Z">
+<meta property="og:updated_time" content="2019-01-29T14:12:52.491Z">
 <meta name="twitter:card" content="summary">
-<meta name="twitter:title" content="spark-shuffle-sort-writer-2">
+<meta name="twitter:title" content="Spark SortShuffleWriter 原理">
 <meta name="twitter:description" content="Spark SortShuffleWriter 原理在进行shuffle之前，map端会先将数据进行排序。排序的规则，根据不同的场景，会分为两种。首先会根据Key将元素分成不同的partition。第一种只需要保证元素的partitionId排序，但不会保证同一个partitionId的内部排序。第二种是既保证元素的partitionId排序，也会保证同一个partitionId的内部排序。 因为">
 <meta name="twitter:image" content="http://www.plantuml.com/plantuml/svg/ut8eBaaiAYdDpU7YIiv9B2vM22_AB4bCoaaD00fdbcJcvwMc12Hc5Zddv-Ia9eFuK7L8yeu51QbvAVvvEPM-YGMOqY3jJgLfQQb5N5m4JLUmgT7LnMquwVgHRNS0cWJoAW00">
 
@@ -128,7 +129,7 @@
 
 
 
-  <title>spark-shuffle-sort-writer-2 | blog</title>
+  <title>Spark SortShuffleWriter 原理 | blog</title>
   
 
 
@@ -252,7 +253,7 @@
 
         
         
-          <h2 class="post-title" itemprop="name headline">spark-shuffle-sort-writer-2</h2>
+          <h2 class="post-title" itemprop="name headline">Spark SortShuffleWriter 原理</h2>
         
 
         <div class="post-meta">
@@ -292,7 +293,7 @@
 
           
           
-             <span id="/2019/01/29/spark-shuffle-sort-writer-2/" class="leancloud_visitors" data-flag-title="spark-shuffle-sort-writer-2">
+             <span id="/2019/01/29/spark-shuffle-sort-writer-2/" class="leancloud_visitors" data-flag-title="Spark SortShuffleWriter 原理">
                <span class="post-meta-divider">|</span>
                <span class="post-meta-item-icon">
                  <i class="fa fa-eye"></i>
@@ -396,6 +397,12 @@
     
 
     <footer class="post-footer">
+      
+        <div class="post-tags">
+          
+            <a href="/tags/spark-shuffle-SortShuffleWriter/" rel="tag"># spark, shuffle, SortShuffleWriter</a>
+          
+        </div>
       
 
       
@@ -507,7 +514,7 @@
               
               <div class="site-state-item site-state-tags">
                 
-                  <span class="site-state-item-count">16</span>
+                  <span class="site-state-item-count">17</span>
                   <span class="site-state-item-name">tags</span>
                 
               </div>
