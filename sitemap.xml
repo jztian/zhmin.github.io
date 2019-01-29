@@ -2,9 +2,16 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   
   <url>
+    <loc>https://zhmin.github.io/2019/01/26/spark-shuffle-writer/</loc>
+    
+    <lastmod>2019-01-29T14:18:55.825Z</lastmod>
+    
+  </url>
+  
+  <url>
     <loc>https://zhmin.github.io/2019/01/29/spark-shuffle-sort-writer-2/</loc>
     
-    <lastmod>2019-01-29T14:12:52.491Z</lastmod>
+    <lastmod>2019-01-29T14:18:05.211Z</lastmod>
     
   </url>
   
@@ -12,13 +19,6 @@
     <loc>https://zhmin.github.io/2019/01/28/spark-shuffle-aggregator/</loc>
     
     <lastmod>2019-01-28T14:36:24.134Z</lastmod>
-    
-  </url>
-  
-  <url>
-    <loc>https://zhmin.github.io/2019/01/26/spark-shuffle-writer/</loc>
-    
-    <lastmod>2019-01-28T14:19:19.883Z</lastmod>
     
   </url>
   
