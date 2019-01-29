@@ -1,0 +1,902 @@
+<!DOCTYPE html>
+
+
+
+  
+
+
+<html class="theme-next mist use-motion" lang="">
+<head><meta name="generator" content="Hexo 3.8.0">
+  <meta charset="UTF-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="theme-color" content="#222">
+
+
+
+
+
+
+
+
+
+<meta http-equiv="Cache-Control" content="no-transform">
+<meta http-equiv="Cache-Control" content="no-siteapp">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+  <link href="/lib/fancybox/source/jquery.fancybox.css?v=2.1.5" rel="stylesheet" type="text/css">
+
+
+
+
+
+
+
+<link href="/lib/font-awesome/css/font-awesome.min.css?v=4.6.2" rel="stylesheet" type="text/css">
+
+<link href="/css/main.css?v=5.1.4" rel="stylesheet" type="text/css">
+
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png?v=5.1.4">
+
+
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png?v=5.1.4">
+
+
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png?v=5.1.4">
+
+
+  <link rel="mask-icon" href="/images/logo.svg?v=5.1.4" color="#222">
+
+
+
+
+
+  <meta name="keywords" content="Hexo, NexT">
+
+
+
+
+
+
+
+
+
+
+<meta name="description" content="Spark SortShuffleWriter 原理在进行shuffle之前，map端会先将数据进行排序。排序的规则，根据不同的场景，会分为两种。首先会根据Key将元素分成不同的partition。第一种只需要保证元素的partitionId排序，但不会保证同一个partitionId的内部排序。第二种是既保证元素的partitionId排序，也会保证同一个partitionId的内部排序。 因为">
+<meta property="og:type" content="article">
+<meta property="og:title" content="spark-shuffle-sort-writer-2">
+<meta property="og:url" content="https://zhmin.github.io/2019/01/29/spark-shuffle-sort-writer-2/index.html">
+<meta property="og:site_name" content="blog">
+<meta property="og:description" content="Spark SortShuffleWriter 原理在进行shuffle之前，map端会先将数据进行排序。排序的规则，根据不同的场景，会分为两种。首先会根据Key将元素分成不同的partition。第一种只需要保证元素的partitionId排序，但不会保证同一个partitionId的内部排序。第二种是既保证元素的partitionId排序，也会保证同一个partitionId的内部排序。 因为">
+<meta property="og:locale" content="default">
+<meta property="og:image" content="http://www.plantuml.com/plantuml/svg/ut8eBaaiAYdDpU7YIiv9B2vM22_AB4bCoaaD00fdbcJcvwMc12Hc5Zddv-Ia9eFuK7L8yeu51QbvAVvvEPM-YGMOqY3jJgLfQQb5N5m4JLUmgT7LnMquwVgHRNS0cWJoAW00">
+<meta property="og:image" content="https://zhmin.github.io/2019/01/29/spark-shuffle-sort-writer-2/spark-sort-shuffle-writer.svg">
+<meta property="og:updated_time" content="2019-01-29T14:10:33.040Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="spark-shuffle-sort-writer-2">
+<meta name="twitter:description" content="Spark SortShuffleWriter 原理在进行shuffle之前，map端会先将数据进行排序。排序的规则，根据不同的场景，会分为两种。首先会根据Key将元素分成不同的partition。第一种只需要保证元素的partitionId排序，但不会保证同一个partitionId的内部排序。第二种是既保证元素的partitionId排序，也会保证同一个partitionId的内部排序。 因为">
+<meta name="twitter:image" content="http://www.plantuml.com/plantuml/svg/ut8eBaaiAYdDpU7YIiv9B2vM22_AB4bCoaaD00fdbcJcvwMc12Hc5Zddv-Ia9eFuK7L8yeu51QbvAVvvEPM-YGMOqY3jJgLfQQb5N5m4JLUmgT7LnMquwVgHRNS0cWJoAW00">
+
+
+
+<script type="text/javascript" id="hexo.configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '/',
+    scheme: 'Mist',
+    version: '5.1.4',
+    sidebar: {"position":"left","display":"hide","offset":12,"b2t":false,"scrollpercent":false,"onmobile":false},
+    fancybox: true,
+    tabs: true,
+    motion: {"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},
+    duoshuo: {
+      userId: '0',
+      author: 'Author'
+    },
+    algolia: {
+      applicationID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    }
+  };
+</script>
+
+
+
+  <link rel="canonical" href="https://zhmin.github.io/2019/01/29/spark-shuffle-sort-writer-2/">
+
+
+
+
+
+  <title>spark-shuffle-sort-writer-2 | blog</title>
+  
+
+
+
+
+
+
+
+
+</head>
+
+<body itemscope="" itemtype="http://schema.org/WebPage" lang="default">
+
+  
+  
+    
+  
+
+  <div class="container sidebar-position-left page-post-detail">
+    <div class="headband"></div>
+
+    <header id="header" class="header" itemscope="" itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-wrapper">
+  <div class="site-meta ">
+    
+
+    <div class="custom-logo-site-title">
+      <a href="/" class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">blog</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+      
+        <h1 class="site-subtitle" itemprop="description"></h1>
+      
+  </div>
+
+  <div class="site-nav-toggle">
+    <button>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+    </button>
+  </div>
+</div>
+
+<nav class="site-nav">
+  
+
+  
+    <ul id="menu" class="menu">
+      
+        
+        <li class="menu-item menu-item-home">
+          <a href="/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-home"></i> <br>
+            
+            Home
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-archives">
+          <a href="/archives/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-archive"></i> <br>
+            
+            Archives
+          </a>
+        </li>
+      
+
+      
+    </ul>
+  
+
+  
+</nav>
+
+
+
+ </div>
+    </header>
+
+    <main id="main" class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          <div id="content" class="content">
+            
+
+  <div id="posts" class="posts-expand">
+    
+
+  
+
+  
+  
+  
+
+  <article class="post post-type-normal" itemscope="" itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block">
+    <link itemprop="mainEntityOfPage" href="https://zhmin.github.io/2019/01/29/spark-shuffle-sort-writer-2/">
+
+    <span hidden itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="zhmin">
+      <meta itemprop="description" content="">
+      <meta itemprop="image" content="/images/avatar.gif">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope="" itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="blog">
+    </span>
+
+    
+      <header class="post-header">
+
+        
+        
+          <h2 class="post-title" itemprop="name headline">spark-shuffle-sort-writer-2</h2>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">Posted on</span>
+              
+              <time title="Post created" itemprop="dateCreated datePublished" datetime="2019-01-29T22:06:39+08:00">
+                2019-01-29
+              </time>
+            
+
+            
+
+            
+          </span>
+
+          
+
+          
+            
+              <span class="post-comments-count">
+                <span class="post-meta-divider">|</span>
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-comment-o"></i>
+                </span>
+                <a href="/2019/01/29/spark-shuffle-sort-writer-2/#comments" itemprop="discussionUrl">
+                  <span class="post-comments-count valine-comment-count" data-xid="/2019/01/29/spark-shuffle-sort-writer-2/" itemprop="commentCount"></span>
+                </a>
+              </span>
+            
+          
+
+          
+          
+             <span id="/2019/01/29/spark-shuffle-sort-writer-2/" class="leancloud_visitors" data-flag-title="spark-shuffle-sort-writer-2">
+               <span class="post-meta-divider">|</span>
+               <span class="post-meta-item-icon">
+                 <i class="fa fa-eye"></i>
+               </span>
+               
+                 <span class="post-meta-item-text">Visitors&#58;</span>
+               
+                 <span class="leancloud-visitors-count"></span>
+             </span>
+          
+
+          
+
+          
+
+          
+
+        </div>
+      </header>
+    
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+      
+
+      
+        <h1 id="Spark-SortShuffleWriter-原理"><a href="#Spark-SortShuffleWriter-原理" class="headerlink" title="Spark SortShuffleWriter 原理"></a>Spark SortShuffleWriter 原理</h1><p>在进行shuffle之前，map端会先将数据进行排序。排序的规则，根据不同的场景，会分为两种。首先会根据Key将元素分成不同的partition。第一种只需要保证元素的partitionId排序，但不会保证同一个partitionId的内部排序。第二种是既保证元素的partitionId排序，也会保证同一个partitionId的内部排序。</p>
+<p>因为有些shuffle操作涉及到聚合，对于这种需要聚合的操作，使用PartitionedAppendOnlyMap来排序。对于不需要聚合的，则使用PartitionedPairBuffer排序。</p>
+<p>两者的关系图如下：</p>
+<img src="http://www.plantuml.com/plantuml/svg/ut8eBaaiAYdDpU7YIiv9B2vM22_AB4bCoaaD00fdbcJcvwMc12Hc5Zddv-Ia9eFuK7L8yeu51QbvAVvvEPM-YGMOqY3jJgLfQQb5N5m4JLUmgT7LnMquwVgHRNS0cWJoAW00">
+<p>WritablePartitionedPairCollection是两者的基类，它提供了排序功能。destructiveSortedWritablePartitionedIterator接收排序规则。</p>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">private</span>[spark] <span class="class"><span class="keyword">trait</span> <span class="title">WritablePartitionedPairCollection</span>[<span class="type">K</span>, <span class="type">V</span>] </span>&#123;</span><br><span class="line">    </span><br><span class="line">  <span class="comment">// 进行排序，返回结果</span></span><br><span class="line">  <span class="comment">// keyComparator指定了key的排序规则，默认按照hashCode比较大小</span></span><br><span class="line">  <span class="function"><span class="keyword">def</span> <span class="title">partitionedDestructiveSortedIterator</span></span>(keyComparator: <span class="type">Option</span>[<span class="type">Comparator</span>[<span class="type">K</span>]])</span><br><span class="line">    : <span class="type">Iterator</span>[((<span class="type">Int</span>, <span class="type">K</span>), <span class="type">V</span>)]</span><br><span class="line">  </span><br><span class="line">  <span class="function"><span class="keyword">def</span> <span class="title">destructiveSortedWritablePartitionedIterator</span></span>(keyComparator: <span class="type">Option</span>[<span class="type">Comparator</span>[<span class="type">K</span>]])</span><br><span class="line">    : <span class="type">WritablePartitionedIterator</span> = &#123;</span><br><span class="line">    <span class="comment">// 获取排序后的结果</span></span><br><span class="line">    <span class="keyword">val</span> it = partitionedDestructiveSortedIterator(keyComparator)</span><br><span class="line">    <span class="comment">// WritablePartitionedIterator提供写入磁盘的方法</span></span><br><span class="line">    <span class="keyword">new</span> <span class="type">WritablePartitionedIterator</span> &#123;</span><br><span class="line">      <span class="keyword">private</span>[<span class="keyword">this</span>] <span class="keyword">var</span> cur = <span class="keyword">if</span> (it.hasNext) it.next() <span class="keyword">else</span> <span class="literal">null</span></span><br><span class="line"></span><br><span class="line">      <span class="function"><span class="keyword">def</span> <span class="title">writeNext</span></span>(writer: <span class="type">DiskBlockObjectWriter</span>): <span class="type">Unit</span> = &#123;</span><br><span class="line">        writer.write(cur._1._2, cur._2)</span><br><span class="line">        cur = <span class="keyword">if</span> (it.hasNext) it.next() <span class="keyword">else</span> <span class="literal">null</span></span><br><span class="line">      &#125;</span><br><span class="line"></span><br><span class="line">      <span class="function"><span class="keyword">def</span> <span class="title">hasNext</span></span>(): <span class="type">Boolean</span> = cur != <span class="literal">null</span></span><br><span class="line"></span><br><span class="line">      <span class="function"><span class="keyword">def</span> <span class="title">nextPartition</span></span>(): <span class="type">Int</span> = cur._1._1</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>WritablePartitionedPairCollection还提供了封装排序的方法。partitionKeyComparator方法接收一个基于key排序的Comparator， 在包装封装了一层。排序需要先考虑分区，再考虑key排序</p>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">private</span>[spark] <span class="class"><span class="keyword">object</span> <span class="title">WritablePartitionedPairCollection</span> </span>&#123;</span><br><span class="line">    </span><br><span class="line">  <span class="function"><span class="keyword">def</span> <span class="title">partitionKeyComparator</span></span>[<span class="type">K</span>](keyComparator: <span class="type">Comparator</span>[<span class="type">K</span>]): <span class="type">Comparator</span>[(<span class="type">Int</span>, <span class="type">K</span>)] = &#123;</span><br><span class="line">    <span class="keyword">new</span> <span class="type">Comparator</span>[(<span class="type">Int</span>, <span class="type">K</span>)] &#123;</span><br><span class="line">     </span><br><span class="line">      <span class="keyword">override</span> <span class="function"><span class="keyword">def</span> <span class="title">compare</span></span>(a: (<span class="type">Int</span>, <span class="type">K</span>), b: (<span class="type">Int</span>, <span class="type">K</span>)): <span class="type">Int</span> = &#123;</span><br><span class="line">        <span class="keyword">val</span> partitionDiff = a._1 - b._1</span><br><span class="line">        <span class="keyword">if</span> (partitionDiff != <span class="number">0</span>) &#123;</span><br><span class="line">          partitionDiff</span><br><span class="line">        &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">          keyComparator.compare(a._2, b._2)</span><br><span class="line">        &#125;</span><br><span class="line">      &#125;</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h2 id="PartitionedPairBuffer-原理"><a href="#PartitionedPairBuffer-原理" class="headerlink" title="PartitionedPairBuffer 原理"></a>PartitionedPairBuffer 原理</h2><p>当只使用rdd的groupby的方法，那么这里只需要分组，而不需要聚合。这种情况会使用PartitionedPairBuffer排序。首先调用PartitionedPairBuffer的insert方法，向PartitionedPairBuffer添加元素，最后调用partitionedDestructiveSortedIterator获取排序后的结果。</p>
+<p>PartitionedPairBuffer的原理很简单，它使用数组保存数据，最后调用Tim排序算法，根据分区索引排序。</p>
+<p>数据格式如下：</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">--------------------------------------------------------------------------</span><br><span class="line">     AnyRef            |   AnyRef   |       AnyRef           |   AnyRef  |</span><br><span class="line">--------------------------------------------------------------------------</span><br><span class="line">   partitionId, key    |   value    |     partitionId, key   |    value  | </span><br><span class="line">--------------------------------------------------------------------------</span><br></pre></td></tr></table></figure>
+<p>PartitionedPairBuffer使用Array[AnyRef] 数组，AnyRef指向两种格式的数据，一种是(parition, key)的元组， 一种是value。</p>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">class</span> <span class="title">PartitionedPairBuffer</span> </span>&#123;</span><br><span class="line">    </span><br><span class="line">    <span class="comment">// 使用AnyRef数组，保存数据</span></span><br><span class="line">    <span class="keyword">private</span> <span class="keyword">var</span> data = <span class="keyword">new</span> <span class="type">Array</span>[<span class="type">AnyRef</span>](<span class="number">2</span> * initialCapacity)</span><br><span class="line">    <span class="comment">// 数组目前的索引</span></span><br><span class="line">    <span class="keyword">private</span> <span class="keyword">var</span> curSize = <span class="number">0</span></span><br><span class="line">    <span class="comment">// 数组的容量</span></span><br><span class="line">    <span class="keyword">private</span> <span class="keyword">var</span> capacity = initialCapacity</span><br><span class="line">    </span><br><span class="line">    <span class="comment">// 添加数据</span></span><br><span class="line">    <span class="function"><span class="keyword">def</span> <span class="title">insert</span></span>(partition: <span class="type">Int</span>, key: <span class="type">K</span>, value: <span class="type">V</span>): <span class="type">Unit</span> = &#123;</span><br><span class="line">       <span class="keyword">if</span> (curSize == capacity) &#123;</span><br><span class="line">           <span class="comment">// 增大数组的容量</span></span><br><span class="line">           growArray()</span><br><span class="line">       &#125;</span><br><span class="line">       <span class="comment">// // 存储（partition， key）元素</span></span><br><span class="line">       data(<span class="number">2</span> * curSize) = (partition, key.asInstanceOf[<span class="type">AnyRef</span>])</span><br><span class="line">       <span class="comment">// 写入 value</span></span><br><span class="line">       data(<span class="number">2</span> * curSize + <span class="number">1</span>) = value.asInstanceOf[<span class="type">AnyRef</span>]</span><br><span class="line">       curSize += <span class="number">1</span></span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>partitionedDestructiveSortedIterator使用了TimSort算法。TimSort的 定义在org.apache.spark.util.collection包里，具体原理可以搜索。当Sorter排序后，结果仍在存在data数组里。这里封装了data的访问方式，提供了Iterator的遍历。</p>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">override</span> <span class="function"><span class="keyword">def</span> <span class="title">partitionedDestructiveSortedIterator</span></span>(keyComparator: <span class="type">Option</span>[<span class="type">Comparator</span>[<span class="type">K</span>]])</span><br><span class="line">    : <span class="type">Iterator</span>[((<span class="type">Int</span>, <span class="type">K</span>), <span class="type">V</span>)] = &#123;</span><br><span class="line">    <span class="comment">// 调用partitionKeyComparator封装keyComparator</span></span><br><span class="line">    <span class="comment">// 如果没有指定keyComparator，则返回只根据分区号排序的Comparator</span></span><br><span class="line">    <span class="keyword">val</span> comparator = keyComparator.map(partitionKeyComparator).getOrElse(partitionComparator)</span><br><span class="line">    <span class="keyword">new</span> <span class="type">Sorter</span>(<span class="keyword">new</span> <span class="type">KVArraySortDataFormat</span>[(<span class="type">Int</span>, <span class="type">K</span>), <span class="type">AnyRef</span>]).sort(data, <span class="number">0</span>, curSize, comparator)</span><br><span class="line">    iterator</span><br><span class="line">  &#125;</span><br></pre></td></tr></table></figure>
+<h2 id="PartitionedAppendOnlyMap-原理"><a href="#PartitionedAppendOnlyMap-原理" class="headerlink" title="PartitionedAppendOnlyMap 原理"></a>PartitionedAppendOnlyMap 原理</h2><p>如果shuffle涉及到聚合， 这种情况会使用PartitionedAppendOnlyMap排序。PartitionedAppendOnlyMap提供changeValue方法，添加和合并数据，完成聚合操作。聚合操作的原理可以参见这篇博客。</p>
+<p>PartitionedAppendOnlyMap自己实现了哈希表，采用了二次探测算法避免哈希冲突。</p>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">class</span> <span class="title">AppendOnlyMap</span>[<span class="type">K</span>, <span class="type">V</span>](<span class="params">initialCapacity: <span class="type">Int</span> = 64</span>) </span>&#123;</span><br><span class="line">  </span><br><span class="line">  <span class="comment">// 因为一条数据，占用array的两个位置。所以数组的大小为 数据的容量的两倍</span></span><br><span class="line">  <span class="keyword">private</span> <span class="keyword">var</span> data = <span class="keyword">new</span> <span class="type">Array</span>[<span class="type">AnyRef</span>](<span class="number">2</span> * capacity)  </span><br><span class="line">  <span class="keyword">private</span> <span class="keyword">var</span> capacity = nextPowerOf2(initialCapacity)</span><br><span class="line">  </span><br><span class="line">  <span class="comment">// hash算法，计算出初始地址</span></span><br><span class="line">  <span class="keyword">private</span> <span class="function"><span class="keyword">def</span> <span class="title">rehash</span></span>(h: <span class="type">Int</span>): <span class="type">Int</span> = <span class="type">Hashing</span>.murmur3_32().hashInt(h).asInt()</span><br><span class="line">    </span><br><span class="line">  <span class="comment">// 提供修改数据，这里涉及到聚合操作</span></span><br><span class="line">  <span class="comment">// updateFunc函数接收两个参数，第一个参数表示这个位置是否已经有数据</span></span><br><span class="line">  <span class="comment">// 第二个参数表示原有的数据</span></span><br><span class="line">  <span class="function"><span class="keyword">def</span> <span class="title">changeValue</span></span>(key: <span class="type">K</span>, updateFunc: (<span class="type">Boolean</span>, <span class="type">V</span>) =&gt; <span class="type">V</span>): <span class="type">V</span> = &#123;</span><br><span class="line">    <span class="keyword">val</span> k = key.asInstanceOf[<span class="type">AnyRef</span>]</span><br><span class="line">    <span class="keyword">if</span> (k.eq(<span class="literal">null</span>)) &#123;</span><br><span class="line">      <span class="keyword">if</span> (!haveNullValue) &#123;</span><br><span class="line">        incrementSize()</span><br><span class="line">      &#125;</span><br><span class="line">      nullValue = updateFunc(haveNullValue, nullValue)</span><br><span class="line">      haveNullValue = <span class="literal">true</span></span><br><span class="line">      <span class="keyword">return</span> nullValue</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">// 使用二次探测算法，找到数据的位置</span></span><br><span class="line">    <span class="keyword">var</span> pos = rehash(k.hashCode) &amp; mask</span><br><span class="line">    <span class="keyword">var</span> i = <span class="number">1</span></span><br><span class="line">    <span class="keyword">while</span> (<span class="literal">true</span>) &#123;</span><br><span class="line">      <span class="keyword">val</span> curKey = data(<span class="number">2</span> * pos)</span><br><span class="line">      <span class="keyword">if</span> (curKey.eq(<span class="literal">null</span>)) &#123;</span><br><span class="line">        <span class="comment">// 如果当前位置没数据，则调用updateFunc函数，返回新的值</span></span><br><span class="line">        <span class="keyword">val</span> newValue = updateFunc(<span class="literal">false</span>, <span class="literal">null</span>.asInstanceOf[<span class="type">V</span>])</span><br><span class="line">        data(<span class="number">2</span> * pos) = k</span><br><span class="line">        data(<span class="number">2</span> * pos + <span class="number">1</span>) = newValue.asInstanceOf[<span class="type">AnyRef</span>]</span><br><span class="line">        incrementSize()</span><br><span class="line">        <span class="keyword">return</span> newValue</span><br><span class="line">      &#125; <span class="keyword">else</span> <span class="keyword">if</span> (k.eq(curKey) || k.equals(curKey)) &#123;</span><br><span class="line">        <span class="comment">// 如果当前位置有数据，则调用updateFunc函数，返回新的值</span></span><br><span class="line">        <span class="keyword">val</span> newValue = updateFunc(<span class="literal">true</span>, data(<span class="number">2</span> * pos + <span class="number">1</span>).asInstanceOf[<span class="type">V</span>])</span><br><span class="line">        data(<span class="number">2</span> * pos + <span class="number">1</span>) = newValue.asInstanceOf[<span class="type">AnyRef</span>]</span><br><span class="line">        <span class="keyword">return</span> newValue</span><br><span class="line">      &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">        <span class="comment">// 更新pos位置直到找到key</span></span><br><span class="line">        <span class="keyword">val</span> delta = i</span><br><span class="line">        pos = (pos + delta) &amp; mask</span><br><span class="line">        i += <span class="number">1</span></span><br><span class="line">      &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="literal">null</span>.asInstanceOf[<span class="type">V</span>] <span class="comment">// Never reached but needed to keep compiler happy</span></span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>PartitionedAppendOnlyMap自己使用了数组来实现哈希表，因为它使用了二次探测算法避免哈希冲突，所以有可能数组并没有存储满。</p>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">partitionedDestructiveSortedIterator</span></span>(keyComparator: <span class="type">Option</span>[<span class="type">Comparator</span>[<span class="type">K</span>]])</span><br><span class="line">  : <span class="type">Iterator</span>[((<span class="type">Int</span>, <span class="type">K</span>), <span class="type">V</span>)] = &#123;</span><br><span class="line">  <span class="comment">// 如果没有指定keyComparator，则返回只根据分区号排序的Comparator</span></span><br><span class="line">  <span class="keyword">val</span> comparator = keyComparator.map(partitionKeyComparator).getOrElse(partitionComparator)</span><br><span class="line">  <span class="comment">// 调用destructiveSortedIterator方法排序</span></span><br><span class="line">  destructiveSortedIterator(comparator)</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">destructiveSortedIterator</span></span>(keyComparator: <span class="type">Comparator</span>[<span class="type">K</span>]): <span class="type">Iterator</span>[(<span class="type">K</span>, <span class="type">V</span>)] = &#123;</span><br><span class="line">    destroyed = <span class="literal">true</span></span><br><span class="line">    <span class="comment">// data是存储着数据的数组，</span></span><br><span class="line">    <span class="comment">// 这里会剔除空的元素，将非空的元素往前移</span></span><br><span class="line">    <span class="comment">// keyIndex代表着遍历元素的位置，newIndex代表着要移动的目标位置</span></span><br><span class="line">    <span class="keyword">var</span> keyIndex, newIndex = <span class="number">0</span></span><br><span class="line">    <span class="keyword">while</span> (keyIndex &lt; capacity) &#123;</span><br><span class="line">      <span class="keyword">if</span> (data(<span class="number">2</span> * keyIndex) != <span class="literal">null</span>) &#123;</span><br><span class="line">        data(<span class="number">2</span> * newIndex) = data(<span class="number">2</span> * keyIndex)</span><br><span class="line">        data(<span class="number">2</span> * newIndex + <span class="number">1</span>) = data(<span class="number">2</span> * keyIndex + <span class="number">1</span>)</span><br><span class="line">        newIndex += <span class="number">1</span></span><br><span class="line">      &#125;</span><br><span class="line">      keyIndex += <span class="number">1</span></span><br><span class="line">    &#125;</span><br><span class="line">    assert(curSize == newIndex + (<span class="keyword">if</span> (haveNullValue) <span class="number">1</span> <span class="keyword">else</span> <span class="number">0</span>))</span><br><span class="line">    <span class="comment">// 调用Sorter排序</span></span><br><span class="line">    <span class="keyword">new</span> <span class="type">Sorter</span>(<span class="keyword">new</span> <span class="type">KVArraySortDataFormat</span>[<span class="type">K</span>, <span class="type">AnyRef</span>]).sort(data, <span class="number">0</span>, newIndex, keyComparator)</span><br><span class="line">    <span class="comment">// 将结果以迭代器的形式返回</span></span><br><span class="line">    <span class="keyword">new</span> <span class="type">Iterator</span>[(<span class="type">K</span>, <span class="type">V</span>)] &#123;</span><br><span class="line">      <span class="keyword">var</span> i = <span class="number">0</span></span><br><span class="line">      <span class="keyword">var</span> nullValueReady = haveNullValue</span><br><span class="line">      <span class="function"><span class="keyword">def</span> <span class="title">hasNext</span></span>: <span class="type">Boolean</span> = (i &lt; newIndex || nullValueReady)</span><br><span class="line">      <span class="function"><span class="keyword">def</span> <span class="title">next</span></span>(): (<span class="type">K</span>, <span class="type">V</span>) = &#123;</span><br><span class="line">        <span class="keyword">if</span> (nullValueReady) &#123;</span><br><span class="line">          nullValueReady = <span class="literal">false</span></span><br><span class="line">          (<span class="literal">null</span>.asInstanceOf[<span class="type">K</span>], nullValue)</span><br><span class="line">        &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">          <span class="keyword">val</span> item = (data(<span class="number">2</span> * i).asInstanceOf[<span class="type">K</span>], data(<span class="number">2</span> * i + <span class="number">1</span>).asInstanceOf[<span class="type">V</span>])</span><br><span class="line">          i += <span class="number">1</span></span><br><span class="line">          item</span><br><span class="line">        &#125;</span><br><span class="line">      &#125;</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br></pre></td></tr></table></figure>
+<h2 id="添加数据"><a href="#添加数据" class="headerlink" title="添加数据"></a>添加数据</h2><p>SortShuffleWriter使用ExternalSorter进行排序，ExternalSorter会根据是否需要聚合来选择不同的算法。</p>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">private</span>[spark] <span class="class"><span class="keyword">class</span> <span class="title">ExternalSorter</span>[<span class="type">K</span>, <span class="type">V</span>, <span class="type">C</span>] </span>&#123;</span><br><span class="line"></span><br><span class="line">  <span class="function"><span class="keyword">def</span> <span class="title">insertAll</span></span>(records: <span class="type">Iterator</span>[<span class="type">Product2</span>[<span class="type">K</span>, <span class="type">V</span>]]): <span class="type">Unit</span> = &#123;</span><br><span class="line">    <span class="comment">// <span class="doctag">TODO:</span> stop combining if we find that the reduction factor isn't high</span></span><br><span class="line">    <span class="keyword">val</span> shouldCombine = aggregator.isDefined</span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span> (shouldCombine) &#123;</span><br><span class="line">      <span class="comment">// 涉及到聚合，使用PartitionedAppendOnlyMap算法</span></span><br><span class="line">      <span class="keyword">val</span> mergeValue = aggregator.get.mergeValue</span><br><span class="line">      <span class="keyword">val</span> createCombiner = aggregator.get.createCombiner</span><br><span class="line">      <span class="keyword">var</span> kv: <span class="type">Product2</span>[<span class="type">K</span>, <span class="type">V</span>] = <span class="literal">null</span></span><br><span class="line">      <span class="comment">// 构造聚合函数，如果有旧有值，则调用聚合的mergeValue合并值。否则调用createCombiner实例combiner</span></span><br><span class="line">      <span class="keyword">val</span> update = (hadValue: <span class="type">Boolean</span>, oldValue: <span class="type">C</span>) =&gt; &#123;</span><br><span class="line">        <span class="keyword">if</span> (hadValue) mergeValue(oldValue, kv._2) <span class="keyword">else</span> createCombiner(kv._2)</span><br><span class="line">      &#125;</span><br><span class="line">      <span class="keyword">while</span> (records.hasNext) &#123;</span><br><span class="line">        addElementsRead()</span><br><span class="line">        kv = records.next()</span><br><span class="line">        <span class="comment">// 调用getPartition根据key，获得partitionId， 添加到map里</span></span><br><span class="line">        map.changeValue((getPartition(kv._1), kv._1), update)</span><br><span class="line">        <span class="comment">// 检测是否触发spill</span></span><br><span class="line">        maybeSpillCollection(usingMap = <span class="literal">true</span>)</span><br><span class="line">      &#125;</span><br><span class="line">    &#125; <span class="keyword">else</span> &#123; </span><br><span class="line">      <span class="comment">// 没有涉及到聚合，使用PartitionedPairBuffer算法</span></span><br><span class="line">      <span class="keyword">while</span> (records.hasNext) &#123;</span><br><span class="line">        addElementsRead()</span><br><span class="line">        <span class="keyword">val</span> kv = records.next()</span><br><span class="line">        buffer.insert(getPartition(kv._1), kv._1, kv._2.asInstanceOf[<span class="type">C</span>])</span><br><span class="line">        <span class="comment">// 检测是否触发spill</span></span><br><span class="line">        maybeSpillCollection(usingMap = <span class="literal">false</span>)</span><br><span class="line">      &#125;</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h2 id="溢写文件"><a href="#溢写文件" class="headerlink" title="溢写文件"></a>溢写文件</h2><p>上面的maybeSpillCollection方法，当数据过多时，会触发溢写。溢写由spill方法负责，它会将已添加的数据进行排序。</p>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">private</span> <span class="function"><span class="keyword">def</span> <span class="title">maybeSpillCollection</span></span>(usingMap: <span class="type">Boolean</span>): <span class="type">Unit</span> = &#123;</span><br><span class="line">    <span class="keyword">var</span> estimatedSize = <span class="number">0</span>L</span><br><span class="line">    <span class="keyword">if</span> (usingMap) &#123;</span><br><span class="line">      <span class="comment">// 获取map的大小</span></span><br><span class="line">      estimatedSize = map.estimateSize()</span><br><span class="line">      <span class="comment">// 触发spill过程</span></span><br><span class="line">      <span class="keyword">if</span> (maybeSpill(map, estimatedSize)) &#123;</span><br><span class="line">        map = <span class="keyword">new</span> <span class="type">PartitionedAppendOnlyMap</span>[<span class="type">K</span>, <span class="type">C</span>]</span><br><span class="line">      &#125;</span><br><span class="line">    &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">      <span class="comment">// 获取buffer的大小</span></span><br><span class="line">      estimatedSize = buffer.estimateSize()</span><br><span class="line">      <span class="comment">// 触发spill过程</span></span><br><span class="line">      <span class="keyword">if</span> (maybeSpill(buffer, estimatedSize)) &#123;</span><br><span class="line">        buffer = <span class="keyword">new</span> <span class="type">PartitionedPairBuffer</span>[<span class="type">K</span>, <span class="type">C</span>]</span><br><span class="line">      &#125;</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">protected</span> <span class="function"><span class="keyword">def</span> <span class="title">maybeSpill</span></span>(collection: <span class="type">C</span>, currentMemory: <span class="type">Long</span>): <span class="type">Boolean</span> = &#123;</span><br><span class="line">    <span class="keyword">var</span> shouldSpill = <span class="literal">false</span></span><br><span class="line">    <span class="comment">// 每隔32条数据，检查是否当前使用内存超过限制</span></span><br><span class="line">    <span class="keyword">if</span> (elementsRead % <span class="number">32</span> == <span class="number">0</span> &amp;&amp; currentMemory &gt;= myMemoryThreshold) &#123;</span><br><span class="line">      <span class="comment">// 申请2倍内存</span></span><br><span class="line">      <span class="keyword">val</span> amountToRequest = <span class="number">2</span> * currentMemory - myMemoryThreshold</span><br><span class="line">      <span class="keyword">val</span> granted = acquireMemory(amountToRequest)</span><br><span class="line">      myMemoryThreshold += granted</span><br><span class="line">      <span class="comment">// 如果申请之后的内存，仍然不够存储，那么触发spill</span></span><br><span class="line">      shouldSpill = currentMemory &gt;= myMemoryThreshold</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">// 当内存不足，或者数据大小超过了指定值，则执行spill</span></span><br><span class="line">    shouldSpill = shouldSpill || _elementsRead &gt; numElementsForceSpillThreshold</span><br><span class="line">    <span class="keyword">if</span> (shouldSpill) &#123;</span><br><span class="line">      _spillCount += <span class="number">1</span></span><br><span class="line">      <span class="comment">// 调用spill</span></span><br><span class="line">      spill(collection)</span><br><span class="line">      _elementsRead = <span class="number">0</span></span><br><span class="line">      _memoryBytesSpilled += currentMemory</span><br><span class="line">      <span class="comment">// 释放数据占用的内存</span></span><br><span class="line">      releaseMemory()</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">// 返回是否触发了spill</span></span><br><span class="line">    shouldSpill</span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">override</span> <span class="keyword">protected</span>[<span class="keyword">this</span>] <span class="function"><span class="keyword">def</span> <span class="title">spill</span></span>(collection: <span class="type">WritablePartitionedPairCollection</span>[<span class="type">K</span>, <span class="type">C</span>]): <span class="type">Unit</span> = &#123;</span><br><span class="line">    <span class="comment">// 调用destructiveSortedWritablePartitionedIterator获取排序后的结果</span></span><br><span class="line">    <span class="keyword">val</span> inMemoryIterator = collection.destructiveSortedWritablePartitionedIterator(comparator)</span><br><span class="line">    <span class="comment">// 将排序后的结果写入文件</span></span><br><span class="line">    <span class="keyword">val</span> spillFile = spillMemoryIteratorToDisk(inMemoryIterator)</span><br><span class="line">    <span class="comment">// 记录文件</span></span><br><span class="line">    spills += spillFile</span><br><span class="line">  &#125;</span><br></pre></td></tr></table></figure>
+<p>溢写的结果由SpilledFile表示，它有下列属性描述数据的信息：</p>
+<ul>
+<li>file， 溢写的文件</li>
+<li>elementsPerPartition : Array[Long] ， 代表每个分区对应的数据条数</li>
+</ul>
+<h2 id="排序原理"><a href="#排序原理" class="headerlink" title="排序原理"></a>排序原理</h2><p>上面通过WritablePartitionedPairCollection获取排序结果，它的destructiveSortedWritablePartitionedIterator方法接收了排序参数comparator。根据是否需要对key排序，comparator的原理不同。</p>
+<h3 id="指定key排序"><a href="#指定key排序" class="headerlink" title="指定key排序"></a>指定key排序</h3><p>如果rdd指定了order，那么排序会保证partitionId排序，并且也会保证同一个partitionId的内部排序。</p>
+<p>这里比较的数据格式为（partitionId, key）</p>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">partitionKeyComparator</span></span>[<span class="type">K</span>](keyComparator: <span class="type">Comparator</span>[<span class="type">K</span>]): <span class="type">Comparator</span>[(<span class="type">Int</span>, <span class="type">K</span>)] = &#123;</span><br><span class="line">  <span class="keyword">new</span> <span class="type">Comparator</span>[(<span class="type">Int</span>, <span class="type">K</span>)] &#123;</span><br><span class="line">    <span class="keyword">override</span> <span class="function"><span class="keyword">def</span> <span class="title">compare</span></span>(a: (<span class="type">Int</span>, <span class="type">K</span>), b: (<span class="type">Int</span>, <span class="type">K</span>)): <span class="type">Int</span> = &#123;</span><br><span class="line">      <span class="comment">// 优先比较partition</span></span><br><span class="line">      <span class="keyword">val</span> partitionDiff = a._1 - b._1</span><br><span class="line">      <span class="keyword">if</span> (partitionDiff != <span class="number">0</span>) &#123;</span><br><span class="line">        partitionDiff</span><br><span class="line">      &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">        <span class="comment">// 如果partition相等，则继续比较key</span></span><br><span class="line">        keyComparator.compare(a._2, b._2)</span><br><span class="line">      &#125;</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>keyComparator指定了Key的排序规则，在ExternalSorter里定义。这里是比较了两个的hashCode。</p>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">private</span> <span class="keyword">val</span> keyComparator: <span class="type">Comparator</span>[<span class="type">K</span>] = ordering.getOrElse(<span class="keyword">new</span> <span class="type">Comparator</span>[<span class="type">K</span>] &#123;</span><br><span class="line">  <span class="keyword">override</span> <span class="function"><span class="keyword">def</span> <span class="title">compare</span></span>(a: <span class="type">K</span>, b: <span class="type">K</span>): <span class="type">Int</span> = &#123;</span><br><span class="line">    <span class="keyword">val</span> h1 = <span class="keyword">if</span> (a == <span class="literal">null</span>) <span class="number">0</span> <span class="keyword">else</span> a.hashCode()</span><br><span class="line">    <span class="keyword">val</span> h2 = <span class="keyword">if</span> (b == <span class="literal">null</span>) <span class="number">0</span> <span class="keyword">else</span> b.hashCode()</span><br><span class="line">    <span class="keyword">if</span> (h1 &lt; h2) <span class="number">-1</span> <span class="keyword">else</span> <span class="keyword">if</span> (h1 == h2) <span class="number">0</span> <span class="keyword">else</span> <span class="number">1</span></span><br><span class="line">  &#125;</span><br><span class="line">&#125;)</span><br></pre></td></tr></table></figure>
+<h3 id="不指定key排序"><a href="#不指定key排序" class="headerlink" title="不指定key排序"></a>不指定key排序</h3><p>如果rdd没有指定order，则只需要比较partitionId排序，而不需要对同一个partitionId内部排序。</p>
+<p>这里比较的数据格式为（partitionId, key）</p>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">partitionComparator</span></span>[<span class="type">K</span>]: <span class="type">Comparator</span>[(<span class="type">Int</span>, <span class="type">K</span>)] = <span class="keyword">new</span> <span class="type">Comparator</span>[(<span class="type">Int</span>, <span class="type">K</span>)] &#123;</span><br><span class="line">    <span class="keyword">override</span> <span class="function"><span class="keyword">def</span> <span class="title">compare</span></span>(a: (<span class="type">Int</span>, <span class="type">K</span>), b: (<span class="type">Int</span>, <span class="type">K</span>)): <span class="type">Int</span> = &#123;</span><br><span class="line">      a._1 - b._1</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br></pre></td></tr></table></figure>
+<h2 id="读取spill文件"><a href="#读取spill文件" class="headerlink" title="读取spill文件"></a>读取spill文件</h2><p>spill文件首先根据partition分片，每个partitioin分片又被切分成多个batch分片。每个batch分片，存储了多条数据。这里多了个batch分片，是因为DiskBlockObjectWriter的commitAndGet方法触发的，commitAndGet会关闭和新建序列化流。</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">------------------------------------------------------------------------------------</span><br><span class="line">                     parition 0                                  |     partition 1</span><br><span class="line">------------------------------------------------------------------------------------</span><br><span class="line">                batch 0              |       batch 1             |   </span><br><span class="line">-------------------------------------------------------------------------------------</span><br><span class="line">record 0   |  record 2  |  record 3  |</span><br></pre></td></tr></table></figure>
+<p>spill的文件读取由SpillReader负责，SpillReader有几个属性比较重要：</p>
+<ul>
+<li>partitionId， 当前读取record的所在partition</li>
+<li>indexInPartition， 当前读取的record在partition的索引</li>
+<li>batchId， 当前读取的record的所在batch</li>
+<li>lastPartitionId，下一个record所在的partition</li>
+<li>nextPartitionToRead， 要读取的下一个partition</li>
+</ul>
+<p>访问数据，也是按照partition的顺序遍历的。通过readNextPartition方法，返回单个partition的数据。</p>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">readNextPartition</span></span>(): <span class="type">Iterator</span>[<span class="type">Product2</span>[<span class="type">K</span>, <span class="type">C</span>]] = <span class="keyword">new</span> <span class="type">Iterator</span>[<span class="type">Product2</span>[<span class="type">K</span>, <span class="type">C</span>]] &#123;</span><br><span class="line">  <span class="comment">// 记录当前Iterator的所在partition</span></span><br><span class="line">  <span class="keyword">val</span> myPartition = nextPartitionToRead</span><br><span class="line">  nextPartitionToRead += <span class="number">1</span></span><br><span class="line"></span><br><span class="line">  <span class="keyword">override</span> <span class="function"><span class="keyword">def</span> <span class="title">hasNext</span></span>: <span class="type">Boolean</span> = &#123;</span><br><span class="line">    <span class="keyword">if</span> (nextItem == <span class="literal">null</span>) &#123;</span><br><span class="line">      <span class="comment">// 调用SpillReader的readNextItem方法，返回record</span></span><br><span class="line">      nextItem = readNextItem()</span><br><span class="line">      <span class="keyword">if</span> (nextItem == <span class="literal">null</span>) &#123;</span><br><span class="line">        <span class="keyword">return</span> <span class="literal">false</span></span><br><span class="line">      &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    assert(lastPartitionId &gt;= myPartition)</span><br><span class="line">    <span class="comment">// 如果下一个要读取的record所在的partition，不在等于当前Iterator的所在partition，</span></span><br><span class="line">    <span class="comment">// 也就是当前partition的数据都已经读完</span></span><br><span class="line">    lastPartitionId == myPartition</span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  <span class="keyword">override</span> <span class="function"><span class="keyword">def</span> <span class="title">next</span></span>(): <span class="type">Product2</span>[<span class="type">K</span>, <span class="type">C</span>] = &#123;</span><br><span class="line">    <span class="keyword">if</span> (!hasNext) &#123;</span><br><span class="line">      <span class="keyword">throw</span> <span class="keyword">new</span> <span class="type">NoSuchElementException</span></span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">val</span> item = nextItem</span><br><span class="line">    nextItem = <span class="literal">null</span></span><br><span class="line">    item</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h2 id="合并spill文件"><a href="#合并spill文件" class="headerlink" title="合并spill文件"></a>合并spill文件</h2><p>ExternalSorter提供了writePartitionedFile方法合并结果，写入到一个文件中。这里分为两种情况，一种是整个过程数据量比较小，没有发生溢写。另一个是数据量比较大，发生了溢写。</p>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">writePartitionedFile</span></span>(</span><br><span class="line">    blockId: <span class="type">BlockId</span>,</span><br><span class="line">    outputFile: <span class="type">File</span>): <span class="type">Array</span>[<span class="type">Long</span>] = &#123;</span><br><span class="line"></span><br><span class="line">  <span class="comment">// 分区数据对于数据的长度</span></span><br><span class="line">  <span class="keyword">val</span> lengths = <span class="keyword">new</span> <span class="type">Array</span>[<span class="type">Long</span>](numPartitions)</span><br><span class="line">  <span class="comment">// 写入文件的DiskBlockObjectWriter</span></span><br><span class="line">  <span class="keyword">val</span> writer = blockManager.getDiskWriter(blockId, outputFile, serInstance, fileBufferSize,</span><br><span class="line">    context.taskMetrics().shuffleWriteMetrics)</span><br><span class="line"></span><br><span class="line">  <span class="keyword">if</span> (spills.isEmpty) &#123;</span><br><span class="line">    <span class="comment">// 没有发生溢写的情况</span></span><br><span class="line">    <span class="keyword">val</span> collection = <span class="keyword">if</span> (aggregator.isDefined) map <span class="keyword">else</span> buffer</span><br><span class="line">    <span class="comment">// 直接容器排序，返回结果</span></span><br><span class="line">    <span class="keyword">val</span> it = collection.destructiveSortedWritablePartitionedIterator(comparator)</span><br><span class="line">    <span class="comment">// 遍历结果</span></span><br><span class="line">    <span class="keyword">while</span> (it.hasNext) &#123;</span><br><span class="line">      <span class="comment">// 获取当前分区</span></span><br><span class="line">      <span class="keyword">val</span> partitionId = it.nextPartition()</span><br><span class="line">      <span class="comment">// 将此分区的数据，都写入到文件中</span></span><br><span class="line">      <span class="keyword">while</span> (it.hasNext &amp;&amp; it.nextPartition() == partitionId) &#123;</span><br><span class="line">        it.writeNext(writer)</span><br><span class="line">      &#125;</span><br><span class="line">      <span class="comment">// 每遍历完一个分区的数据，调用commitAndGet返回FileSegment，返回写入数据的信息</span></span><br><span class="line">      <span class="keyword">val</span> segment = writer.commitAndGet()</span><br><span class="line">      lengths(partitionId) = segment.length</span><br><span class="line">    &#125;</span><br><span class="line">  &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">    <span class="comment">// 发生溢写的情况</span></span><br><span class="line">    <span class="comment">// 调用partitionedIterator返回排序后的数据,</span></span><br><span class="line">    <span class="comment">// 返回的id表示分区号，elements表示对应的数据</span></span><br><span class="line">    <span class="keyword">for</span> ((id, elements) &lt;- <span class="keyword">this</span>.partitionedIterator) &#123;</span><br><span class="line">      <span class="keyword">if</span> (elements.hasNext) &#123;</span><br><span class="line">        <span class="keyword">for</span> (elem &lt;- elements) &#123;</span><br><span class="line">          writer.write(elem._1, elem._2)</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="comment">// 每遍历完一个分区的数据，就调用commitAndGet方法</span></span><br><span class="line">        <span class="keyword">val</span> segment = writer.commitAndGet()</span><br><span class="line">        lengths(id) = segment.length</span><br><span class="line">      &#125;</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br><span class="line">  writer.close()</span><br><span class="line">  lengths</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>这里调用了partitionedIterator方法排序返回结果，partitionedIterator方法其实是调用了merge方法合并结果。</p>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// spills表示溢写文件，inMemory表示最后一部分存在内存的数据</span></span><br><span class="line"><span class="keyword">private</span> <span class="function"><span class="keyword">def</span> <span class="title">merge</span></span>(spills: <span class="type">Seq</span>[<span class="type">SpilledFile</span>], inMemory: <span class="type">Iterator</span>[((<span class="type">Int</span>, <span class="type">K</span>), <span class="type">C</span>)])</span><br><span class="line">    : <span class="type">Iterator</span>[(<span class="type">Int</span>, <span class="type">Iterator</span>[<span class="type">Product2</span>[<span class="type">K</span>, <span class="type">C</span>]])] = &#123;</span><br><span class="line">  <span class="comment">// SpillReader负责读spill文件</span></span><br><span class="line">  <span class="keyword">val</span> readers = spills.map(<span class="keyword">new</span> <span class="type">SpillReader</span>(_))</span><br><span class="line">  <span class="keyword">val</span> inMemBuffered = inMemory.buffered</span><br><span class="line">  <span class="comment">// 按照分区号遍历数据</span></span><br><span class="line">  (<span class="number">0</span> until numPartitions).iterator.map &#123; p =&gt;</span><br><span class="line">    <span class="keyword">val</span> inMemIterator = <span class="keyword">new</span> <span class="type">IteratorForPartition</span>(p, inMemBuffered)</span><br><span class="line">    <span class="keyword">val</span> iterators = readers.map(_.readNextPartition()) ++ <span class="type">Seq</span>(inMemIterator)</span><br><span class="line">    <span class="keyword">if</span> (aggregator.isDefined) &#123;</span><br><span class="line">      <span class="comment">// 指定了聚合，调用mergeWithAggregation排序</span></span><br><span class="line">      (p, mergeWithAggregation(</span><br><span class="line">        iterators, aggregator.get.mergeCombiners, keyComparator, ordering.isDefined))</span><br><span class="line">    &#125; <span class="keyword">else</span> <span class="keyword">if</span> (ordering.isDefined) &#123;</span><br><span class="line">      <span class="comment">// No aggregator given, but we have an ordering (e.g. used by reduce tasks in sortByKey);</span></span><br><span class="line">     <span class="comment">// 指定了order，调用mergeSort合并排序</span></span><br><span class="line">      (p, mergeSort(iterators, ordering.get))</span><br><span class="line">    &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">      (p, iterators.iterator.flatten)</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>mergeWithAggregation方法的原理是调用了mergeSort方法实现排序。</p>
+<p>mergeSort的排序原理采用了并排序的算法，使用PriorityQueue优先队列实现。PriorityQueue存储Iterator，比较大小是将Iterator的第一个数据。每次从最小的Iterator取出数据后，然后将iterator重新插入到PriorityQueue，这样PriorityQueue就会将Iterator重新排序。实例如下图所示，有三部分数据，序列按照从上到下的顺序排列。每一步都会从队列中提取一个最小的元素，并将三部分的数据重新排序</p>
+<p><img src="spark-sort-shuffle-writer.svg" alt="spark-sort-shuffle-writer"></p>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">private</span> <span class="function"><span class="keyword">def</span> <span class="title">mergeSort</span></span>(iterators: <span class="type">Seq</span>[<span class="type">Iterator</span>[<span class="type">Product2</span>[<span class="type">K</span>, <span class="type">C</span>]]], comparator: <span class="type">Comparator</span>[<span class="type">K</span>])</span><br><span class="line">    : <span class="type">Iterator</span>[<span class="type">Product2</span>[<span class="type">K</span>, <span class="type">C</span>]] =</span><br><span class="line">&#123;</span><br><span class="line">  <span class="keyword">val</span> bufferedIters = iterators.filter(_.hasNext).map(_.buffered)</span><br><span class="line">  <span class="class"><span class="keyword">type</span> <span class="title">Iter</span> </span>= <span class="type">BufferedIterator</span>[<span class="type">Product2</span>[<span class="type">K</span>, <span class="type">C</span>]]</span><br><span class="line">  <span class="keyword">val</span> heap = <span class="keyword">new</span> mutable.<span class="type">PriorityQueue</span>[<span class="type">Iter</span>]()(<span class="keyword">new</span> <span class="type">Ordering</span>[<span class="type">Iter</span>] &#123;</span><br><span class="line">    <span class="comment">// Use the reverse of comparator.compare because PriorityQueue dequeues the max</span></span><br><span class="line">    <span class="keyword">override</span> </span><br><span class="line">    <span class="function"><span class="keyword">def</span> <span class="title">compare</span></span>(x: <span class="type">Iter</span>, y: <span class="type">Iter</span>): <span class="type">Int</span> = -comparator.compare(x.head._1, y.head._1)</span><br><span class="line">  &#125;)</span><br><span class="line">  <span class="comment">// 添加所有的iterator</span></span><br><span class="line">  heap.enqueue(bufferedIters: _*)  <span class="comment">// Will contain only the iterators with hasNext = true</span></span><br><span class="line">  <span class="keyword">new</span> <span class="type">Iterator</span>[<span class="type">Product2</span>[<span class="type">K</span>, <span class="type">C</span>]] &#123;</span><br><span class="line">    <span class="keyword">override</span> <span class="function"><span class="keyword">def</span> <span class="title">hasNext</span></span>: <span class="type">Boolean</span> = !heap.isEmpty</span><br><span class="line"></span><br><span class="line">    <span class="keyword">override</span> <span class="function"><span class="keyword">def</span> <span class="title">next</span></span>(): <span class="type">Product2</span>[<span class="type">K</span>, <span class="type">C</span>] = &#123;</span><br><span class="line">      <span class="keyword">if</span> (!hasNext) &#123;</span><br><span class="line">        <span class="keyword">throw</span> <span class="keyword">new</span> <span class="type">NoSuchElementException</span></span><br><span class="line">      &#125;</span><br><span class="line">      <span class="comment">// 取出最小的iterator</span></span><br><span class="line">      <span class="keyword">val</span> firstBuf = heap.dequeue()</span><br><span class="line">      <span class="comment">// 从iterator中取第一个数据</span></span><br><span class="line">      <span class="keyword">val</span> firstPair = firstBuf.next()</span><br><span class="line">      <span class="keyword">if</span> (firstBuf.hasNext) &#123;</span><br><span class="line">        <span class="comment">// 重新插入到PriorityQueue， 让PriorityQueue重新排序</span></span><br><span class="line">        heap.enqueue(firstBuf)</span><br><span class="line">      &#125;</span><br><span class="line">      firstPair</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+      
+    </div>
+    
+    
+    
+
+    
+
+    
+
+    
+
+    <footer class="post-footer">
+      
+
+      
+      
+      
+
+      
+        <div class="post-nav">
+          <div class="post-nav-next post-nav-item">
+            
+              <a href="/2019/01/28/spark-shuffle-aggregator/" rel="next" title="Spark Shuffle 聚合原理">
+                <i class="fa fa-chevron-left"></i> Spark Shuffle 聚合原理
+              </a>
+            
+          </div>
+
+          <span class="post-nav-divider"></span>
+
+          <div class="post-nav-prev post-nav-item">
+            
+          </div>
+        </div>
+      
+
+      
+      
+    </footer>
+  </div>
+  
+  
+  
+  </article>
+
+
+
+    <div class="post-spread">
+      
+    </div>
+  </div>
+
+
+          </div>
+          
+
+
+          
+
+  
+    <div class="comments" id="comments">
+    </div>
+  
+
+
+
+        </div>
+        
+          
+  
+  <div class="sidebar-toggle">
+    <div class="sidebar-toggle-line-wrap">
+      <span class="sidebar-toggle-line sidebar-toggle-line-first"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-middle"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-last"></span>
+    </div>
+  </div>
+
+  <aside id="sidebar" class="sidebar">
+    
+    <div class="sidebar-inner">
+
+      
+
+      
+        <ul class="sidebar-nav motion-element">
+          <li class="sidebar-nav-toc sidebar-nav-active" data-target="post-toc-wrap">
+            Table of Contents
+          </li>
+          <li class="sidebar-nav-overview" data-target="site-overview-wrap">
+            Overview
+          </li>
+        </ul>
+      
+
+      <section class="site-overview-wrap sidebar-panel">
+        <div class="site-overview">
+          <div class="site-author motion-element" itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+            
+              <p class="site-author-name" itemprop="name">zhmin</p>
+              <p class="site-description motion-element" itemprop="description"></p>
+          </div>
+
+          <nav class="site-state motion-element">
+
+            
+              <div class="site-state-item site-state-posts">
+              
+                <a href="/archives/">
+              
+                  <span class="site-state-item-count">19</span>
+                  <span class="site-state-item-name">posts</span>
+                </a>
+              </div>
+            
+
+            
+
+            
+              
+              
+              <div class="site-state-item site-state-tags">
+                
+                  <span class="site-state-item-count">16</span>
+                  <span class="site-state-item-name">tags</span>
+                
+              </div>
+            
+
+          </nav>
+
+          
+
+          
+            <div class="links-of-author motion-element">
+                
+                  <span class="links-of-author-item">
+                    <a href="https://github.com/zhmin" target="_blank" title="GitHub">
+                      
+                        <i class="fa fa-fw fa-github"></i>GitHub</a>
+                  </span>
+                
+            </div>
+          
+
+          
+          
+
+          
+          
+
+          
+
+        </div>
+      </section>
+
+      
+      <!--noindex-->
+        <section class="post-toc-wrap motion-element sidebar-panel sidebar-panel-active">
+          <div class="post-toc">
+
+            
+              
+            
+
+            
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#Spark-SortShuffleWriter-原理"><span class="nav-number">1.</span> <span class="nav-text">Spark SortShuffleWriter 原理</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#PartitionedPairBuffer-原理"><span class="nav-number">1.1.</span> <span class="nav-text">PartitionedPairBuffer 原理</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#PartitionedAppendOnlyMap-原理"><span class="nav-number">1.2.</span> <span class="nav-text">PartitionedAppendOnlyMap 原理</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#添加数据"><span class="nav-number">1.3.</span> <span class="nav-text">添加数据</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#溢写文件"><span class="nav-number">1.4.</span> <span class="nav-text">溢写文件</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#排序原理"><span class="nav-number">1.5.</span> <span class="nav-text">排序原理</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#指定key排序"><span class="nav-number">1.5.1.</span> <span class="nav-text">指定key排序</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#不指定key排序"><span class="nav-number">1.5.2.</span> <span class="nav-text">不指定key排序</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#读取spill文件"><span class="nav-number">1.6.</span> <span class="nav-text">读取spill文件</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#合并spill文件"><span class="nav-number">1.7.</span> <span class="nav-text">合并spill文件</span></a></li></ol></li></ol></div>
+            
+
+          </div>
+        </section>
+      <!--/noindex-->
+      
+
+      
+
+    </div>
+  </aside>
+
+
+        
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="footer-inner">
+        <div class="copyright">&copy; <span itemprop="copyrightYear">2019</span>
+  <span class="with-love">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">zhmin</span>
+
+  
+</div>
+
+
+
+
+
+
+
+
+
+
+
+  <script src="https://unpkg.com/mermaid@7.1.2/dist/mermaid.min.js"></script>
+  <script>
+    if (window.mermaid) {
+      mermaid.initialize({"startOnload":"true  // default true","theme":"forest"});
+    }
+  </script>
+
+
+
+<script async src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+<span id="busuanzi_container_site_pv">
+    访问量<span id="busuanzi_value_site_pv"></span>
+</span>
+<span class="post-meta-divider">|</span>
+<span id="busuanzi_container_site_uv">
+  访客数<span id="busuanzi_value_site_uv"></span>
+</span>
+
+        
+
+
+
+
+
+
+
+        
+      </div>
+    </footer>
+
+    
+      <div class="back-to-top">
+        <i class="fa fa-arrow-up"></i>
+        
+      </div>
+    
+
+    
+
+  </div>
+
+  
+
+<script type="text/javascript">
+  if (Object.prototype.toString.call(window.Promise) !== '[object Function]') {
+    window.Promise = null;
+  }
+</script>
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery/index.js?v=2.1.3"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fastclick/lib/fastclick.min.js?v=1.0.6"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery_lazyload/jquery.lazyload.js?v=1.9.7"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.ui.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fancybox/source/jquery.fancybox.pack.js?v=2.1.5"></script>
+  
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/utils.js?v=5.1.4"></script>
+
+  <script type="text/javascript" src="/js/src/motion.js?v=5.1.4"></script>
+
+
+
+  
+  
+
+  
+  <script type="text/javascript" src="/js/src/scrollspy.js?v=5.1.4"></script>
+<script type="text/javascript" src="/js/src/post-details.js?v=5.1.4"></script>
+
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/bootstrap.js?v=5.1.4"></script>
+
+
+
+  
+
+
+  
+
+
+
+
+	
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+  <script src="//cdn1.lncld.net/static/js/3.0.4/av-min.js"></script>
+  <script src="//unpkg.com/valine/dist/Valine.min.js"></script>
+  
+  <script type="text/javascript">
+    var GUEST = ['nick','mail','link'];
+    var guest = 'nick';
+    guest = guest.split(',').filter(item=>{
+      return GUEST.indexOf(item)>-1;
+    });
+    new Valine({
+        el: '#comments' ,
+        verify: false,
+        notify: false,
+        appId: 'iYiPQlDR2X2zg2QIql2UEe2o-gzGzoHsz',
+        appKey: 'EW8G4sftwX1pef1zS9EsOeKE',
+        placeholder: 'comment here',
+        avatar:'mm',
+        guest_info:guest,
+        pageSize:'10' || 10,
+    });
+  </script>
+
+
+
+  
+
+
+
+
+
+  
+
+  
+  <script src="https://cdn1.lncld.net/static/js/av-core-mini-0.6.4.js"></script>
+  <script>AV.initialize("iYiPQlDR2X2zg2QIql2UEe2o-gzGzoHsz", "EW8G4sftwX1pef1zS9EsOeKE");</script>
+  <script>
+    function showTime(Counter) {
+      var query = new AV.Query(Counter);
+      var entries = [];
+      var $visitors = $(".leancloud_visitors");
+
+      $visitors.each(function () {
+        entries.push( $(this).attr("id").trim() );
+      });
+
+      query.containedIn('url', entries);
+      query.find()
+        .done(function (results) {
+          var COUNT_CONTAINER_REF = '.leancloud-visitors-count';
+
+          if (results.length === 0) {
+            $visitors.find(COUNT_CONTAINER_REF).text(0);
+            return;
+          }
+
+          for (var i = 0; i < results.length; i++) {
+            var item = results[i];
+            var url = item.get('url');
+            var time = item.get('time');
+            var element = document.getElementById(url);
+
+            $(element).find(COUNT_CONTAINER_REF).text(time);
+          }
+          for(var i = 0; i < entries.length; i++) {
+            var url = entries[i];
+            var element = document.getElementById(url);
+            var countSpan = $(element).find(COUNT_CONTAINER_REF);
+            if( countSpan.text() == '') {
+              countSpan.text(0);
+            }
+          }
+        })
+        .fail(function (object, error) {
+          console.log("Error: " + error.code + " " + error.message);
+        });
+    }
+
+    function addCount(Counter) {
+      var $visitors = $(".leancloud_visitors");
+      var url = $visitors.attr('id').trim();
+      var title = $visitors.attr('data-flag-title').trim();
+      var query = new AV.Query(Counter);
+
+      query.equalTo("url", url);
+      query.find({
+        success: function(results) {
+          if (results.length > 0) {
+            var counter = results[0];
+            counter.fetchWhenSave(true);
+            counter.increment("time");
+            counter.save(null, {
+              success: function(counter) {
+                var $element = $(document.getElementById(url));
+                $element.find('.leancloud-visitors-count').text(counter.get('time'));
+              },
+              error: function(counter, error) {
+                console.log('Failed to save Visitor num, with error message: ' + error.message);
+              }
+            });
+          } else {
+            var newcounter = new Counter();
+            /* Set ACL */
+            var acl = new AV.ACL();
+            acl.setPublicReadAccess(true);
+            acl.setPublicWriteAccess(true);
+            newcounter.setACL(acl);
+            /* End Set ACL */
+            newcounter.set("title", title);
+            newcounter.set("url", url);
+            newcounter.set("time", 1);
+            newcounter.save(null, {
+              success: function(newcounter) {
+                var $element = $(document.getElementById(url));
+                $element.find('.leancloud-visitors-count').text(newcounter.get('time'));
+              },
+              error: function(newcounter, error) {
+                console.log('Failed to create');
+              }
+            });
+          }
+        },
+        error: function(error) {
+          console.log('Error:' + error.code + " " + error.message);
+        }
+      });
+    }
+
+    $(function() {
+      var Counter = AV.Object.extend("Counter");
+      if ($('.leancloud_visitors').length == 1) {
+        addCount(Counter);
+      } else if ($('.post-title-link').length > 1) {
+        showTime(Counter);
+      }
+    });
+  </script>
+
+
+
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+</body>
+</html>
