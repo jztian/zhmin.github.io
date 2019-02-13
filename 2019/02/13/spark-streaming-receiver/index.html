@@ -1,0 +1,897 @@
+<!DOCTYPE html>
+
+
+
+  
+
+
+<html class="theme-next mist use-motion" lang="">
+<head><meta name="generator" content="Hexo 3.8.0">
+  <meta charset="UTF-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="theme-color" content="#222">
+
+
+
+
+
+
+
+
+
+<meta http-equiv="Cache-Control" content="no-transform">
+<meta http-equiv="Cache-Control" content="no-siteapp">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+  <link href="/lib/fancybox/source/jquery.fancybox.css?v=2.1.5" rel="stylesheet" type="text/css">
+
+
+
+
+
+
+
+<link href="/lib/font-awesome/css/font-awesome.min.css?v=4.6.2" rel="stylesheet" type="text/css">
+
+<link href="/css/main.css?v=5.1.4" rel="stylesheet" type="text/css">
+
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png?v=5.1.4">
+
+
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png?v=5.1.4">
+
+
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png?v=5.1.4">
+
+
+  <link rel="mask-icon" href="/images/logo.svg?v=5.1.4" color="#222">
+
+
+
+
+
+  <meta name="keywords" content="spark, streaming, receiver,">
+
+
+
+
+
+
+
+
+
+
+<meta name="description" content="Spark Streaming 数据源读取Spark Streaming 支持多种数据源，数据源的读取涉及到多个组件，流程如下图所示  数据源的读取都是由Receiver负责。Receiver会启动后台线程，持续的拉取数据，发送给ReceiverSupervisorImpl处理。 ReceiverSupervisorImpl是运行在executor端的服务，它会将接收的数转发给BlockGener">
+<meta name="keywords" content="spark, streaming, receiver">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Spark Streaming 数据源读取">
+<meta property="og:url" content="https://zhmin.github.io/2019/02/13/spark-streaming-receiver/index.html">
+<meta property="og:site_name" content="blog">
+<meta property="og:description" content="Spark Streaming 数据源读取Spark Streaming 支持多种数据源，数据源的读取涉及到多个组件，流程如下图所示  数据源的读取都是由Receiver负责。Receiver会启动后台线程，持续的拉取数据，发送给ReceiverSupervisorImpl处理。 ReceiverSupervisorImpl是运行在executor端的服务，它会将接收的数转发给BlockGener">
+<meta property="og:locale" content="default">
+<meta property="og:image" content="https://zhmin.github.io/2019/02/13/spark-streaming-receiver/spark-streaming-receiver.svg">
+<meta property="og:updated_time" content="2019-02-13T14:16:37.770Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Spark Streaming 数据源读取">
+<meta name="twitter:description" content="Spark Streaming 数据源读取Spark Streaming 支持多种数据源，数据源的读取涉及到多个组件，流程如下图所示  数据源的读取都是由Receiver负责。Receiver会启动后台线程，持续的拉取数据，发送给ReceiverSupervisorImpl处理。 ReceiverSupervisorImpl是运行在executor端的服务，它会将接收的数转发给BlockGener">
+<meta name="twitter:image" content="https://zhmin.github.io/2019/02/13/spark-streaming-receiver/spark-streaming-receiver.svg">
+
+
+
+<script type="text/javascript" id="hexo.configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '/',
+    scheme: 'Mist',
+    version: '5.1.4',
+    sidebar: {"position":"left","display":"hide","offset":12,"b2t":false,"scrollpercent":false,"onmobile":false},
+    fancybox: true,
+    tabs: true,
+    motion: {"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},
+    duoshuo: {
+      userId: '0',
+      author: 'Author'
+    },
+    algolia: {
+      applicationID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    }
+  };
+</script>
+
+
+
+  <link rel="canonical" href="https://zhmin.github.io/2019/02/13/spark-streaming-receiver/">
+
+
+
+
+
+  <title>Spark Streaming 数据源读取 | blog</title>
+  
+
+
+
+
+
+
+
+
+</head>
+
+<body itemscope="" itemtype="http://schema.org/WebPage" lang="default">
+
+  
+  
+    
+  
+
+  <div class="container sidebar-position-left page-post-detail">
+    <div class="headband"></div>
+
+    <header id="header" class="header" itemscope="" itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-wrapper">
+  <div class="site-meta ">
+    
+
+    <div class="custom-logo-site-title">
+      <a href="/" class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">blog</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+      
+        <h1 class="site-subtitle" itemprop="description"></h1>
+      
+  </div>
+
+  <div class="site-nav-toggle">
+    <button>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+    </button>
+  </div>
+</div>
+
+<nav class="site-nav">
+  
+
+  
+    <ul id="menu" class="menu">
+      
+        
+        <li class="menu-item menu-item-home">
+          <a href="/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-home"></i> <br>
+            
+            Home
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-archives">
+          <a href="/archives/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-archive"></i> <br>
+            
+            Archives
+          </a>
+        </li>
+      
+
+      
+    </ul>
+  
+
+  
+</nav>
+
+
+
+ </div>
+    </header>
+
+    <main id="main" class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          <div id="content" class="content">
+            
+
+  <div id="posts" class="posts-expand">
+    
+
+  
+
+  
+  
+  
+
+  <article class="post post-type-normal" itemscope="" itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block">
+    <link itemprop="mainEntityOfPage" href="https://zhmin.github.io/2019/02/13/spark-streaming-receiver/">
+
+    <span hidden itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="zhmin">
+      <meta itemprop="description" content="">
+      <meta itemprop="image" content="/images/avatar.gif">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope="" itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="blog">
+    </span>
+
+    
+      <header class="post-header">
+
+        
+        
+          <h2 class="post-title" itemprop="name headline">Spark Streaming 数据源读取</h2>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">Posted on</span>
+              
+              <time title="Post created" itemprop="dateCreated datePublished" datetime="2019-02-13T22:09:47+08:00">
+                2019-02-13
+              </time>
+            
+
+            
+
+            
+          </span>
+
+          
+
+          
+            
+              <span class="post-comments-count">
+                <span class="post-meta-divider">|</span>
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-comment-o"></i>
+                </span>
+                <a href="/2019/02/13/spark-streaming-receiver/#comments" itemprop="discussionUrl">
+                  <span class="post-comments-count valine-comment-count" data-xid="/2019/02/13/spark-streaming-receiver/" itemprop="commentCount"></span>
+                </a>
+              </span>
+            
+          
+
+          
+          
+             <span id="/2019/02/13/spark-streaming-receiver/" class="leancloud_visitors" data-flag-title="Spark Streaming 数据源读取">
+               <span class="post-meta-divider">|</span>
+               <span class="post-meta-item-icon">
+                 <i class="fa fa-eye"></i>
+               </span>
+               
+                 <span class="post-meta-item-text">Visitors&#58;</span>
+               
+                 <span class="leancloud-visitors-count"></span>
+             </span>
+          
+
+          
+
+          
+
+          
+
+        </div>
+      </header>
+    
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+      
+
+      
+        <h1 id="Spark-Streaming-数据源读取"><a href="#Spark-Streaming-数据源读取" class="headerlink" title="Spark Streaming 数据源读取"></a>Spark Streaming 数据源读取</h1><p>Spark Streaming 支持多种数据源，数据源的读取涉及到多个组件，流程如下图所示</p>
+<p><img src="spark-streaming-receiver.svg" alt="spark-streaming-receiver"></p>
+<p>数据源的读取都是由Receiver负责。Receiver会启动后台线程，持续的拉取数据，发送给ReceiverSupervisorImpl处理。</p>
+<p>ReceiverSupervisorImpl是运行在executor端的服务，它会将接收的数转发给BlockGenerator。</p>
+<p>BlockGenerator 接收数据后，会先缓存起来。然后每隔一段时间，就会将缓存的数据封装成Block保存起来，然后将Block的信息发送到driver端。</p>
+<p>ReceiverTracker运行在 driver 端， 负责提交启动Receiver的任务和接收来自Receiver的请求。</p>
+<h2 id="Receiver-任务运行"><a href="#Receiver-任务运行" class="headerlink" title="Receiver 任务运行"></a>Receiver 任务运行</h2><p>Receiver 是运行在executor端的，它是作为spark core的任务运行的。而任务提交是由driver端的ReceiverTracker负责，我们先弄清楚ReceiverTracker是如何提交的</p>
+<h3 id="ReceiverTracker-提交任务"><a href="#ReceiverTracker-提交任务" class="headerlink" title="ReceiverTracker 提交任务"></a>ReceiverTracker 提交任务</h3><p>ReceiverTracker首先从DStreamGraph中获取所有的ReceiverInputDStream，然后取得它的Receiver。这样就得到了Receiver列表，然后为每一个Receiver分配一个Executor，运行ReceiverSupervisorImpl服务。ReceiverSupervisorImpl服务会一直占用Executor，直到整个spark streaming停止。</p>
+<p>首先来看下是怎么分配 receiver 的运行位置。分配算法由ReceiverSchedulingPolicy类负责，原理如下：</p>
+<ol>
+<li>首先根据 receiver 指定的 host 位置，从在该 host 的executor 中，找到对应 receiver 数目最少的那个，分配给 这个 receiver</li>
+<li>将剩下没有指定位置的 receiver，从所有 executor 中，找到对应 receiver 数目最少的那个，分配给这个 receiver</li>
+<li>如果还有空闲的executor，那么从 receiver 列表中，找到分配 executor 数目最少的那个receiver，然后将这个空闲executor分配给receiver</li>
+</ol>
+<p>代码如下，先介绍三个变量：</p>
+<ul>
+<li>hostToExecutors， 每个host对应的executor列表</li>
+<li>scheduledLocations， 每个recevier对应的TaskLocation列表</li>
+<li>numReceiversOnExecutor， 每个executor可能执行receiver的数目</li>
+</ul>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">scheduleReceivers</span></span>(</span><br><span class="line">    receivers: <span class="type">Seq</span>[<span class="type">Receiver</span>[_]],</span><br><span class="line">    executors: <span class="type">Seq</span>[<span class="type">ExecutorCacheTaskLocation</span>]): <span class="type">Map</span>[<span class="type">Int</span>, <span class="type">Seq</span>[<span class="type">TaskLocation</span>]] = &#123;</span><br><span class="line">  <span class="comment">// 每个host对应的executor列表</span></span><br><span class="line">  <span class="keyword">val</span> hostToExecutors = executors.groupBy(_.host)</span><br><span class="line">  <span class="comment">// 每个recevier对应的TaskLocation列表</span></span><br><span class="line">  <span class="keyword">val</span> scheduledLocations = <span class="type">Array</span>.fill(receivers.length)(<span class="keyword">new</span> mutable.<span class="type">ArrayBuffer</span>[<span class="type">TaskLocation</span>])</span><br><span class="line">  <span class="comment">// 每个executor可能执行receiver的数目, 初始值为0</span></span><br><span class="line">  <span class="keyword">val</span> numReceiversOnExecutor = mutable.<span class="type">HashMap</span>[<span class="type">ExecutorCacheTaskLocation</span>, <span class="type">Int</span>]()</span><br><span class="line">  executors.foreach(e =&gt; numReceiversOnExecutor(e) = <span class="number">0</span>)</span><br><span class="line">  </span><br><span class="line">  <span class="comment">// 遍历receivers列表</span></span><br><span class="line">  <span class="keyword">for</span> (i &lt;- <span class="number">0</span> until receivers.length) &#123;</span><br><span class="line">    <span class="comment">// 如果该receiver指定了位置，那么提取所在位置的host</span></span><br><span class="line">    receivers(i).preferredLocation.foreach &#123; host =&gt;</span><br><span class="line">      hostToExecutors.get(host) <span class="keyword">match</span> &#123;</span><br><span class="line">        <span class="keyword">case</span> <span class="type">Some</span>(executorsOnHost) =&gt;</span><br><span class="line">          <span class="comment">// 从该host中寻找分配receiver数目最少的那个executor</span></span><br><span class="line">          <span class="keyword">val</span> leastScheduledExecutor =</span><br><span class="line">            executorsOnHost.minBy(executor =&gt; numReceiversOnExecutor(executor))</span><br><span class="line">          <span class="comment">// 更新scheduledLocations集合</span></span><br><span class="line">          scheduledLocations(i) += leastScheduledExecutor</span><br><span class="line">          <span class="comment">// 更新numReceiversOnExecutor集合</span></span><br><span class="line">          numReceiversOnExecutor(leastScheduledExecutor) =</span><br><span class="line">            numReceiversOnExecutor(leastScheduledExecutor) + <span class="number">1</span></span><br><span class="line">        <span class="keyword">case</span> <span class="type">None</span> =&gt;</span><br><span class="line">          <span class="comment">// preferredLocation is an unknown host.</span></span><br><span class="line">          <span class="comment">// Note: There are two cases:</span></span><br><span class="line">          <span class="comment">// 1. This executor is not up. But it may be up later.</span></span><br><span class="line">          <span class="comment">// 2. This executor is dead, or it's not a host in the cluster.</span></span><br><span class="line">          <span class="comment">// Currently, simply add host to the scheduled executors.</span></span><br><span class="line"></span><br><span class="line">          <span class="comment">// Note: host could be `HDFSCacheTaskLocation`, so use `TaskLocation.apply` to handle</span></span><br><span class="line">          <span class="comment">// this case</span></span><br><span class="line">          scheduledLocations(i) += <span class="type">TaskLocation</span>(host)</span><br><span class="line">      &#125;</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  <span class="comment">// 遍历那些没有指定位置的receiver</span></span><br><span class="line">  <span class="keyword">for</span> (scheduledLocationsForOneReceiver &lt;- scheduledLocations.filter(_.isEmpty)) &#123;</span><br><span class="line">    <span class="comment">// 从executor列表中挑选出，分配receiver数目最小的executor</span></span><br><span class="line">    <span class="keyword">val</span> (leastScheduledExecutor, numReceivers) = numReceiversOnExecutor.minBy(_._2)</span><br><span class="line">    <span class="comment">// 更新scheduledLocations集合</span></span><br><span class="line">    scheduledLocationsForOneReceiver += leastScheduledExecutor</span><br><span class="line">    <span class="comment">// 更新numReceiversOnExecutor集合</span></span><br><span class="line">    numReceiversOnExecutor(leastScheduledExecutor) = numReceivers + <span class="number">1</span></span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  <span class="comment">// 如果还有空闲的executor</span></span><br><span class="line">  <span class="keyword">val</span> idleExecutors = numReceiversOnExecutor.filter(_._2 == <span class="number">0</span>).map(_._1)</span><br><span class="line">  <span class="keyword">for</span> (executor &lt;- idleExecutors) &#123;</span><br><span class="line">    <span class="comment">// 选择出分配executor数目最少的receiver</span></span><br><span class="line">    <span class="keyword">val</span> leastScheduledExecutors = scheduledLocations.minBy(_.size)</span><br><span class="line">    <span class="comment">// 将这个空闲executor分配给这个receiver</span></span><br><span class="line">    leastScheduledExecutors += executor</span><br><span class="line">  &#125;</span><br><span class="line">  <span class="comment">// 返回 InputDStream 对应 TaskLocaltion的列表</span></span><br><span class="line">  receivers.map(_.streamId).zip(scheduledLocations).toMap</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>获取到receiver的分配位置后，ReceiverTracker的startReceiver方法，负责启动单个Receiver，代码简化如下</p>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">private</span> <span class="function"><span class="keyword">def</span> <span class="title">startReceiver</span></span>(</span><br><span class="line">    receiver: <span class="type">Receiver</span>[_],</span><br><span class="line">    scheduledLocations: <span class="type">Seq</span>[<span class="type">TaskLocation</span>]): <span class="type">Unit</span> = &#123;</span><br><span class="line">  </span><br><span class="line">  <span class="comment">// 定义Executor端的运行函数</span></span><br><span class="line">  <span class="keyword">val</span> startReceiverFunc: <span class="type">Iterator</span>[<span class="type">Receiver</span>[_]] =&gt; <span class="type">Unit</span> =</span><br><span class="line">    (iterator: <span class="type">Iterator</span>[<span class="type">Receiver</span>[_]]) =&gt; &#123;</span><br><span class="line">        <span class="comment">// 取出receiver，这里的rdd只包含一个receiver</span></span><br><span class="line">        <span class="keyword">val</span> receiver = iterator.next()</span><br><span class="line">        assert(iterator.hasNext == <span class="literal">false</span>)</span><br><span class="line">        <span class="comment">// 运行ReceiverSupervisorImpl服务</span></span><br><span class="line">        <span class="keyword">val</span> supervisor = <span class="keyword">new</span> <span class="type">ReceiverSupervisorImpl</span>(</span><br><span class="line">          receiver, <span class="type">SparkEnv</span>.get, serializableHadoopConf.value, checkpointDirOption)</span><br><span class="line">        supervisor.start()</span><br><span class="line">        <span class="comment">// 等待服务停止</span></span><br><span class="line">        supervisor.awaitTermination()</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">  <span class="comment">// 将 receiver 转换为 RDD</span></span><br><span class="line">  <span class="keyword">val</span> receiverRDD: <span class="type">RDD</span>[<span class="type">Receiver</span>[_]] =</span><br><span class="line">    <span class="keyword">if</span> (scheduledLocations.isEmpty) &#123;</span><br><span class="line">      <span class="comment">// 如果没有指定Executor位置，则随机分配</span></span><br><span class="line">      ssc.sc.makeRDD(<span class="type">Seq</span>(receiver), <span class="number">1</span>)</span><br><span class="line">    &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">      <span class="comment">// 如果指定Executor位置，则传递给makeRDD函数</span></span><br><span class="line">      <span class="keyword">val</span> preferredLocations = scheduledLocations.map(_.toString).distinct</span><br><span class="line">      ssc.sc.makeRDD(<span class="type">Seq</span>(receiver -&gt; preferredLocations))</span><br><span class="line">    &#125;</span><br><span class="line">  <span class="comment">// 设置RDD的名称</span></span><br><span class="line">  receiverRDD.setName(<span class="string">s"Receiver <span class="subst">$receiverId</span>"</span>)</span><br><span class="line">  <span class="comment">// 调用sparkContext的方法，提交任务。这里传递了receiverRDD和执行函数startReceiverFunc</span></span><br><span class="line">  <span class="keyword">val</span> future = ssc.sparkContext.submitJob[<span class="type">Receiver</span>[_], <span class="type">Unit</span>, <span class="type">Unit</span>](</span><br><span class="line">    receiverRDD, startReceiverFunc, <span class="type">Seq</span>(<span class="number">0</span>), (_, _) =&gt; <span class="type">Unit</span>, ())</span><br><span class="line">  <span class="comment">// 执行回调函数</span></span><br><span class="line">  future.onComplete &#123;</span><br><span class="line">    ......</span><br><span class="line">  &#125;(<span class="type">ThreadUtils</span>.sameThread)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h3 id="ReceiverSupervisorImpl-启动"><a href="#ReceiverSupervisorImpl-启动" class="headerlink" title="ReceiverSupervisorImpl 启动"></a>ReceiverSupervisorImpl 启动</h3><p>上面介绍了 driver 端向 spark 提交了运行 Receiver 的 任务，接下来看看 receiver 在 executor 端的启动过程。executor 端的启动函数是调用了ReceiverSupervisorImpl的 start 方法， ReceiverSupervisorImpl继承ReceiverSupervisor。</p>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">private</span>[streaming] <span class="keyword">abstract</span> <span class="class"><span class="keyword">class</span> <span class="title">ReceiverSupervisor</span>(<span class="params"></span></span></span><br><span class="line"><span class="class"><span class="params">    receiver: <span class="type">Receiver</span>[_],</span></span></span><br><span class="line"><span class="class"><span class="params">    conf: <span class="type">SparkConf</span></span></span></span><br><span class="line"><span class="class"><span class="params">  </span>) <span class="keyword">extends</span> <span class="title">Logging</span> </span>&#123;</span><br><span class="line">  </span><br><span class="line">  <span class="comment">// 启动方法</span></span><br><span class="line">  <span class="function"><span class="keyword">def</span> <span class="title">start</span></span>() &#123;</span><br><span class="line">    <span class="comment">// 子类会重载onStart方法，负责启动时的初始化</span></span><br><span class="line">    onStart()</span><br><span class="line">    <span class="comment">// 启动receiver</span></span><br><span class="line">    startReceiver()</span><br><span class="line">  &#125;</span><br><span class="line">  </span><br><span class="line">  </span><br><span class="line">  <span class="function"><span class="keyword">def</span> <span class="title">startReceiver</span></span>(): <span class="type">Unit</span> = synchronized &#123;</span><br><span class="line">    <span class="keyword">try</span> &#123;</span><br><span class="line">      <span class="comment">// 子类会重载onReceiverStart方法，负责启动receiver前的初始化</span></span><br><span class="line">      <span class="keyword">if</span> (onReceiverStart()) &#123;</span><br><span class="line">        logInfo(<span class="string">s"Starting receiver <span class="subst">$streamId</span>"</span>)</span><br><span class="line">        <span class="comment">// 更新状态</span></span><br><span class="line">        receiverState = <span class="type">Started</span></span><br><span class="line">        <span class="comment">// 调用receiver的onStart方法</span></span><br><span class="line">        receiver.onStart()</span><br><span class="line">        logInfo(<span class="string">s"Called receiver <span class="subst">$streamId</span> onStart"</span>)</span><br><span class="line">      &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">        <span class="comment">// The driver refused us</span></span><br><span class="line">        stop(<span class="string">"Registered unsuccessfully because Driver refused to start receiver "</span> + streamId, <span class="type">None</span>)</span><br><span class="line">      &#125;</span><br><span class="line">    &#125; <span class="keyword">catch</span> &#123;</span><br><span class="line">      <span class="keyword">case</span> <span class="type">NonFatal</span>(t) =&gt;</span><br><span class="line">        stop(<span class="string">"Error starting receiver "</span> + streamId, <span class="type">Some</span>(t))</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>ReceiverSupervisorImpl实现了ReceiverSupervisor的回调方法</p>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">private</span>[streaming] <span class="class"><span class="keyword">class</span> <span class="title">ReceiverSupervisorImpl</span>(<span class="params"></span></span></span><br><span class="line"><span class="class"><span class="params">    receiver: <span class="type">Receiver</span>[_],</span></span></span><br><span class="line"><span class="class"><span class="params">    env: <span class="type">SparkEnv</span>,</span></span></span><br><span class="line"><span class="class"><span class="params">    hadoopConf: <span class="type">Configuration</span>,</span></span></span><br><span class="line"><span class="class"><span class="params">    checkpointDirOption: <span class="type">Option</span>[<span class="type">String</span>]</span></span></span><br><span class="line"><span class="class"><span class="params">  </span>) <span class="keyword">extends</span> <span class="title">ReceiverSupervisor</span>(<span class="params">receiver, env.conf</span>) <span class="keyword">with</span> <span class="title">Logging</span> </span>&#123;</span><br><span class="line">  </span><br><span class="line">  <span class="comment">// 连接driver端的ReceiverTracker的Rpc客户端</span></span><br><span class="line">  <span class="keyword">private</span> <span class="keyword">val</span> trackerEndpoint = <span class="type">RpcUtils</span>.makeDriverRef(<span class="string">"ReceiverTracker"</span>, env.conf, env.rpcEnv)</span><br><span class="line">  <span class="comment">// BlockGenerator队列</span></span><br><span class="line">  <span class="keyword">private</span> <span class="keyword">val</span> registeredBlockGenerators = <span class="keyword">new</span> <span class="type">ConcurrentLinkedQueue</span>[<span class="type">BlockGenerator</span>]()</span><br><span class="line">  </span><br><span class="line">  <span class="keyword">override</span> <span class="keyword">protected</span> <span class="function"><span class="keyword">def</span> <span class="title">onStart</span></span>() &#123;</span><br><span class="line">    <span class="comment">// 启动BlockGenerator</span></span><br><span class="line">    registeredBlockGenerators.asScala.foreach &#123; _.start() &#125;</span><br><span class="line">  &#125;</span><br><span class="line">  </span><br><span class="line">  <span class="keyword">override</span> <span class="keyword">protected</span> <span class="function"><span class="keyword">def</span> <span class="title">onReceiverStart</span></span>(): <span class="type">Boolean</span> = &#123;</span><br><span class="line">    <span class="comment">// 向driver端请求注册receiver，返回结果为true表示注册成功</span></span><br><span class="line">    <span class="keyword">val</span> msg = <span class="type">RegisterReceiver</span>(</span><br><span class="line">      streamId, receiver.getClass.getSimpleName, host, executorId, endpoint)</span><br><span class="line">    trackerEndpoint.askSync[<span class="type">Boolean</span>](msg)</span><br><span class="line">  &#125;</span><br></pre></td></tr></table></figure>
+<h3 id="Receiver-启动"><a href="#Receiver-启动" class="headerlink" title="Receiver 启动"></a>Receiver 启动</h3><p>Receiver类只是一个抽象类，它只提供了保存数据的接口。子类需要实现 onStart 方法，完成初始化，这个方法不能阻塞。以SocketReceiver为例，它的 onStart 方法是启动了一个后台线程，读取 socket 的数据，然后存储到 receiver 里。</p>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">class</span> <span class="title">SocketReceiver</span>[<span class="type">T</span>: <span class="type">ClassTag</span>](<span class="params"></span></span></span><br><span class="line"><span class="class"><span class="params">    host: <span class="type">String</span>,</span></span></span><br><span class="line"><span class="class"><span class="params">    port: <span class="type">Int</span>,</span></span></span><br><span class="line"><span class="class"><span class="params">    bytesToObjects: <span class="type">InputStream</span> =&gt; <span class="type">Iterator</span>[<span class="type">T</span>],</span></span></span><br><span class="line"><span class="class"><span class="params">    storageLevel: <span class="type">StorageLevel</span></span></span></span><br><span class="line"><span class="class"><span class="params">  </span>) <span class="keyword">extends</span> <span class="title">Receiver</span>[<span class="type">T</span>](<span class="params">storageLevel</span>) <span class="keyword">with</span> <span class="title">Logging</span> </span>&#123;</span><br><span class="line">  </span><br><span class="line">  <span class="function"><span class="keyword">def</span> <span class="title">onStart</span></span>() &#123;</span><br><span class="line">    <span class="comment">// 创建socket连接</span></span><br><span class="line">    socket = <span class="keyword">new</span> <span class="type">Socket</span>(host, port)</span><br><span class="line">    <span class="comment">// 开启后台线程，读取socket的数据</span></span><br><span class="line">    <span class="keyword">new</span> <span class="type">Thread</span>(<span class="string">"Socket Receiver"</span>) &#123;</span><br><span class="line">      setDaemon(<span class="literal">true</span>)</span><br><span class="line">      <span class="comment">// receive方法负责从socket中读取数据</span></span><br><span class="line">      <span class="keyword">override</span> <span class="function"><span class="keyword">def</span> <span class="title">run</span></span>() &#123; receive() &#125;</span><br><span class="line">    &#125;.start()</span><br><span class="line">  &#125;</span><br><span class="line">    </span><br><span class="line">  <span class="function"><span class="keyword">def</span> <span class="title">receive</span></span>() &#123;</span><br><span class="line">    <span class="keyword">val</span> iterator = bytesToObjects(socket.getInputStream())</span><br><span class="line">    <span class="keyword">while</span>(!isStopped &amp;&amp; iterator.hasNext) &#123;</span><br><span class="line">      <span class="comment">// 读取数据，并且调用store方法存储数据</span></span><br><span class="line">      store(iterator.next())</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>从上面的代码可以看到，Receiver提供了 store 方法保存数据。Receiver的数据经过ReceiverSupervisorImpl最终添加到了BlockGenerator的缓存队列。</p>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">abstract</span> <span class="class"><span class="keyword">class</span> <span class="title">Receiver</span>[<span class="type">T</span>](<span class="params">val storageLevel: <span class="type">StorageLevel</span></span>) <span class="keyword">extends</span> <span class="title">Serializable</span> </span>&#123;</span><br><span class="line">  <span class="function"><span class="keyword">def</span> <span class="title">store</span></span>(dataItem: <span class="type">T</span>) &#123;</span><br><span class="line">    <span class="comment">// 调用了ReceiverSupervisorImpl的pushSingle方法</span></span><br><span class="line">    supervisor.pushSingle(dataItem)</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">private</span>[streaming] <span class="class"><span class="keyword">class</span> <span class="title">ReceiverSupervisorImpl</span> </span>&#123;</span><br><span class="line">    <span class="function"><span class="keyword">def</span> <span class="title">pushSingle</span></span>(data: <span class="type">Any</span>) &#123;</span><br><span class="line">       <span class="comment">// 调用了BlockGenerator的addData方法</span></span><br><span class="line">       defaultBlockGenerator.addData(data)</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">private</span>[streaming] <span class="class"><span class="keyword">class</span> <span class="title">BlockGenerator</span>(<span class="params"></span></span></span><br><span class="line"><span class="class"><span class="params">    listener: <span class="type">BlockGeneratorListener</span>,</span></span></span><br><span class="line"><span class="class"><span class="params">    receiverId: <span class="type">Int</span>,</span></span></span><br><span class="line"><span class="class"><span class="params">    conf: <span class="type">SparkConf</span>,</span></span></span><br><span class="line"><span class="class"><span class="params">    clock: <span class="type">Clock</span> = new <span class="type">SystemClock</span>(</span>)</span></span><br><span class="line"><span class="class">  ) <span class="keyword">extends</span> <span class="title">RateLimiter</span>(<span class="params">conf</span>) <span class="keyword">with</span> <span class="title">Logging</span> </span>&#123;</span><br><span class="line">  </span><br><span class="line">  <span class="comment">// 数据缓存队列</span></span><br><span class="line">  <span class="meta">@volatile</span> <span class="keyword">private</span> <span class="keyword">var</span> currentBuffer = <span class="keyword">new</span> <span class="type">ArrayBuffer</span>[<span class="type">Any</span>]</span><br><span class="line">    </span><br><span class="line">  <span class="function"><span class="keyword">def</span> <span class="title">addData</span></span>(data: <span class="type">Any</span>): <span class="type">Unit</span> = &#123;</span><br><span class="line">    <span class="keyword">if</span> (state == <span class="type">Active</span>) &#123;</span><br><span class="line">      waitToPush()</span><br><span class="line">      synchronized &#123;</span><br><span class="line">        <span class="keyword">if</span> (state == <span class="type">Active</span>) &#123;</span><br><span class="line">          <span class="comment">// 添加到缓存队列里</span></span><br><span class="line">          currentBuffer += data</span><br><span class="line">        &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">          <span class="keyword">throw</span> <span class="keyword">new</span> <span class="type">SparkException</span>(</span><br><span class="line">            <span class="string">"Cannot add data as BlockGenerator has not been started or has been stopped"</span>)</span><br><span class="line">        &#125;</span><br><span class="line">      &#125;</span><br><span class="line">    &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">      <span class="keyword">throw</span> <span class="keyword">new</span> <span class="type">SparkException</span>(</span><br><span class="line">        <span class="string">"Cannot add data as BlockGenerator has not been started or has been stopped"</span>)</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h2 id="BlockGenerator-原理"><a href="#BlockGenerator-原理" class="headerlink" title="BlockGenerator 原理"></a>BlockGenerator 原理</h2><h3 id="封装Block"><a href="#封装Block" class="headerlink" title="封装Block"></a>封装Block</h3><p>数据发送给BlockGenerator后，BlockGenerator会有一个定时的后台线程，将缓存的数据封装成Block。</p>
+<p>RecurringTimer类是定时线程，下面的blockIntervalMs参数表示间隔时间，updateCurrentBuffer参数表示执行函数。</p>
+<p>updateCurrentBuffer方法会将数据封装成Block，然后发送给队列。</p>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">private</span>[streaming] <span class="class"><span class="keyword">class</span> <span class="title">BlockGenerator</span>(<span class="params"></span></span></span><br><span class="line"><span class="class"><span class="params">  </span></span></span><br><span class="line"><span class="class"><span class="params">  // 获取时间间隔</span></span></span><br><span class="line"><span class="class"><span class="params">  private val blockIntervalMs = conf.getTimeAsMs("spark.streaming.blockInterval", "200ms"</span>)</span></span><br><span class="line"><span class="class">  <span class="title">//</span> <span class="title">实例化一个定时器</span></span></span><br><span class="line"><span class="class">  <span class="title">private</span> <span class="title">val</span> <span class="title">blockIntervalTimer</span> </span>=</span><br><span class="line">    <span class="keyword">new</span> <span class="type">RecurringTimer</span>(clock, blockIntervalMs, updateCurrentBuffer, <span class="string">"BlockGenerator"</span>)</span><br><span class="line">  <span class="comment">// 数据缓存数组</span></span><br><span class="line">  <span class="keyword">private</span> <span class="keyword">var</span> currentBuffer = <span class="keyword">new</span> <span class="type">ArrayBuffer</span>[<span class="type">Any</span>]</span><br><span class="line">  </span><br><span class="line">  <span class="comment">// Block的队列大小  </span></span><br><span class="line">  <span class="keyword">private</span> <span class="keyword">val</span> blockQueueSize = conf.getInt(<span class="string">"spark.streaming.blockQueueSize"</span>, <span class="number">10</span>)</span><br><span class="line">  <span class="comment">//存储Block的队列</span></span><br><span class="line">  <span class="keyword">private</span> <span class="keyword">val</span> blocksForPushing = <span class="keyword">new</span> <span class="type">ArrayBlockingQueue</span>[<span class="type">Block</span>](blockQueueSize)</span><br><span class="line">  </span><br><span class="line">  <span class="keyword">private</span> <span class="function"><span class="keyword">def</span> <span class="title">updateCurrentBuffer</span></span>(time: <span class="type">Long</span>): <span class="type">Unit</span> = &#123;</span><br><span class="line">    <span class="keyword">try</span> &#123;</span><br><span class="line">      <span class="keyword">var</span> newBlock: <span class="type">Block</span> = <span class="literal">null</span></span><br><span class="line">      <span class="comment">// 使用synchronized防止线程竞争</span></span><br><span class="line">      synchronized &#123;</span><br><span class="line">        <span class="keyword">if</span> (currentBuffer.nonEmpty) &#123;</span><br><span class="line">          <span class="comment">// 将数据保存到 newBlockBuffer</span></span><br><span class="line">          <span class="keyword">val</span> newBlockBuffer = currentBuffer</span><br><span class="line">          <span class="comment">// 重置 currentBuffer 为空数组</span></span><br><span class="line">          currentBuffer = <span class="keyword">new</span> <span class="type">ArrayBuffer</span>[<span class="type">Any</span>]</span><br><span class="line">          <span class="comment">// 生成StreamBlock的Id</span></span><br><span class="line">          <span class="keyword">val</span> blockId = <span class="type">StreamBlockId</span>(receiverId, time - blockIntervalMs)</span><br><span class="line">          listener.onGenerateBlock(blockId)</span><br><span class="line">          <span class="comment">// 生成Block</span></span><br><span class="line">          newBlock = <span class="keyword">new</span> <span class="type">Block</span>(blockId, newBlockBuffer)</span><br><span class="line">        &#125;</span><br><span class="line">      &#125;</span><br><span class="line"></span><br><span class="line">      <span class="keyword">if</span> (newBlock != <span class="literal">null</span>) &#123;</span><br><span class="line">        <span class="comment">// 添加到队列里</span></span><br><span class="line">        blocksForPushing.put(newBlock)  <span class="comment">// put is blocking when queue is full</span></span><br><span class="line">      &#125;</span><br><span class="line">    &#125; <span class="keyword">catch</span> &#123;</span><br><span class="line">      <span class="keyword">case</span> ie: <span class="type">InterruptedException</span> =&gt;</span><br><span class="line">        logInfo(<span class="string">"Block updating timer thread was interrupted"</span>)</span><br><span class="line">      <span class="keyword">case</span> e: <span class="type">Exception</span> =&gt;</span><br><span class="line">        reportError(<span class="string">"Error in block updating thread"</span>, e)</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h3 id="保存和发送Block"><a href="#保存和发送Block" class="headerlink" title="保存和发送Block"></a>保存和发送Block</h3><p>BlockGenerator会有一个后台线程，专门负责将队列的Block保存，和发送出去。</p>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">private</span>[streaming] <span class="class"><span class="keyword">class</span> <span class="title">BlockGenerator</span> </span>&#123;</span><br><span class="line">    </span><br><span class="line">  <span class="keyword">private</span> <span class="keyword">val</span> blockPushingThread = <span class="keyword">new</span> <span class="type">Thread</span>() &#123; <span class="keyword">override</span> <span class="function"><span class="keyword">def</span> <span class="title">run</span></span>() &#123; keepPushingBlocks() &#125; &#125;</span><br><span class="line">    </span><br><span class="line">  <span class="keyword">private</span> <span class="function"><span class="keyword">def</span> <span class="title">keepPushingBlocks</span></span>() &#123;</span><br><span class="line"></span><br><span class="line">    <span class="function"><span class="keyword">def</span> <span class="title">areBlocksBeingGenerated</span></span>: <span class="type">Boolean</span> = synchronized &#123;</span><br><span class="line">      state != <span class="type">StoppedGeneratingBlocks</span></span><br><span class="line">    &#125;</span><br><span class="line">    </span><br><span class="line">    <span class="keyword">try</span> &#123;</span><br><span class="line">      <span class="keyword">while</span> (areBlocksBeingGenerated) &#123;</span><br><span class="line">        <span class="comment">// 从队列里获取block</span></span><br><span class="line">        <span class="type">Option</span>(blocksForPushing.poll(<span class="number">10</span>, <span class="type">TimeUnit</span>.<span class="type">MILLISECONDS</span>)) <span class="keyword">match</span> &#123;</span><br><span class="line">          <span class="comment">// 调用pushBlock方法保存和发送block</span></span><br><span class="line">          <span class="keyword">case</span> <span class="type">Some</span>(block) =&gt; pushBlock(block)</span><br><span class="line">          <span class="keyword">case</span> <span class="type">None</span> =&gt;</span><br><span class="line">        &#125;</span><br><span class="line">      &#125;</span><br><span class="line">      <span class="comment">// 如果BlockGenerator停止了，则处理队列中剩余的block</span></span><br><span class="line">      logInfo(<span class="string">"Pushing out the last "</span> + blocksForPushing.size() + <span class="string">" blocks"</span>)</span><br><span class="line">      <span class="keyword">while</span> (!blocksForPushing.isEmpty) &#123;</span><br><span class="line">        <span class="keyword">val</span> block = blocksForPushing.take()</span><br><span class="line">        logDebug(<span class="string">s"Pushing block <span class="subst">$block</span>"</span>)</span><br><span class="line">        pushBlock(block)</span><br><span class="line">        logInfo(<span class="string">"Blocks left to push "</span> + blocksForPushing.size())</span><br><span class="line">      &#125;</span><br><span class="line">      logInfo(<span class="string">"Stopped block pushing thread"</span>)</span><br><span class="line">    &#125; <span class="keyword">catch</span> &#123;</span><br><span class="line">      <span class="keyword">case</span> ie: <span class="type">InterruptedException</span> =&gt;</span><br><span class="line">        logInfo(<span class="string">"Block pushing thread was interrupted"</span>)</span><br><span class="line">      <span class="keyword">case</span> e: <span class="type">Exception</span> =&gt;</span><br><span class="line">        reportError(<span class="string">"Error in block pushing thread"</span>, e)</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br><span class="line">  </span><br><span class="line">  <span class="comment">// pushBlock调用了listener的回调函数</span></span><br><span class="line">  <span class="keyword">private</span> <span class="function"><span class="keyword">def</span> <span class="title">pushBlock</span></span>(block: <span class="type">Block</span>) &#123;</span><br><span class="line">    listener.onPushBlock(block.id, block.buffer)</span><br><span class="line">    logInfo(<span class="string">"Pushed block "</span> + block.id)</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>上面的pushBlock调用了listener的方法，这里的listener是ReceiverSupervisorImpl中实例化的。</p>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">private</span>[streaming] <span class="class"><span class="keyword">class</span> <span class="title">ReceiverSupervisorImpl</span></span></span><br><span class="line"><span class="class">  <span class="title">//</span> <span class="title">BlockGeneratorListener的实现</span></span></span><br><span class="line"><span class="class">  <span class="title">private</span> <span class="title">val</span> <span class="title">defaultBlockGeneratorListener</span> </span>= <span class="keyword">new</span> <span class="type">BlockGeneratorListener</span> &#123;</span><br><span class="line">    <span class="function"><span class="keyword">def</span> <span class="title">onPushBlock</span></span>(blockId: <span class="type">StreamBlockId</span>, arrayBuffer: <span class="type">ArrayBuffer</span>[_]) &#123;</span><br><span class="line">      <span class="comment">// 调用pushArrayBuffer发送block</span></span><br><span class="line">      pushArrayBuffer(arrayBuffer, <span class="type">None</span>, <span class="type">Some</span>(blockId))</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  <span class="function"><span class="keyword">def</span> <span class="title">pushArrayBuffer</span></span>(</span><br><span class="line">      arrayBuffer: <span class="type">ArrayBuffer</span>[_],</span><br><span class="line">      metadataOption: <span class="type">Option</span>[<span class="type">Any</span>],</span><br><span class="line">      blockIdOption: <span class="type">Option</span>[<span class="type">StreamBlockId</span>]</span><br><span class="line">    ) &#123;</span><br><span class="line">    pushAndReportBlock(<span class="type">ArrayBufferBlock</span>(arrayBuffer), metadataOption, blockIdOption)</span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  <span class="function"><span class="keyword">def</span> <span class="title">pushAndReportBlock</span></span>(</span><br><span class="line">      receivedBlock: <span class="type">ReceivedBlock</span>,</span><br><span class="line">      metadataOption: <span class="type">Option</span>[<span class="type">Any</span>],</span><br><span class="line">      blockIdOption: <span class="type">Option</span>[<span class="type">StreamBlockId</span>]</span><br><span class="line">    ) &#123;</span><br><span class="line">    <span class="keyword">val</span> blockId = blockIdOption.getOrElse(nextBlockId)</span><br><span class="line">    <span class="comment">// 使用receivedBlockHandler保存block数据</span></span><br><span class="line">    <span class="keyword">val</span> blockStoreResult = receivedBlockHandler.storeBlock(blockId, receivedBlock)</span><br><span class="line">    </span><br><span class="line">    <span class="keyword">val</span> numRecords = blockStoreResult.numRecords</span><br><span class="line">    <span class="keyword">val</span> blockInfo = <span class="type">ReceivedBlockInfo</span>(streamId, numRecords, metadataOption, blockStoreResult)</span><br><span class="line">    <span class="comment">// 将保存结果的信息发送给Driver端</span></span><br><span class="line">    trackerEndpoint.askSync[<span class="type">Boolean</span>](<span class="type">AddBlock</span>(blockInfo))</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>保存Block分为两种，一种是直接保存到BlockManager中，另一种是需要预先写wal日志。详情可以参见这篇博客</p>
+<h2 id="ReceiverTracker-接收-Block-信息"><a href="#ReceiverTracker-接收-Block-信息" class="headerlink" title="ReceiverTracker 接收 Block 信息"></a>ReceiverTracker 接收 Block 信息</h2><p>ReceiverTracker运行在 driver 节点上，它启动着一个Rpc服务ReceiverTrackerEndpoint，负责处理从executor端发过来的Block信息。</p>
+<p>它有两个重要变量：</p>
+<ul>
+<li>streamIdToUnallocatedBlockQueues， 保存所有InputDStream对应的还未分配的数据</li>
+<li>timeToAllocatedBlocks， 保存了已分配的数据</li>
+</ul>
+<p>当ReceiverTrackerEndpoint收到AddBlock请求， 会调用ReceivedBlockTracker的addBlock方法添加数据。</p>
+<p>当spark streaming提交Job时，需要先从这儿分配到数据。allocateBlocksToBatch方法负责分配数据。</p>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">private</span>[streaming] <span class="class"><span class="keyword">class</span> <span class="title">ReceivedBlockTracker</span>(<span class="params"></span></span></span><br><span class="line"><span class="class"><span class="params">    conf: <span class="type">SparkConf</span>,</span></span></span><br><span class="line"><span class="class"><span class="params">    hadoopConf: <span class="type">Configuration</span>,</span></span></span><br><span class="line"><span class="class"><span class="params">    streamIds: <span class="type">Seq</span>[<span class="type">Int</span>],         // 所有<span class="type">InputDStream</span>的id</span></span></span><br><span class="line"><span class="class"><span class="params">    clock: <span class="type">Clock</span>,</span></span></span><br><span class="line"><span class="class"><span class="params">    recoverFromWriteAheadLog: <span class="type">Boolean</span>,</span></span></span><br><span class="line"><span class="class"><span class="params">    checkpointDirOption: <span class="type">Option</span>[<span class="type">String</span>]</span>)</span></span><br><span class="line"><span class="class">  <span class="keyword">extends</span> <span class="title">Logging</span> </span>&#123;</span><br><span class="line">  </span><br><span class="line">  <span class="keyword">private</span> <span class="class"><span class="keyword">type</span> <span class="title">ReceivedBlockQueue</span> </span>= mutable.<span class="type">Queue</span>[<span class="type">ReceivedBlockInfo</span>]</span><br><span class="line">  </span><br><span class="line">  <span class="comment">// key为InputDStream的id， Value为对应的Block队列</span></span><br><span class="line">  <span class="keyword">private</span> <span class="keyword">val</span> streamIdToUnallocatedBlockQueues = <span class="keyword">new</span> mutable.<span class="type">HashMap</span>[<span class="type">Int</span>, <span class="type">ReceivedBlockQueue</span>]</span><br><span class="line">  <span class="comment">// Key为数据批次的时间，Value为分配的Blocks集合</span></span><br><span class="line">  <span class="keyword">private</span> <span class="keyword">val</span> timeToAllocatedBlocks = <span class="keyword">new</span> mutable.<span class="type">HashMap</span>[<span class="type">Time</span>, <span class="type">AllocatedBlocks</span>]</span><br><span class="line">  </span><br><span class="line">  <span class="comment">// 获取对应InputDStream的未分配的Block队列</span></span><br><span class="line">  <span class="keyword">private</span> <span class="function"><span class="keyword">def</span> <span class="title">getReceivedBlockQueue</span></span>(streamId: <span class="type">Int</span>): <span class="type">ReceivedBlockQueue</span> = &#123;</span><br><span class="line">    streamIdToUnallocatedBlockQueues.getOrElseUpdate(streamId, <span class="keyword">new</span> <span class="type">ReceivedBlockQueue</span>)</span><br><span class="line">  &#125;</span><br><span class="line">      </span><br><span class="line">  <span class="comment">//添加Block</span></span><br><span class="line">  <span class="function"><span class="keyword">def</span> <span class="title">addBlock</span></span>(receivedBlockInfo: <span class="type">ReceivedBlockInfo</span>): <span class="type">Boolean</span> = &#123;</span><br><span class="line">    <span class="comment">// 如果配置了wal，则写入wal日志</span></span><br><span class="line">    <span class="keyword">val</span> writeResult = writeToLog(<span class="type">BlockAdditionEvent</span>(receivedBlockInfo))</span><br><span class="line">    <span class="keyword">if</span> (writeResult) &#123;</span><br><span class="line">      synchronized &#123;</span><br><span class="line">        <span class="comment">// 添加Block信息到streamIdToUnallocatedBlockQueues集合</span></span><br><span class="line">        getReceivedBlockQueue(receivedBlockInfo.streamId) += receivedBlockInfo</span><br><span class="line">      &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    writeResult</span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  <span class="comment">// 分配Block</span></span><br><span class="line">  <span class="function"><span class="keyword">def</span> <span class="title">allocateBlocksToBatch</span></span>(batchTime: <span class="type">Time</span>): <span class="type">Unit</span> = synchronized &#123;</span><br><span class="line">    <span class="comment">// 检测batchTime的时间必须大于上一次分配的时间</span></span><br><span class="line">    <span class="keyword">if</span> (lastAllocatedBatchTime == <span class="literal">null</span> || batchTime &gt; lastAllocatedBatchTime) &#123;</span><br><span class="line">      <span class="comment">// 获取所有InputDStream的待分配数据</span></span><br><span class="line">      <span class="keyword">val</span> streamIdToBlocks = streamIds.map &#123; streamId =&gt;</span><br><span class="line">          (streamId, getReceivedBlockQueue(streamId).dequeueAll(x =&gt; <span class="literal">true</span>))</span><br><span class="line">      &#125;.toMap</span><br><span class="line">      <span class="comment">//实例化AllocatedBlocks</span></span><br><span class="line">      <span class="keyword">val</span> allocatedBlocks = <span class="type">AllocatedBlocks</span>(streamIdToBlocks)</span><br><span class="line">      <span class="keyword">if</span> (writeToLog(<span class="type">BatchAllocationEvent</span>(batchTime, allocatedBlocks))) &#123;</span><br><span class="line">        <span class="comment">// 将分配的数据，保存到timeToAllocatedBlocks集合</span></span><br><span class="line">        timeToAllocatedBlocks.put(batchTime, allocatedBlocks)</span><br><span class="line">        <span class="comment">// 更新最后一次分配时间</span></span><br><span class="line">        lastAllocatedBatchTime = batchTime</span><br><span class="line">      &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">        logInfo(<span class="string">s"Possibly processed batch <span class="subst">$batchTime</span> needs to be processed again in WAL recovery"</span>)</span><br><span class="line">      &#125;</span><br><span class="line">    &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">      logInfo(<span class="string">s"Possibly processed batch <span class="subst">$batchTime</span> needs to be processed again in WAL recovery"</span>)</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;  </span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+      
+    </div>
+    
+    
+    
+
+    
+
+    
+
+    
+
+    <footer class="post-footer">
+      
+        <div class="post-tags">
+          
+            <a href="/tags/spark-streaming-receiver/" rel="tag"># spark, streaming, receiver</a>
+          
+        </div>
+      
+
+      
+      
+      
+
+      
+        <div class="post-nav">
+          <div class="post-nav-next post-nav-item">
+            
+              <a href="/2019/01/29/spark-shuffle-sort-writer-2/" rel="next" title="Spark SortShuffleWriter 原理">
+                <i class="fa fa-chevron-left"></i> Spark SortShuffleWriter 原理
+              </a>
+            
+          </div>
+
+          <span class="post-nav-divider"></span>
+
+          <div class="post-nav-prev post-nav-item">
+            
+          </div>
+        </div>
+      
+
+      
+      
+    </footer>
+  </div>
+  
+  
+  
+  </article>
+
+
+
+    <div class="post-spread">
+      
+    </div>
+  </div>
+
+
+          </div>
+          
+
+
+          
+
+  
+    <div class="comments" id="comments">
+    </div>
+  
+
+
+
+        </div>
+        
+          
+  
+  <div class="sidebar-toggle">
+    <div class="sidebar-toggle-line-wrap">
+      <span class="sidebar-toggle-line sidebar-toggle-line-first"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-middle"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-last"></span>
+    </div>
+  </div>
+
+  <aside id="sidebar" class="sidebar">
+    
+    <div class="sidebar-inner">
+
+      
+
+      
+        <ul class="sidebar-nav motion-element">
+          <li class="sidebar-nav-toc sidebar-nav-active" data-target="post-toc-wrap">
+            Table of Contents
+          </li>
+          <li class="sidebar-nav-overview" data-target="site-overview-wrap">
+            Overview
+          </li>
+        </ul>
+      
+
+      <section class="site-overview-wrap sidebar-panel">
+        <div class="site-overview">
+          <div class="site-author motion-element" itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+            
+              <p class="site-author-name" itemprop="name">zhmin</p>
+              <p class="site-description motion-element" itemprop="description"></p>
+          </div>
+
+          <nav class="site-state motion-element">
+
+            
+              <div class="site-state-item site-state-posts">
+              
+                <a href="/archives/">
+              
+                  <span class="site-state-item-count">20</span>
+                  <span class="site-state-item-name">posts</span>
+                </a>
+              </div>
+            
+
+            
+
+            
+              
+              
+              <div class="site-state-item site-state-tags">
+                
+                  <span class="site-state-item-count">18</span>
+                  <span class="site-state-item-name">tags</span>
+                
+              </div>
+            
+
+          </nav>
+
+          
+
+          
+            <div class="links-of-author motion-element">
+                
+                  <span class="links-of-author-item">
+                    <a href="https://github.com/zhmin" target="_blank" title="GitHub">
+                      
+                        <i class="fa fa-fw fa-github"></i>GitHub</a>
+                  </span>
+                
+            </div>
+          
+
+          
+          
+
+          
+          
+
+          
+
+        </div>
+      </section>
+
+      
+      <!--noindex-->
+        <section class="post-toc-wrap motion-element sidebar-panel sidebar-panel-active">
+          <div class="post-toc">
+
+            
+              
+            
+
+            
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#Spark-Streaming-数据源读取"><span class="nav-number">1.</span> <span class="nav-text">Spark Streaming 数据源读取</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#Receiver-任务运行"><span class="nav-number">1.1.</span> <span class="nav-text">Receiver 任务运行</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#ReceiverTracker-提交任务"><span class="nav-number">1.1.1.</span> <span class="nav-text">ReceiverTracker 提交任务</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#ReceiverSupervisorImpl-启动"><span class="nav-number">1.1.2.</span> <span class="nav-text">ReceiverSupervisorImpl 启动</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Receiver-启动"><span class="nav-number">1.1.3.</span> <span class="nav-text">Receiver 启动</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#BlockGenerator-原理"><span class="nav-number">1.2.</span> <span class="nav-text">BlockGenerator 原理</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#封装Block"><span class="nav-number">1.2.1.</span> <span class="nav-text">封装Block</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#保存和发送Block"><span class="nav-number">1.2.2.</span> <span class="nav-text">保存和发送Block</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#ReceiverTracker-接收-Block-信息"><span class="nav-number">1.3.</span> <span class="nav-text">ReceiverTracker 接收 Block 信息</span></a></li></ol></li></ol></div>
+            
+
+          </div>
+        </section>
+      <!--/noindex-->
+      
+
+      
+
+    </div>
+  </aside>
+
+
+        
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="footer-inner">
+        <div class="copyright">&copy; <span itemprop="copyrightYear">2019</span>
+  <span class="with-love">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">zhmin</span>
+
+  
+</div>
+
+
+
+
+
+
+
+
+
+
+
+  <script src="https://unpkg.com/mermaid@7.1.2/dist/mermaid.min.js"></script>
+  <script>
+    if (window.mermaid) {
+      mermaid.initialize({"startOnload":"true  // default true","theme":"forest"});
+    }
+  </script>
+
+
+
+<script async src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+<span id="busuanzi_container_site_pv">
+    访问量<span id="busuanzi_value_site_pv"></span>
+</span>
+<span class="post-meta-divider">|</span>
+<span id="busuanzi_container_site_uv">
+  访客数<span id="busuanzi_value_site_uv"></span>
+</span>
+
+        
+
+
+
+
+
+
+
+        
+      </div>
+    </footer>
+
+    
+      <div class="back-to-top">
+        <i class="fa fa-arrow-up"></i>
+        
+      </div>
+    
+
+    
+
+  </div>
+
+  
+
+<script type="text/javascript">
+  if (Object.prototype.toString.call(window.Promise) !== '[object Function]') {
+    window.Promise = null;
+  }
+</script>
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery/index.js?v=2.1.3"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fastclick/lib/fastclick.min.js?v=1.0.6"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery_lazyload/jquery.lazyload.js?v=1.9.7"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.ui.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fancybox/source/jquery.fancybox.pack.js?v=2.1.5"></script>
+  
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/utils.js?v=5.1.4"></script>
+
+  <script type="text/javascript" src="/js/src/motion.js?v=5.1.4"></script>
+
+
+
+  
+  
+
+  
+  <script type="text/javascript" src="/js/src/scrollspy.js?v=5.1.4"></script>
+<script type="text/javascript" src="/js/src/post-details.js?v=5.1.4"></script>
+
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/bootstrap.js?v=5.1.4"></script>
+
+
+
+  
+
+
+  
+
+
+
+
+	
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+  <script src="//cdn1.lncld.net/static/js/3.0.4/av-min.js"></script>
+  <script src="//unpkg.com/valine/dist/Valine.min.js"></script>
+  
+  <script type="text/javascript">
+    var GUEST = ['nick','mail','link'];
+    var guest = 'nick';
+    guest = guest.split(',').filter(item=>{
+      return GUEST.indexOf(item)>-1;
+    });
+    new Valine({
+        el: '#comments' ,
+        verify: false,
+        notify: false,
+        appId: 'iYiPQlDR2X2zg2QIql2UEe2o-gzGzoHsz',
+        appKey: 'EW8G4sftwX1pef1zS9EsOeKE',
+        placeholder: 'comment here',
+        avatar:'mm',
+        guest_info:guest,
+        pageSize:'10' || 10,
+    });
+  </script>
+
+
+
+  
+
+
+
+
+
+  
+
+  
+  <script src="https://cdn1.lncld.net/static/js/av-core-mini-0.6.4.js"></script>
+  <script>AV.initialize("iYiPQlDR2X2zg2QIql2UEe2o-gzGzoHsz", "EW8G4sftwX1pef1zS9EsOeKE");</script>
+  <script>
+    function showTime(Counter) {
+      var query = new AV.Query(Counter);
+      var entries = [];
+      var $visitors = $(".leancloud_visitors");
+
+      $visitors.each(function () {
+        entries.push( $(this).attr("id").trim() );
+      });
+
+      query.containedIn('url', entries);
+      query.find()
+        .done(function (results) {
+          var COUNT_CONTAINER_REF = '.leancloud-visitors-count';
+
+          if (results.length === 0) {
+            $visitors.find(COUNT_CONTAINER_REF).text(0);
+            return;
+          }
+
+          for (var i = 0; i < results.length; i++) {
+            var item = results[i];
+            var url = item.get('url');
+            var time = item.get('time');
+            var element = document.getElementById(url);
+
+            $(element).find(COUNT_CONTAINER_REF).text(time);
+          }
+          for(var i = 0; i < entries.length; i++) {
+            var url = entries[i];
+            var element = document.getElementById(url);
+            var countSpan = $(element).find(COUNT_CONTAINER_REF);
+            if( countSpan.text() == '') {
+              countSpan.text(0);
+            }
+          }
+        })
+        .fail(function (object, error) {
+          console.log("Error: " + error.code + " " + error.message);
+        });
+    }
+
+    function addCount(Counter) {
+      var $visitors = $(".leancloud_visitors");
+      var url = $visitors.attr('id').trim();
+      var title = $visitors.attr('data-flag-title').trim();
+      var query = new AV.Query(Counter);
+
+      query.equalTo("url", url);
+      query.find({
+        success: function(results) {
+          if (results.length > 0) {
+            var counter = results[0];
+            counter.fetchWhenSave(true);
+            counter.increment("time");
+            counter.save(null, {
+              success: function(counter) {
+                var $element = $(document.getElementById(url));
+                $element.find('.leancloud-visitors-count').text(counter.get('time'));
+              },
+              error: function(counter, error) {
+                console.log('Failed to save Visitor num, with error message: ' + error.message);
+              }
+            });
+          } else {
+            var newcounter = new Counter();
+            /* Set ACL */
+            var acl = new AV.ACL();
+            acl.setPublicReadAccess(true);
+            acl.setPublicWriteAccess(true);
+            newcounter.setACL(acl);
+            /* End Set ACL */
+            newcounter.set("title", title);
+            newcounter.set("url", url);
+            newcounter.set("time", 1);
+            newcounter.save(null, {
+              success: function(newcounter) {
+                var $element = $(document.getElementById(url));
+                $element.find('.leancloud-visitors-count').text(newcounter.get('time'));
+              },
+              error: function(newcounter, error) {
+                console.log('Failed to create');
+              }
+            });
+          }
+        },
+        error: function(error) {
+          console.log('Error:' + error.code + " " + error.message);
+        }
+      });
+    }
+
+    $(function() {
+      var Counter = AV.Object.extend("Counter");
+      if ($('.leancloud_visitors').length == 1) {
+        addCount(Counter);
+      } else if ($('.post-title-link').length > 1) {
+        showTime(Counter);
+      }
+    });
+  </script>
+
+
+
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+</body>
+</html>
