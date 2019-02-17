@@ -1,0 +1,879 @@
+<!DOCTYPE html>
+
+
+
+  
+
+
+<html class="theme-next mist use-motion" lang="">
+<head><meta name="generator" content="Hexo 3.8.0">
+  <meta charset="UTF-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="theme-color" content="#222">
+
+
+
+
+
+
+
+
+
+<meta http-equiv="Cache-Control" content="no-transform">
+<meta http-equiv="Cache-Control" content="no-siteapp">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+  <link href="/lib/fancybox/source/jquery.fancybox.css?v=2.1.5" rel="stylesheet" type="text/css">
+
+
+
+
+
+
+
+<link href="/lib/font-awesome/css/font-awesome.min.css?v=4.6.2" rel="stylesheet" type="text/css">
+
+<link href="/css/main.css?v=5.1.4" rel="stylesheet" type="text/css">
+
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png?v=5.1.4">
+
+
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png?v=5.1.4">
+
+
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png?v=5.1.4">
+
+
+  <link rel="mask-icon" href="/images/logo.svg?v=5.1.4" color="#222">
+
+
+
+
+
+  <meta name="keywords" content="spark, streaming, wal,">
+
+
+
+
+
+
+
+
+
+
+<meta name="description" content="Spark Streaming WAL 原理WAL表示预写日志，经常在数据库中会使用到，在宕机后也能根据WAL恢复数据。Spark Streaming为了提高服务的容错性，也引入了WAL。它会将WAL存到可靠的文件系统 hdfs 里。Spark Streaming 运行在 executor 节点的 receiver， 从数据源读取数据后，如果配置了wal选项，会将数据写入WAL。这样当 execu">
+<meta name="keywords" content="spark, streaming, wal">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Spark Streaming WAL 原理">
+<meta property="og:url" content="https://zhmin.github.io/2019/02/17/spark-streaming-wal/index.html">
+<meta property="og:site_name" content="blog">
+<meta property="og:description" content="Spark Streaming WAL 原理WAL表示预写日志，经常在数据库中会使用到，在宕机后也能根据WAL恢复数据。Spark Streaming为了提高服务的容错性，也引入了WAL。它会将WAL存到可靠的文件系统 hdfs 里。Spark Streaming 运行在 executor 节点的 receiver， 从数据源读取数据后，如果配置了wal选项，会将数据写入WAL。这样当 execu">
+<meta property="og:locale" content="default">
+<meta property="og:updated_time" content="2019-02-17T13:30:10.167Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Spark Streaming WAL 原理">
+<meta name="twitter:description" content="Spark Streaming WAL 原理WAL表示预写日志，经常在数据库中会使用到，在宕机后也能根据WAL恢复数据。Spark Streaming为了提高服务的容错性，也引入了WAL。它会将WAL存到可靠的文件系统 hdfs 里。Spark Streaming 运行在 executor 节点的 receiver， 从数据源读取数据后，如果配置了wal选项，会将数据写入WAL。这样当 execu">
+
+
+
+<script type="text/javascript" id="hexo.configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '/',
+    scheme: 'Mist',
+    version: '5.1.4',
+    sidebar: {"position":"left","display":"hide","offset":12,"b2t":false,"scrollpercent":false,"onmobile":false},
+    fancybox: true,
+    tabs: true,
+    motion: {"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},
+    duoshuo: {
+      userId: '0',
+      author: 'Author'
+    },
+    algolia: {
+      applicationID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    }
+  };
+</script>
+
+
+
+  <link rel="canonical" href="https://zhmin.github.io/2019/02/17/spark-streaming-wal/">
+
+
+
+
+
+  <title>Spark Streaming WAL 原理 | blog</title>
+  
+
+
+
+
+
+
+
+
+</head>
+
+<body itemscope="" itemtype="http://schema.org/WebPage" lang="default">
+
+  
+  
+    
+  
+
+  <div class="container sidebar-position-left page-post-detail">
+    <div class="headband"></div>
+
+    <header id="header" class="header" itemscope="" itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-wrapper">
+  <div class="site-meta ">
+    
+
+    <div class="custom-logo-site-title">
+      <a href="/" class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">blog</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+      
+        <h1 class="site-subtitle" itemprop="description"></h1>
+      
+  </div>
+
+  <div class="site-nav-toggle">
+    <button>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+    </button>
+  </div>
+</div>
+
+<nav class="site-nav">
+  
+
+  
+    <ul id="menu" class="menu">
+      
+        
+        <li class="menu-item menu-item-home">
+          <a href="/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-home"></i> <br>
+            
+            Home
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-archives">
+          <a href="/archives/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-archive"></i> <br>
+            
+            Archives
+          </a>
+        </li>
+      
+
+      
+    </ul>
+  
+
+  
+</nav>
+
+
+
+ </div>
+    </header>
+
+    <main id="main" class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          <div id="content" class="content">
+            
+
+  <div id="posts" class="posts-expand">
+    
+
+  
+
+  
+  
+  
+
+  <article class="post post-type-normal" itemscope="" itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block">
+    <link itemprop="mainEntityOfPage" href="https://zhmin.github.io/2019/02/17/spark-streaming-wal/">
+
+    <span hidden itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="zhmin">
+      <meta itemprop="description" content="">
+      <meta itemprop="image" content="/images/avatar.gif">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope="" itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="blog">
+    </span>
+
+    
+      <header class="post-header">
+
+        
+        
+          <h2 class="post-title" itemprop="name headline">Spark Streaming WAL 原理</h2>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">Posted on</span>
+              
+              <time title="Post created" itemprop="dateCreated datePublished" datetime="2019-02-17T21:29:24+08:00">
+                2019-02-17
+              </time>
+            
+
+            
+
+            
+          </span>
+
+          
+
+          
+            
+              <span class="post-comments-count">
+                <span class="post-meta-divider">|</span>
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-comment-o"></i>
+                </span>
+                <a href="/2019/02/17/spark-streaming-wal/#comments" itemprop="discussionUrl">
+                  <span class="post-comments-count valine-comment-count" data-xid="/2019/02/17/spark-streaming-wal/" itemprop="commentCount"></span>
+                </a>
+              </span>
+            
+          
+
+          
+          
+             <span id="/2019/02/17/spark-streaming-wal/" class="leancloud_visitors" data-flag-title="Spark Streaming WAL 原理">
+               <span class="post-meta-divider">|</span>
+               <span class="post-meta-item-icon">
+                 <i class="fa fa-eye"></i>
+               </span>
+               
+                 <span class="post-meta-item-text">Visitors&#58;</span>
+               
+                 <span class="leancloud-visitors-count"></span>
+             </span>
+          
+
+          
+
+          
+
+          
+
+        </div>
+      </header>
+    
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+      
+
+      
+        <h1 id="Spark-Streaming-WAL-原理"><a href="#Spark-Streaming-WAL-原理" class="headerlink" title="Spark Streaming WAL 原理"></a>Spark Streaming WAL 原理</h1><p>WAL表示预写日志，经常在数据库中会使用到，在宕机后也能根据WAL恢复数据。Spark Streaming为了提高服务的容错性，也引入了WAL。它会将WAL存到可靠的文件系统 hdfs 里。Spark Streaming</p>
+<p>运行在 executor 节点的 receiver， 从数据源读取数据后，如果配置了wal选项，会将数据写入WAL。这样当 executor 节点挂了之后，还能从WAL中恢复数据。</p>
+<p>运行在 driver 节点的ReceivedBlockTracker，负责管理 block的元数据。当处理添加block，分配block和删除block请求的时候，会将此次事件信息写入WAL。</p>
+<h2 id="WAL-Writer-种类"><a href="#WAL-Writer-种类" class="headerlink" title="WAL Writer 种类"></a>WAL Writer 种类</h2><p>WriteAheadLog是WAL处理的抽象类，由如下方法，提供了读取，写入，删除WAL。</p>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line">public <span class="keyword">abstract</span> <span class="class"><span class="keyword">class</span> <span class="title">WriteAheadLog</span> </span>&#123;</span><br><span class="line">  </span><br><span class="line">  <span class="comment">// 将数据写入到WAL文件，参数record为即将保存的数据，参数time表示数据的结束时间</span></span><br><span class="line">  <span class="comment">// 返回WriteAheadLogRecordHandle对象，包含了存储的信息</span></span><br><span class="line">  public <span class="keyword">abstract</span> <span class="type">WriteAheadLogRecordHandle</span> write(<span class="type">ByteBuffer</span> record, long time);</span><br><span class="line">  </span><br><span class="line">  <span class="comment">// 根据write方法返回的信息，来读取对应的数据</span></span><br><span class="line">  public <span class="keyword">abstract</span> <span class="type">ByteBuffer</span> read(<span class="type">WriteAheadLogRecordHandle</span> handle);</span><br><span class="line"></span><br><span class="line">  <span class="comment">// 读取所有还未过期的数据</span></span><br><span class="line">  public <span class="keyword">abstract</span> <span class="type">Iterator</span>&lt;<span class="type">ByteBuffer</span>&gt; readAll();</span><br><span class="line"></span><br><span class="line">  <span class="comment">// 清除过期的WAL文件，参数threshTime表示截止时间</span></span><br><span class="line">  public <span class="keyword">abstract</span> void clean(long threshTime, boolean waitForCompletion);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>WriteAheadLog有两个子类，对应不同的存储原理。 </p>
+<p>子类FileBasedWriteAheadLog，实现了以文件的方式存储数据。</p>
+<p>子类BatchedWriteAheadLog，基于FileBasedWriteAheadLog之上，实现了批次的存储。</p>
+<h2 id="FileBasedWriteAheadLog-原理"><a href="#FileBasedWriteAheadLog-原理" class="headerlink" title="FileBasedWriteAheadLog 原理"></a>FileBasedWriteAheadLog 原理</h2><p>executor 节点上的WAL采用了FileBasedWriteAheadLog管理。如果要支持 wal，必须指定 checkpoint 的目录。</p>
+<p>它的WAL目录格式如下：</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">checkpointDir/</span><br><span class="line">├── receivedData</span><br><span class="line">│   ├── streamId0</span><br><span class="line">|   |   |── log-starttime0-endtime0</span><br><span class="line">|   |   |── log-starttime1-endtime1</span><br><span class="line">|   |   |── log-starttime1-endtime1</span><br><span class="line">│   ├── streamId1</span><br><span class="line">│   └── streamId2</span><br></pre></td></tr></table></figure>
+<p>wal的根目录是 checkpoint 目录下的 receivedData 目录。</p>
+<p>每个 receiver 都有独立的目录，目录名为它的 id 号。</p>
+<p>在每个独立的目录下，还会按照时间范围存储WAL文件，文件名中包含了起始时间和结束时间。 </p>
+<h3 id="WAL创建"><a href="#WAL创建" class="headerlink" title="WAL创建"></a>WAL创建</h3><p>WAL的创建由write方法负责。再介绍write方法之前，需要先介绍FileBasedWriteAheadLogWriter类。它负责wal的写入，会将数据写入到 可靠的文件系统 hdfs 里。</p>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">class</span> <span class="title">FileBasedWriteAheadLogWriter</span>(<span class="params">path: <span class="type">String</span>, hadoopConf: <span class="type">Configuration</span></span>)</span></span><br><span class="line"><span class="class">  <span class="keyword">extends</span> <span class="title">Closeable</span> </span>&#123;</span><br><span class="line">  <span class="comment">// 根据配置，返回hdfs的客户端或者本地文件的客户端，并且创建文件</span></span><br><span class="line">  <span class="keyword">private</span> <span class="keyword">lazy</span> <span class="keyword">val</span> stream = <span class="type">HdfsUtils</span>.getOutputStream(path, hadoopConf)</span><br><span class="line"></span><br><span class="line">  <span class="comment">// 获取当前文件的偏移量</span></span><br><span class="line">  <span class="keyword">private</span> <span class="keyword">var</span> nextOffset = stream.getPos()</span><br><span class="line">  <span class="keyword">private</span> <span class="keyword">var</span> closed = <span class="literal">false</span></span><br><span class="line"></span><br><span class="line">  <span class="comment">/** Write the bytebuffer to the log file */</span></span><br><span class="line">  <span class="function"><span class="keyword">def</span> <span class="title">write</span></span>(data: <span class="type">ByteBuffer</span>): <span class="type">FileBasedWriteAheadLogSegment</span> = synchronized &#123;</span><br><span class="line">    data.rewind() <span class="comment">// 准备读</span></span><br><span class="line">    <span class="keyword">val</span> lengthToWrite = data.remaining()</span><br><span class="line">    <span class="comment">// 记录本次数据的位置信息，WAL文件路径，起始位置，数据长度</span></span><br><span class="line">    <span class="keyword">val</span> segment = <span class="keyword">new</span> <span class="type">FileBasedWriteAheadLogSegment</span>(path, nextOffset, lengthToWrite)</span><br><span class="line">    <span class="comment">// 写入数据长度</span></span><br><span class="line">    stream.writeInt(lengthToWrite)</span><br><span class="line">    <span class="comment">// 将bytebuffer的数据写入到outputstream</span></span><br><span class="line">    <span class="type">Utils</span>.writeByteBuffer(data, stream: <span class="type">OutputStream</span>)</span><br><span class="line">    <span class="comment">// 刷新缓存</span></span><br><span class="line">    flush()</span><br><span class="line">    <span class="comment">// 更新当前文件的偏移量</span></span><br><span class="line">    nextOffset = stream.getPos()</span><br><span class="line">    <span class="comment">// 返回此次数据的信息</span></span><br><span class="line">    segment</span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  <span class="keyword">private</span> <span class="function"><span class="keyword">def</span> <span class="title">flush</span></span>() &#123;</span><br><span class="line">    stream.hflush()</span><br><span class="line">    <span class="comment">// Useful for local file system where hflush/sync does not work (HADOOP-7844)</span></span><br><span class="line">    stream.getWrappedStream.flush()</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>FileBasedWriteAheadLogWriter的write方法返回FileBasedWriteAheadLogSegment结果，表示了此次WAL数据的位置信息。后面的WAL读取，会通过它来找到位置。</p>
+<p>接下来看看FileBasedWriteAheadLog的write方法。它会根据时间范围，存储到不同的文件中。</p>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">private</span>[streaming] <span class="class"><span class="keyword">class</span> <span class="title">FileBasedWriteAheadLog</span> </span>&#123;</span><br><span class="line">  </span><br><span class="line">  <span class="comment">// 记录当前WAL文件的路径</span></span><br><span class="line">  <span class="keyword">private</span> <span class="keyword">var</span> currentLogPath: <span class="type">Option</span>[<span class="type">String</span>] = <span class="type">None</span></span><br><span class="line">  <span class="comment">// 记录当前WAL writer</span></span><br><span class="line">  <span class="keyword">private</span> <span class="keyword">var</span> currentLogWriter: <span class="type">FileBasedWriteAheadLogWriter</span> = <span class="literal">null</span></span><br><span class="line">  <span class="comment">// 当前WAL文件的开始时间</span></span><br><span class="line">  <span class="keyword">private</span> <span class="keyword">var</span> currentLogWriterStartTime: <span class="type">Long</span> = <span class="number">-1</span>L</span><br><span class="line">  <span class="comment">// 当前WAL文件的结束时间</span></span><br><span class="line">  <span class="keyword">private</span> <span class="keyword">var</span> currentLogWriterStopTime: <span class="type">Long</span> = <span class="number">-1</span>L</span><br><span class="line">  <span class="comment">// 记录完成的WAL文件信息</span></span><br><span class="line">  <span class="keyword">private</span> <span class="keyword">val</span> pastLogs = <span class="keyword">new</span> <span class="type">ArrayBuffer</span>[<span class="type">LogInfo</span>]</span><br><span class="line">  </span><br><span class="line">  <span class="function"><span class="keyword">def</span> <span class="title">write</span></span>(byteBuffer: <span class="type">ByteBuffer</span>, time: <span class="type">Long</span>): <span class="type">FileBasedWriteAheadLogSegment</span> = synchronized &#123;</span><br><span class="line">    <span class="keyword">var</span> fileSegment: <span class="type">FileBasedWriteAheadLogSegment</span> = <span class="literal">null</span></span><br><span class="line">    <span class="keyword">var</span> failures = <span class="number">0</span></span><br><span class="line">    <span class="keyword">var</span> lastException: <span class="type">Exception</span> = <span class="literal">null</span></span><br><span class="line">    <span class="keyword">var</span> succeeded = <span class="literal">false</span></span><br><span class="line">    <span class="comment">// 尝试最多maxFailures次数</span></span><br><span class="line">    <span class="keyword">while</span> (!succeeded &amp;&amp; failures &lt; maxFailures) &#123;</span><br><span class="line">      <span class="keyword">try</span> &#123;</span><br><span class="line">        <span class="comment">// 首先调用getLogWriter获取writer，</span></span><br><span class="line">        <span class="comment">// 然后通过writer写入数据</span></span><br><span class="line">        fileSegment = getLogWriter(time).write(byteBuffer)</span><br><span class="line">        <span class="keyword">if</span> (closeFileAfterWrite) &#123;</span><br><span class="line">          resetWriter()</span><br><span class="line">        &#125;</span><br><span class="line">        succeeded = <span class="literal">true</span></span><br><span class="line">      &#125; <span class="keyword">catch</span> &#123;</span><br><span class="line">        <span class="keyword">case</span> ex: <span class="type">Exception</span> =&gt;</span><br><span class="line">          lastException = ex</span><br><span class="line">          logWarning(<span class="string">"Failed to write to write ahead log"</span>)</span><br><span class="line">          resetWriter()</span><br><span class="line">          failures += <span class="number">1</span></span><br><span class="line">      &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">if</span> (fileSegment == <span class="literal">null</span>) &#123;</span><br><span class="line">      logError(<span class="string">s"Failed to write to write ahead log after <span class="subst">$failures</span> failures"</span>)</span><br><span class="line">      <span class="keyword">throw</span> lastException</span><br><span class="line">    &#125;</span><br><span class="line">    fileSegment</span><br><span class="line">  &#125;</span><br><span class="line">  </span><br><span class="line">  <span class="keyword">private</span> <span class="function"><span class="keyword">def</span> <span class="title">getLogWriter</span></span>(currentTime: <span class="type">Long</span>): <span class="type">FileBasedWriteAheadLogWriter</span> = synchronized &#123;</span><br><span class="line">    <span class="comment">// 每个WAL文件都有对应的时间范围，如果超过了，则需要创建新的WAL文件</span></span><br><span class="line">    <span class="keyword">if</span> (currentLogWriter == <span class="literal">null</span> || currentTime &gt; currentLogWriterStopTime) &#123;</span><br><span class="line">      <span class="comment">// 关闭当前writer</span></span><br><span class="line">      resetWriter()</span><br><span class="line">      <span class="comment">// 添加当前WAL的信息到currentLogPath列表，</span></span><br><span class="line">      <span class="comment">// 相关信息包括起始时间，结束时间，文件路径</span></span><br><span class="line">      currentLogPath.foreach &#123;</span><br><span class="line">        pastLogs += <span class="type">LogInfo</span>(currentLogWriterStartTime, currentLogWriterStopTime, _)</span><br><span class="line">      &#125;</span><br><span class="line">      <span class="comment">// 更新currentLogWriterStartTime为新的WAL文件的开始时间</span></span><br><span class="line">      currentLogWriterStartTime = currentTime</span><br><span class="line">      <span class="comment">// 更新currentLogWriterStopTime为新的WAL文件的结束时间</span></span><br><span class="line">      currentLogWriterStopTime = currentTime + (rollingIntervalSecs * <span class="number">1000</span>)</span><br><span class="line">      <span class="comment">// 生成新的WAL文件的路径</span></span><br><span class="line">      <span class="keyword">val</span> newLogPath = <span class="keyword">new</span> <span class="type">Path</span>(logDirectory,</span><br><span class="line">        timeToLogFile(currentLogWriterStartTime, currentLogWriterStopTime))</span><br><span class="line">      <span class="comment">// 更新currentLogPath为新的WAL文件的路径</span></span><br><span class="line">      currentLogPath = <span class="type">Some</span>(newLogPath.toString)</span><br><span class="line">      <span class="comment">// 更新currentLogWriter为新的writer</span></span><br><span class="line">      currentLogWriter = <span class="keyword">new</span> <span class="type">FileBasedWriteAheadLogWriter</span>(currentLogPath.get, hadoopConf)</span><br><span class="line">    &#125;</span><br><span class="line">    currentLogWriter</span><br><span class="line">  &#125;</span><br></pre></td></tr></table></figure>
+<h3 id="WAL-读取"><a href="#WAL-读取" class="headerlink" title="WAL 读取"></a>WAL 读取</h3><p>WAL的读取由read方法负责，它只是通过FileBasedWriteAheadLogRandomReader来读取。FileBasedWriteAheadLogRandomReader支持seek操作，所以它支持单次数据的读取。</p>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">class</span> <span class="title">FileBasedWriteAheadLog</span> </span>&#123;  </span><br><span class="line">  <span class="comment">// 参数segment是 write方法返回的FileBasedWriteAheadLogSegment</span></span><br><span class="line">  <span class="comment">// 包含了数据的位置信息</span></span><br><span class="line">  <span class="function"><span class="keyword">def</span> <span class="title">read</span></span>(segment: <span class="type">WriteAheadLogRecordHandle</span>): <span class="type">ByteBuffer</span> = &#123;</span><br><span class="line">    <span class="keyword">val</span> fileSegment = segment.asInstanceOf[<span class="type">FileBasedWriteAheadLogSegment</span>]</span><br><span class="line">    <span class="keyword">var</span> reader: <span class="type">FileBasedWriteAheadLogRandomReader</span> = <span class="literal">null</span></span><br><span class="line">    <span class="keyword">var</span> byteBuffer: <span class="type">ByteBuffer</span> = <span class="literal">null</span></span><br><span class="line">    <span class="keyword">try</span> &#123;</span><br><span class="line">      <span class="comment">// 实例化FileBasedWriteAheadLogRandomReader，读取数据</span></span><br><span class="line">      reader = <span class="keyword">new</span> <span class="type">FileBasedWriteAheadLogRandomReader</span>(fileSegment.path, hadoopConf)</span><br><span class="line">      byteBuffer = reader.read(fileSegment)</span><br><span class="line">    &#125; <span class="keyword">finally</span> &#123;</span><br><span class="line">      reader.close()</span><br><span class="line">    &#125;</span><br><span class="line">    byteBuffer</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="class"><span class="keyword">class</span> <span class="title">FileBasedWriteAheadLogRandomReader</span>(<span class="params">path: <span class="type">String</span>, conf: <span class="type">Configuration</span></span>)</span></span><br><span class="line"><span class="class">  <span class="keyword">extends</span> <span class="title">Closeable</span> </span>&#123;</span><br><span class="line">  <span class="comment">// 获取hdfs的读客户端</span></span><br><span class="line">  <span class="keyword">private</span> <span class="keyword">val</span> instream = <span class="type">HdfsUtils</span>.getInputStream(path, conf)</span><br><span class="line">  <span class="keyword">private</span> <span class="keyword">var</span> closed = (instream == <span class="literal">null</span>) <span class="comment">// the file may be deleted as we're opening the stream</span></span><br><span class="line"></span><br><span class="line">  <span class="function"><span class="keyword">def</span> <span class="title">read</span></span>(segment: <span class="type">FileBasedWriteAheadLogSegment</span>): <span class="type">ByteBuffer</span> = synchronized &#123;</span><br><span class="line">    <span class="comment">// 获取该数据所在文件中的起始位置</span></span><br><span class="line">    <span class="comment">// 调用seek移动文件的读取位置</span></span><br><span class="line">    instream.seek(segment.offset)</span><br><span class="line">    <span class="comment">// 读取数据的长度</span></span><br><span class="line">    <span class="keyword">val</span> nextLength = instream.readInt()</span><br><span class="line">    <span class="comment">// 实例化Byte数组</span></span><br><span class="line">    <span class="keyword">val</span> buffer = <span class="keyword">new</span> <span class="type">Array</span>[<span class="type">Byte</span>](nextLength)</span><br><span class="line">    <span class="comment">// 读取数据到数组</span></span><br><span class="line">    instream.readFully(buffer)</span><br><span class="line">    <span class="comment">// 返回ByteBuffer</span></span><br><span class="line">    <span class="type">ByteBuffer</span>.wrap(buffer)</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h3 id="WAL-删除"><a href="#WAL-删除" class="headerlink" title="WAL 删除"></a>WAL 删除</h3><p>spark streaming处理的是流数据，它不可能会将所有的数据都保存下来。所以对于处理过的数据，它会定期删除掉。FileBasedWriteAheadLog同样提供了clean接口，来处理过期的数据</p>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">class</span> <span class="title">FileBasedWriteAheadLog</span> </span>&#123;</span><br><span class="line">  <span class="comment">// WAL文件信息列表</span></span><br><span class="line">  <span class="keyword">private</span> <span class="keyword">val</span> pastLogs = <span class="keyword">new</span> <span class="type">ArrayBuffer</span>[<span class="type">LogInfo</span>]</span><br><span class="line">  </span><br><span class="line">  <span class="function"><span class="keyword">def</span> <span class="title">clean</span></span>(threshTime: <span class="type">Long</span>, waitForCompletion: <span class="type">Boolean</span>): <span class="type">Unit</span> = &#123;</span><br><span class="line">    <span class="comment">// 找到结束时间小于threshTime的WAL文件</span></span><br><span class="line">    <span class="keyword">val</span> oldLogFiles = synchronized &#123;</span><br><span class="line">      <span class="keyword">val</span> expiredLogs = pastLogs.filter &#123; _.endTime &lt; threshTime &#125;</span><br><span class="line">      pastLogs --= expiredLogs</span><br><span class="line">      expiredLogs</span><br><span class="line">    &#125;</span><br><span class="line">  </span><br><span class="line">    <span class="function"><span class="keyword">def</span> <span class="title">deleteFile</span></span>(walInfo: <span class="type">LogInfo</span>): <span class="type">Unit</span> = &#123;</span><br><span class="line">      <span class="keyword">try</span> &#123;</span><br><span class="line">        <span class="comment">// 获取WAL文件的路径</span></span><br><span class="line">        <span class="keyword">val</span> path = <span class="keyword">new</span> <span class="type">Path</span>(walInfo.path)</span><br><span class="line">        <span class="comment">// 获取FileSystem</span></span><br><span class="line">        <span class="keyword">val</span> fs = <span class="type">HdfsUtils</span>.getFileSystemForPath(path, hadoopConf)</span><br><span class="line">        <span class="comment">// 删除WAL文件</span></span><br><span class="line">        fs.delete(path, <span class="literal">true</span>)</span><br><span class="line">      &#125; <span class="keyword">catch</span> &#123;</span><br><span class="line">        <span class="keyword">case</span> ex: <span class="type">Exception</span> =&gt;</span><br><span class="line">          logWarning(<span class="string">s"Error clearing write ahead log file <span class="subst">$walInfo</span>"</span>, ex)</span><br><span class="line">      &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    </span><br><span class="line">    <span class="comment">// 遍历需要删除的WAL文件列表，调用deleteFile方法删除</span></span><br><span class="line">    oldLogFiles.foreach &#123; logInfo =&gt;</span><br><span class="line">      <span class="keyword">if</span> (!executionContext.isShutdown) &#123;</span><br><span class="line">        <span class="keyword">try</span> &#123;</span><br><span class="line">          <span class="comment">// 使用线程池删除文件</span></span><br><span class="line">          <span class="keyword">val</span> f = <span class="type">Future</span> &#123; deleteFile(logInfo) &#125;(executionContext)</span><br><span class="line">          <span class="keyword">if</span> (waitForCompletion) &#123;</span><br><span class="line">            <span class="keyword">import</span> scala.concurrent.duration._</span><br><span class="line">            <span class="comment">// scalastyle:off awaitready</span></span><br><span class="line">            <span class="type">Await</span>.ready(f, <span class="number">1</span> second)</span><br><span class="line">            <span class="comment">// scalastyle:on awaitready</span></span><br><span class="line">          &#125;</span><br><span class="line">        &#125; <span class="keyword">catch</span> &#123;</span><br><span class="line">          <span class="keyword">case</span> e: <span class="type">RejectedExecutionException</span> =&gt;</span><br><span class="line">            logWarning(<span class="string">"Execution context shutdown before deleting old WriteAheadLogs. "</span> +</span><br><span class="line">              <span class="string">"This would not affect recovery correctness."</span>, e)</span><br><span class="line">        &#125;</span><br><span class="line">      &#125;</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h2 id="BatchedWriteAheadLog"><a href="#BatchedWriteAheadLog" class="headerlink" title="BatchedWriteAheadLog"></a>BatchedWriteAheadLog</h2><p>BatchedWriteAheadLog只运行在driver端，还需要spark配置中指定spark.streaming.driver.writeAheadLog.allowBatching选项为true。它会将数据线缓存起来，然后一次取多条数据，封装成一个批次存储到文件中。这样提高了系统的吞吐量。</p>
+<p>BatchedWriteAheadLog首先将每次请求写入的数据，先缓存到一个队列。</p>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">class</span> <span class="title">BatchedWriteAheadLog</span>(<span class="params">val wrappedLog: <span class="type">WriteAheadLog</span>, conf: <span class="type">SparkConf</span></span>) </span>&#123;</span><br><span class="line">  <span class="comment">// WAL数据队列</span></span><br><span class="line">  <span class="keyword">private</span> <span class="keyword">val</span> walWriteQueue = <span class="keyword">new</span> <span class="type">LinkedBlockingQueue</span>[<span class="type">Record</span>]()</span><br><span class="line">  </span><br><span class="line">  <span class="keyword">override</span> <span class="function"><span class="keyword">def</span> <span class="title">write</span></span>(byteBuffer: <span class="type">ByteBuffer</span>, time: <span class="type">Long</span>): <span class="type">WriteAheadLogRecordHandle</span> = &#123;</span><br><span class="line">    <span class="keyword">val</span> promise = <span class="type">Promise</span>[<span class="type">WriteAheadLogRecordHandle</span>]()</span><br><span class="line">    <span class="keyword">val</span> putSuccessfully = synchronized &#123;</span><br><span class="line">      <span class="keyword">if</span> (active) &#123;</span><br><span class="line">        <span class="comment">// 实例化Record，并且添加到walWriteQueue队列里</span></span><br><span class="line">        walWriteQueue.offer(<span class="type">Record</span>(byteBuffer, time, promise))</span><br><span class="line">        <span class="literal">true</span></span><br><span class="line">      &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">        <span class="literal">false</span></span><br><span class="line">      &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    ......</span><br><span class="line">  &#125;    </span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>BatchedWriteAheadLog还有一个后台线程，会一直从队列中获取数据，然后封装成batch的格式，通过FileBasedWriteAheadLog写入WAL。</p>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">class</span> <span class="title">BatchedWriteAheadLog</span>(<span class="params">val wrappedLog: <span class="type">WriteAheadLog</span>, conf: <span class="type">SparkConf</span></span>) </span>&#123;</span><br><span class="line">  </span><br><span class="line">  <span class="comment">// WAL数据队列</span></span><br><span class="line">  <span class="keyword">private</span> <span class="keyword">val</span> walWriteQueue = <span class="keyword">new</span> <span class="type">LinkedBlockingQueue</span>[<span class="type">Record</span>]()</span><br><span class="line">  <span class="comment">// 数据缓存，保存即将保存的batch数据</span></span><br><span class="line">  <span class="keyword">private</span> <span class="keyword">val</span> buffer = <span class="keyword">new</span> <span class="type">ArrayBuffer</span>[<span class="type">Record</span>]()</span><br><span class="line">  <span class="comment">// batch write 线程</span></span><br><span class="line">  <span class="keyword">private</span> <span class="keyword">val</span> batchedWriterThread = startBatchedWriterThread()</span><br><span class="line">    </span><br><span class="line">  <span class="keyword">private</span> <span class="function"><span class="keyword">def</span> <span class="title">startBatchedWriterThread</span></span>(): <span class="type">Thread</span> = &#123;</span><br><span class="line">    <span class="comment">// 循环的调用flushRecords方法</span></span><br><span class="line">    <span class="keyword">val</span> thread = <span class="keyword">new</span> <span class="type">Thread</span>(<span class="keyword">new</span> <span class="type">Runnable</span> &#123;</span><br><span class="line">      <span class="keyword">override</span> <span class="function"><span class="keyword">def</span> <span class="title">run</span></span>(): <span class="type">Unit</span> = &#123;</span><br><span class="line">        <span class="keyword">while</span> (active) &#123;</span><br><span class="line">          flushRecords()</span><br><span class="line">        &#125;</span><br><span class="line">      &#125;</span><br><span class="line">    &#125;, <span class="string">"BatchedWriteAheadLog Writer"</span>)</span><br><span class="line">    thread.setDaemon(<span class="literal">true</span>)</span><br><span class="line">    thread.start()</span><br><span class="line">    thread</span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  <span class="comment">/** Write all the records in the buffer to the write ahead log. */</span></span><br><span class="line">  <span class="keyword">private</span> <span class="function"><span class="keyword">def</span> <span class="title">flushRecords</span></span>(): <span class="type">Unit</span> = &#123;</span><br><span class="line">    <span class="keyword">try</span> &#123;</span><br><span class="line">      <span class="comment">// 这里调用take会阻塞，一直到队列中有数据</span></span><br><span class="line">      buffer += walWriteQueue.take()</span><br><span class="line">      <span class="comment">// 调用drainTo能够高效率的导出数据</span></span><br><span class="line">      <span class="keyword">val</span> numBatched = walWriteQueue.drainTo(buffer.asJava) + <span class="number">1</span></span><br><span class="line">    &#125; <span class="keyword">catch</span> &#123;</span><br><span class="line">      <span class="keyword">case</span> _: <span class="type">InterruptedException</span> =&gt;</span><br><span class="line">        logWarning(<span class="string">"BatchedWriteAheadLog Writer queue interrupted."</span>)</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">try</span> &#123;</span><br><span class="line">      <span class="keyword">var</span> segment: <span class="type">WriteAheadLogRecordHandle</span> = <span class="literal">null</span></span><br><span class="line">      <span class="keyword">if</span> (buffer.length &gt; <span class="number">0</span>) &#123;</span><br><span class="line">        <span class="comment">// 依照时间排序</span></span><br><span class="line">        <span class="keyword">val</span> sortedByTime = buffer.sortBy(_.time)</span><br><span class="line">        <span class="comment">// 取WAL列表中最后的时间，作为batch的结束时间</span></span><br><span class="line">        <span class="keyword">val</span> time = sortedByTime.last.time</span><br><span class="line">        <span class="comment">// wrappedLog是FileBasedWriteAheadLog类型，在初始化的时候指定</span></span><br><span class="line">        <span class="comment">// aggregate方法将这一批次的数据，汇合到一个ByteBuffer里，</span></span><br><span class="line">        <span class="comment">// 然后通过FileBasedWriteAheadLog写入数据</span></span><br><span class="line">        segment = wrappedLog.write(aggregate(sortedByTime), time)</span><br><span class="line">      &#125;</span><br><span class="line">      buffer.foreach(_.promise.success(segment))</span><br><span class="line">    &#125; <span class="keyword">catch</span> &#123;</span><br><span class="line">      ......</span><br><span class="line">    &#125; <span class="keyword">finally</span> &#123;</span><br><span class="line">      <span class="comment">// 清空buffer列表  </span></span><br><span class="line">      buffer.clear()</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>因为BatchedWriteAheadLog的单位是batch，所以它不支持单次数据的读取。</p>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">override</span> <span class="function"><span class="keyword">def</span> <span class="title">read</span></span>(segment: <span class="type">WriteAheadLogRecordHandle</span>): <span class="type">ByteBuffer</span> = &#123;</span><br><span class="line">  <span class="keyword">throw</span> <span class="keyword">new</span> <span class="type">UnsupportedOperationException</span>(<span class="string">"read() is not supported for BatchedWriteAheadLog "</span> +</span><br><span class="line">    <span class="string">"as the data may require de-aggregation."</span>)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>BatchedWriteAheadLog的删除操作，也只是转交给了FileBasedWriteAheadLog</p>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">override</span> <span class="function"><span class="keyword">def</span> <span class="title">clean</span></span>(threshTime: <span class="type">Long</span>, waitForCompletion: <span class="type">Boolean</span>): <span class="type">Unit</span> = &#123;</span><br><span class="line">  wrappedLog.clean(threshTime, waitForCompletion)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+      
+    </div>
+    
+    
+    
+
+    
+
+    
+
+    
+
+    <footer class="post-footer">
+      
+        <div class="post-tags">
+          
+            <a href="/tags/spark-streaming-wal/" rel="tag"># spark, streaming, wal</a>
+          
+        </div>
+      
+
+      
+      
+      
+
+      
+        <div class="post-nav">
+          <div class="post-nav-next post-nav-item">
+            
+              <a href="/2019/02/13/spark-streaming-receiver/" rel="next" title="Spark Streaming 数据源读取">
+                <i class="fa fa-chevron-left"></i> Spark Streaming 数据源读取
+              </a>
+            
+          </div>
+
+          <span class="post-nav-divider"></span>
+
+          <div class="post-nav-prev post-nav-item">
+            
+          </div>
+        </div>
+      
+
+      
+      
+    </footer>
+  </div>
+  
+  
+  
+  </article>
+
+
+
+    <div class="post-spread">
+      
+    </div>
+  </div>
+
+
+          </div>
+          
+
+
+          
+
+  
+    <div class="comments" id="comments">
+    </div>
+  
+
+
+
+        </div>
+        
+          
+  
+  <div class="sidebar-toggle">
+    <div class="sidebar-toggle-line-wrap">
+      <span class="sidebar-toggle-line sidebar-toggle-line-first"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-middle"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-last"></span>
+    </div>
+  </div>
+
+  <aside id="sidebar" class="sidebar">
+    
+    <div class="sidebar-inner">
+
+      
+
+      
+        <ul class="sidebar-nav motion-element">
+          <li class="sidebar-nav-toc sidebar-nav-active" data-target="post-toc-wrap">
+            Table of Contents
+          </li>
+          <li class="sidebar-nav-overview" data-target="site-overview-wrap">
+            Overview
+          </li>
+        </ul>
+      
+
+      <section class="site-overview-wrap sidebar-panel">
+        <div class="site-overview">
+          <div class="site-author motion-element" itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+            
+              <p class="site-author-name" itemprop="name">zhmin</p>
+              <p class="site-description motion-element" itemprop="description"></p>
+          </div>
+
+          <nav class="site-state motion-element">
+
+            
+              <div class="site-state-item site-state-posts">
+              
+                <a href="/archives/">
+              
+                  <span class="site-state-item-count">21</span>
+                  <span class="site-state-item-name">posts</span>
+                </a>
+              </div>
+            
+
+            
+
+            
+              
+              
+              <div class="site-state-item site-state-tags">
+                
+                  <span class="site-state-item-count">19</span>
+                  <span class="site-state-item-name">tags</span>
+                
+              </div>
+            
+
+          </nav>
+
+          
+
+          
+            <div class="links-of-author motion-element">
+                
+                  <span class="links-of-author-item">
+                    <a href="https://github.com/zhmin" target="_blank" title="GitHub">
+                      
+                        <i class="fa fa-fw fa-github"></i>GitHub</a>
+                  </span>
+                
+            </div>
+          
+
+          
+          
+
+          
+          
+
+          
+
+        </div>
+      </section>
+
+      
+      <!--noindex-->
+        <section class="post-toc-wrap motion-element sidebar-panel sidebar-panel-active">
+          <div class="post-toc">
+
+            
+              
+            
+
+            
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#Spark-Streaming-WAL-原理"><span class="nav-number">1.</span> <span class="nav-text">Spark Streaming WAL 原理</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#WAL-Writer-种类"><span class="nav-number">1.1.</span> <span class="nav-text">WAL Writer 种类</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#FileBasedWriteAheadLog-原理"><span class="nav-number">1.2.</span> <span class="nav-text">FileBasedWriteAheadLog 原理</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#WAL创建"><span class="nav-number">1.2.1.</span> <span class="nav-text">WAL创建</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#WAL-读取"><span class="nav-number">1.2.2.</span> <span class="nav-text">WAL 读取</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#WAL-删除"><span class="nav-number">1.2.3.</span> <span class="nav-text">WAL 删除</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#BatchedWriteAheadLog"><span class="nav-number">1.3.</span> <span class="nav-text">BatchedWriteAheadLog</span></a></li></ol></li></ol></div>
+            
+
+          </div>
+        </section>
+      <!--/noindex-->
+      
+
+      
+
+    </div>
+  </aside>
+
+
+        
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="footer-inner">
+        <div class="copyright">&copy; <span itemprop="copyrightYear">2019</span>
+  <span class="with-love">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">zhmin</span>
+
+  
+</div>
+
+
+
+
+
+
+
+
+
+
+
+  <script src="https://unpkg.com/mermaid@7.1.2/dist/mermaid.min.js"></script>
+  <script>
+    if (window.mermaid) {
+      mermaid.initialize({"startOnload":"true  // default true","theme":"forest"});
+    }
+  </script>
+
+
+
+<script async src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+<span id="busuanzi_container_site_pv">
+    访问量<span id="busuanzi_value_site_pv"></span>
+</span>
+<span class="post-meta-divider">|</span>
+<span id="busuanzi_container_site_uv">
+  访客数<span id="busuanzi_value_site_uv"></span>
+</span>
+
+        
+
+
+
+
+
+
+
+        
+      </div>
+    </footer>
+
+    
+      <div class="back-to-top">
+        <i class="fa fa-arrow-up"></i>
+        
+      </div>
+    
+
+    
+
+  </div>
+
+  
+
+<script type="text/javascript">
+  if (Object.prototype.toString.call(window.Promise) !== '[object Function]') {
+    window.Promise = null;
+  }
+</script>
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery/index.js?v=2.1.3"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fastclick/lib/fastclick.min.js?v=1.0.6"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery_lazyload/jquery.lazyload.js?v=1.9.7"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.ui.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fancybox/source/jquery.fancybox.pack.js?v=2.1.5"></script>
+  
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/utils.js?v=5.1.4"></script>
+
+  <script type="text/javascript" src="/js/src/motion.js?v=5.1.4"></script>
+
+
+
+  
+  
+
+  
+  <script type="text/javascript" src="/js/src/scrollspy.js?v=5.1.4"></script>
+<script type="text/javascript" src="/js/src/post-details.js?v=5.1.4"></script>
+
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/bootstrap.js?v=5.1.4"></script>
+
+
+
+  
+
+
+  
+
+
+
+
+	
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+  <script src="//cdn1.lncld.net/static/js/3.0.4/av-min.js"></script>
+  <script src="//unpkg.com/valine/dist/Valine.min.js"></script>
+  
+  <script type="text/javascript">
+    var GUEST = ['nick','mail','link'];
+    var guest = 'nick';
+    guest = guest.split(',').filter(item=>{
+      return GUEST.indexOf(item)>-1;
+    });
+    new Valine({
+        el: '#comments' ,
+        verify: false,
+        notify: false,
+        appId: 'iYiPQlDR2X2zg2QIql2UEe2o-gzGzoHsz',
+        appKey: 'EW8G4sftwX1pef1zS9EsOeKE',
+        placeholder: 'comment here',
+        avatar:'mm',
+        guest_info:guest,
+        pageSize:'10' || 10,
+    });
+  </script>
+
+
+
+  
+
+
+
+
+
+  
+
+  
+  <script src="https://cdn1.lncld.net/static/js/av-core-mini-0.6.4.js"></script>
+  <script>AV.initialize("iYiPQlDR2X2zg2QIql2UEe2o-gzGzoHsz", "EW8G4sftwX1pef1zS9EsOeKE");</script>
+  <script>
+    function showTime(Counter) {
+      var query = new AV.Query(Counter);
+      var entries = [];
+      var $visitors = $(".leancloud_visitors");
+
+      $visitors.each(function () {
+        entries.push( $(this).attr("id").trim() );
+      });
+
+      query.containedIn('url', entries);
+      query.find()
+        .done(function (results) {
+          var COUNT_CONTAINER_REF = '.leancloud-visitors-count';
+
+          if (results.length === 0) {
+            $visitors.find(COUNT_CONTAINER_REF).text(0);
+            return;
+          }
+
+          for (var i = 0; i < results.length; i++) {
+            var item = results[i];
+            var url = item.get('url');
+            var time = item.get('time');
+            var element = document.getElementById(url);
+
+            $(element).find(COUNT_CONTAINER_REF).text(time);
+          }
+          for(var i = 0; i < entries.length; i++) {
+            var url = entries[i];
+            var element = document.getElementById(url);
+            var countSpan = $(element).find(COUNT_CONTAINER_REF);
+            if( countSpan.text() == '') {
+              countSpan.text(0);
+            }
+          }
+        })
+        .fail(function (object, error) {
+          console.log("Error: " + error.code + " " + error.message);
+        });
+    }
+
+    function addCount(Counter) {
+      var $visitors = $(".leancloud_visitors");
+      var url = $visitors.attr('id').trim();
+      var title = $visitors.attr('data-flag-title').trim();
+      var query = new AV.Query(Counter);
+
+      query.equalTo("url", url);
+      query.find({
+        success: function(results) {
+          if (results.length > 0) {
+            var counter = results[0];
+            counter.fetchWhenSave(true);
+            counter.increment("time");
+            counter.save(null, {
+              success: function(counter) {
+                var $element = $(document.getElementById(url));
+                $element.find('.leancloud-visitors-count').text(counter.get('time'));
+              },
+              error: function(counter, error) {
+                console.log('Failed to save Visitor num, with error message: ' + error.message);
+              }
+            });
+          } else {
+            var newcounter = new Counter();
+            /* Set ACL */
+            var acl = new AV.ACL();
+            acl.setPublicReadAccess(true);
+            acl.setPublicWriteAccess(true);
+            newcounter.setACL(acl);
+            /* End Set ACL */
+            newcounter.set("title", title);
+            newcounter.set("url", url);
+            newcounter.set("time", 1);
+            newcounter.save(null, {
+              success: function(newcounter) {
+                var $element = $(document.getElementById(url));
+                $element.find('.leancloud-visitors-count').text(newcounter.get('time'));
+              },
+              error: function(newcounter, error) {
+                console.log('Failed to create');
+              }
+            });
+          }
+        },
+        error: function(error) {
+          console.log('Error:' + error.code + " " + error.message);
+        }
+      });
+    }
+
+    $(function() {
+      var Counter = AV.Object.extend("Counter");
+      if ($('.leancloud_visitors').length == 1) {
+        addCount(Counter);
+      } else if ($('.post-title-link').length > 1) {
+        showTime(Counter);
+      }
+    });
+  </script>
+
+
+
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+</body>
+</html>
