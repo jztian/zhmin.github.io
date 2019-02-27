@@ -88,7 +88,7 @@
 <meta property="og:description" content="Spark的序列化与压缩spark是分布式的计算框架，其中涉及到了 rpc 的通信和中间数据的缓存。spark为了高效率的通信和减少数据存储空间，会把数据先序列化，然后处理。 序列化种类这篇文章讲的是spark 2.2，支持Java自带的序列化，还有KryoSerializer。KryoSerializer目前只能支持简单的数据类型，2.4对KryoSerializer的支持会更好。    Ser">
 <meta property="og:locale" content="default">
 <meta property="og:image" content="http://www.plantuml.com/plantuml/svg/bLHB3e8m45tRKynI5xs0COQ56tN92HheWWZ5jAZnG-BUMteI4TBIqWw4xSnxy_hUJ4eYLJ5PNOeSr9d94rLSPYpF7bmIakHCAOXD1U19oFVzMGX-suk6A1A-X1N06YoKxX1Iwn47TcMnD_WexsKy8gS7QLNpjBYId1L_PKkOLLafkau7JtcGi3DbXr4FzPrkrqAe8Ozz27uN8OzETxCQJhUx21cPRYrtyw8Kl5LvWE7MN09GkaMZSAaj5FCrW0MEmiQOeer5V3hOoLGCkZMF6Gj8-WH78IZSSv1tXVMzpETmPYOmjI_F3NgQ8mcCt6jOtpkbEHn4AU8YRRv5yWC0">
-<meta property="og:updated_time" content="2019-01-08T15:32:14.730Z">
+<meta property="og:updated_time" content="2019-02-27T13:34:51.660Z">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="Spark序列化与压缩原理">
 <meta name="twitter:description" content="Spark的序列化与压缩spark是分布式的计算框架，其中涉及到了 rpc 的通信和中间数据的缓存。spark为了高效率的通信和减少数据存储空间，会把数据先序列化，然后处理。 序列化种类这篇文章讲的是spark 2.2，支持Java自带的序列化，还有KryoSerializer。KryoSerializer目前只能支持简单的数据类型，2.4对KryoSerializer的支持会更好。    Ser">
@@ -193,6 +193,16 @@
         </li>
       
         
+        <li class="menu-item menu-item-categories">
+          <a href="/categories/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-th"></i> <br>
+            
+            Categories
+          </a>
+        </li>
+      
+        
         <li class="menu-item menu-item-archives">
           <a href="/archives/" rel="section">
             
@@ -274,6 +284,28 @@
             
           </span>
 
+          
+            <span class="post-category">
+            
+              <span class="post-meta-divider">|</span>
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">In</span>
+              
+              
+                <span itemprop="about" itemscope="" itemtype="http://schema.org/Thing">
+                  <a href="/categories/spark/" itemprop="url" rel="index">
+                    <span itemprop="name">spark</span>
+                  </a>
+                </span>
+
+                
+                
+              
+            </span>
           
 
           
@@ -495,13 +527,22 @@
             
 
             
+              
+              
+              <div class="site-state-item site-state-categories">
+                <a href="/categories/index.html">
+                  <span class="site-state-item-count">4</span>
+                  <span class="site-state-item-name">categories</span>
+                </a>
+              </div>
+            
 
             
               
               
               <div class="site-state-item site-state-tags">
                 
-                  <span class="site-state-item-count">22</span>
+                  <span class="site-state-item-count">23</span>
                   <span class="site-state-item-name">tags</span>
                 
               </div>
@@ -586,7 +627,7 @@
   <script src="https://unpkg.com/mermaid@7.1.2/dist/mermaid.min.js"></script>
   <script>
     if (window.mermaid) {
-      mermaid.initialize({"startOnload":"true  // default true","theme":"forest"});
+      mermaid.initialize({"startOnload":true,"theme":"forest"});
     }
   </script>
 

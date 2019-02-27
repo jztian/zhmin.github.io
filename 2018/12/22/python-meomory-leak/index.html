@@ -87,7 +87,7 @@
 <meta property="og:site_name" content="blog">
 <meta property="og:description" content="记录一次内存泄漏的调试经历最近写了一个项目，是关于爬虫的，里面涉及到了django作为orm。当时在服务器上运行程序，发现内存占用持续增长，最后直到被系统kill。遇到这个问题，首先要弄清楚内存里面，到底存储了哪些类型的数据。这里主要使用了objgraph，pympler，guppy工具。 使用objgraph观察这里简化下代码, 使用函数dosomething表示一次爬取任务执行。每1分钟执行一">
 <meta property="og:locale" content="default">
-<meta property="og:updated_time" content="2018-12-27T14:04:19.548Z">
+<meta property="og:updated_time" content="2019-02-27T13:32:29.189Z">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="python内存泄漏调试">
 <meta name="twitter:description" content="记录一次内存泄漏的调试经历最近写了一个项目，是关于爬虫的，里面涉及到了django作为orm。当时在服务器上运行程序，发现内存占用持续增长，最后直到被系统kill。遇到这个问题，首先要弄清楚内存里面，到底存储了哪些类型的数据。这里主要使用了objgraph，pympler，guppy工具。 使用objgraph观察这里简化下代码, 使用函数dosomething表示一次爬取任务执行。每1分钟执行一">
@@ -191,6 +191,16 @@
         </li>
       
         
+        <li class="menu-item menu-item-categories">
+          <a href="/categories/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-th"></i> <br>
+            
+            Categories
+          </a>
+        </li>
+      
+        
         <li class="menu-item menu-item-archives">
           <a href="/archives/" rel="section">
             
@@ -272,6 +282,28 @@
             
           </span>
 
+          
+            <span class="post-category">
+            
+              <span class="post-meta-divider">|</span>
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">In</span>
+              
+              
+                <span itemprop="about" itemscope="" itemtype="http://schema.org/Thing">
+                  <a href="/categories/python/" itemprop="url" rel="index">
+                    <span itemprop="name">python</span>
+                  </a>
+                </span>
+
+                
+                
+              
+            </span>
           
 
           
@@ -472,13 +504,22 @@
             
 
             
+              
+              
+              <div class="site-state-item site-state-categories">
+                <a href="/categories/index.html">
+                  <span class="site-state-item-count">4</span>
+                  <span class="site-state-item-name">categories</span>
+                </a>
+              </div>
+            
 
             
               
               
               <div class="site-state-item site-state-tags">
                 
-                  <span class="site-state-item-count">22</span>
+                  <span class="site-state-item-count">23</span>
                   <span class="site-state-item-name">tags</span>
                 
               </div>
@@ -563,7 +604,7 @@
   <script src="https://unpkg.com/mermaid@7.1.2/dist/mermaid.min.js"></script>
   <script>
     if (window.mermaid) {
-      mermaid.initialize({"startOnload":"true  // default true","theme":"forest"});
+      mermaid.initialize({"startOnload":true,"theme":"forest"});
     }
   </script>
 

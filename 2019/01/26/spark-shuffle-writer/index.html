@@ -90,7 +90,7 @@
 <meta property="og:image" content="http://www.plantuml.com/plantuml/svg/ZLD13e8m4Bpt5Vq07o3664vUk4YCvnKMRAp5R9U3niUBMi12GK_DxinsPhOWDfQ1kBbe8U1ecI1dcMkmLcQdfYmrRi4K6eNuD6K25eD8ShksHufKOLOJ1paPaWAjxbYCOA-KgqSK1OGc7KTS4fwPcJMY32ELa6CNFmK35LAVO53e4Rzs0W5UUBy7KZpS7mxZSsQ1lR5GuWZoogMDBGpynmhAJnQwGoY-ykewFsTS4uvWhtIsVt2x1uYYjV_nobWILigsJbn_QSP5YcM5F4eRO3k3RtRdPuEcUFrHJm00">
 <meta property="og:image" content="https://zhmin.github.io/2019/01/26/spark-shuffle-writer/spark-shuffle-bypass.svg">
 <meta property="og:image" content="https://zhmin.github.io/2019/01/26/spark-shuffle-writer/spark-shuffle-unsafe.svg">
-<meta property="og:updated_time" content="2019-01-29T14:18:55.825Z">
+<meta property="og:updated_time" content="2019-02-27T13:35:19.623Z">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="Spark ShuffleWriter 原理">
 <meta name="twitter:description" content="Spark ShuffleWriter 原理Spark的shuffle过程比较复杂，涉及到map端和reduce端的共同配合，这篇文章主要介绍map端的运行原理。map端的操作主要由ShuffleWriter实现，它对于不同的情形，会选用不同的算法。 shuffle 算法选择spark 根据不同的情形，提供三种shuffle writer选择。  BypassMergeSortShuffleWri">
@@ -195,6 +195,16 @@
         </li>
       
         
+        <li class="menu-item menu-item-categories">
+          <a href="/categories/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-th"></i> <br>
+            
+            Categories
+          </a>
+        </li>
+      
+        
         <li class="menu-item menu-item-archives">
           <a href="/archives/" rel="section">
             
@@ -276,6 +286,28 @@
             
           </span>
 
+          
+            <span class="post-category">
+            
+              <span class="post-meta-divider">|</span>
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">In</span>
+              
+              
+                <span itemprop="about" itemscope="" itemtype="http://schema.org/Thing">
+                  <a href="/categories/spark/" itemprop="url" rel="index">
+                    <span itemprop="name">spark</span>
+                  </a>
+                </span>
+
+                
+                
+              
+            </span>
           
 
           
@@ -529,13 +561,22 @@
             
 
             
+              
+              
+              <div class="site-state-item site-state-categories">
+                <a href="/categories/index.html">
+                  <span class="site-state-item-count">4</span>
+                  <span class="site-state-item-name">categories</span>
+                </a>
+              </div>
+            
 
             
               
               
               <div class="site-state-item site-state-tags">
                 
-                  <span class="site-state-item-count">22</span>
+                  <span class="site-state-item-count">23</span>
                   <span class="site-state-item-name">tags</span>
                 
               </div>
@@ -620,7 +661,7 @@
   <script src="https://unpkg.com/mermaid@7.1.2/dist/mermaid.min.js"></script>
   <script>
     if (window.mermaid) {
-      mermaid.initialize({"startOnload":"true  // default true","theme":"forest"});
+      mermaid.initialize({"startOnload":true,"theme":"forest"});
     }
   </script>
 

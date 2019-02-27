@@ -91,7 +91,7 @@
 <meta property="og:image" content="https://zhmin.github.io/2019/01/13/spark-rpc-flow/rpc-client-receive.svg">
 <meta property="og:image" content="https://zhmin.github.io/2019/01/13/spark-rpc-flow/rpc-server-receive.svg">
 <meta property="og:image" content="https://zhmin.github.io/2019/01/13/spark-rpc-flow/rpc-server-send.svg">
-<meta property="og:updated_time" content="2019-01-14T13:58:05.914Z">
+<meta property="og:updated_time" content="2019-02-27T13:34:44.402Z">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="Spark Rpc 原理介绍">
 <meta name="twitter:description" content="Spark Rpc 原理介绍Spark的Rpc服务，是整个Spark框架的基石。Spark的很多服务都是基于Rpc框架之上的，它承担了各个服务之间的信息交流。下面是Rpc的各个组件运行的流程图 : rpc客户端发送消息 RpcEndpointRef ： Rpc客户端，通过它可以发送消息 NettyRpcEnv ： 整个Rpc的运行环境，RpcEndpointRef是通过NettyRpcEnv才能把">
@@ -196,6 +196,16 @@
         </li>
       
         
+        <li class="menu-item menu-item-categories">
+          <a href="/categories/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-th"></i> <br>
+            
+            Categories
+          </a>
+        </li>
+      
+        
         <li class="menu-item menu-item-archives">
           <a href="/archives/" rel="section">
             
@@ -277,6 +287,28 @@
             
           </span>
 
+          
+            <span class="post-category">
+            
+              <span class="post-meta-divider">|</span>
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">In</span>
+              
+              
+                <span itemprop="about" itemscope="" itemtype="http://schema.org/Thing">
+                  <a href="/categories/spark/" itemprop="url" rel="index">
+                    <span itemprop="name">spark</span>
+                  </a>
+                </span>
+
+                
+                
+              
+            </span>
           
 
           
@@ -481,13 +513,22 @@
             
 
             
+              
+              
+              <div class="site-state-item site-state-categories">
+                <a href="/categories/index.html">
+                  <span class="site-state-item-count">4</span>
+                  <span class="site-state-item-name">categories</span>
+                </a>
+              </div>
+            
 
             
               
               
               <div class="site-state-item site-state-tags">
                 
-                  <span class="site-state-item-count">22</span>
+                  <span class="site-state-item-count">23</span>
                   <span class="site-state-item-name">tags</span>
                 
               </div>
@@ -572,7 +613,7 @@
   <script src="https://unpkg.com/mermaid@7.1.2/dist/mermaid.min.js"></script>
   <script>
     if (window.mermaid) {
-      mermaid.initialize({"startOnload":"true  // default true","theme":"forest"});
+      mermaid.initialize({"startOnload":true,"theme":"forest"});
     }
   </script>
 

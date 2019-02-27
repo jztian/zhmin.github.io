@@ -88,7 +88,7 @@
 <meta property="og:description" content="Spark 聚合原理spark在触发shuffle的时候，在一些场景下会涉及到聚合操作。聚合操作起到了一个优化整体计算效率的作用。 聚合算法简介Aggregator类表示Spark的聚合算法。 聚合只能用于数据源是key，value类型。 它有三个重要的函数，都在算法中起着不同的作用。里使用了泛型，分别代表着不同的数据类型。K表示数据源key的类型，V表示数据源value的类型，C表示中间数据Co">
 <meta property="og:locale" content="default">
 <meta property="og:image" content="https://zhmin.github.io/2019/01/28/spark-shuffle-aggregator/spark-aggregate.svg">
-<meta property="og:updated_time" content="2019-01-28T14:36:24.134Z">
+<meta property="og:updated_time" content="2019-02-27T13:34:55.665Z">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="Spark Shuffle 聚合原理">
 <meta name="twitter:description" content="Spark 聚合原理spark在触发shuffle的时候，在一些场景下会涉及到聚合操作。聚合操作起到了一个优化整体计算效率的作用。 聚合算法简介Aggregator类表示Spark的聚合算法。 聚合只能用于数据源是key，value类型。 它有三个重要的函数，都在算法中起着不同的作用。里使用了泛型，分别代表着不同的数据类型。K表示数据源key的类型，V表示数据源value的类型，C表示中间数据Co">
@@ -193,6 +193,16 @@
         </li>
       
         
+        <li class="menu-item menu-item-categories">
+          <a href="/categories/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-th"></i> <br>
+            
+            Categories
+          </a>
+        </li>
+      
+        
         <li class="menu-item menu-item-archives">
           <a href="/archives/" rel="section">
             
@@ -274,6 +284,28 @@
             
           </span>
 
+          
+            <span class="post-category">
+            
+              <span class="post-meta-divider">|</span>
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">In</span>
+              
+              
+                <span itemprop="about" itemscope="" itemtype="http://schema.org/Thing">
+                  <a href="/categories/spark/" itemprop="url" rel="index">
+                    <span itemprop="name">spark</span>
+                  </a>
+                </span>
+
+                
+                
+              
+            </span>
           
 
           
@@ -482,13 +514,22 @@
             
 
             
+              
+              
+              <div class="site-state-item site-state-categories">
+                <a href="/categories/index.html">
+                  <span class="site-state-item-count">4</span>
+                  <span class="site-state-item-name">categories</span>
+                </a>
+              </div>
+            
 
             
               
               
               <div class="site-state-item site-state-tags">
                 
-                  <span class="site-state-item-count">22</span>
+                  <span class="site-state-item-count">23</span>
                   <span class="site-state-item-name">tags</span>
                 
               </div>
@@ -573,7 +614,7 @@
   <script src="https://unpkg.com/mermaid@7.1.2/dist/mermaid.min.js"></script>
   <script>
     if (window.mermaid) {
-      mermaid.initialize({"startOnload":"true  // default true","theme":"forest"});
+      mermaid.initialize({"startOnload":true,"theme":"forest"});
     }
   </script>
 

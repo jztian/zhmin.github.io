@@ -87,7 +87,7 @@
 <meta property="og:site_name" content="blog">
 <meta property="og:description" content="Datax 数据统计原理根据datax的运行模式的区别， 数据的收集会有些区别，这篇文章都是讲的在standalone模式下。 统计数据类DataX所有的统计信息都会保存到Communication类里面。Communication支持下列数据的统计  计数器，比如读取的字节速度，写入成功的数据条数 统计的时间点 字符串类型的消息 执行时的异常 执行的状态， 比如成功或失败  Communicat">
 <meta property="og:locale" content="default">
-<meta property="og:updated_time" content="2018-12-27T14:04:19.547Z">
+<meta property="og:updated_time" content="2019-02-27T13:37:58.821Z">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="Datax数据统计原理">
 <meta name="twitter:description" content="Datax 数据统计原理根据datax的运行模式的区别， 数据的收集会有些区别，这篇文章都是讲的在standalone模式下。 统计数据类DataX所有的统计信息都会保存到Communication类里面。Communication支持下列数据的统计  计数器，比如读取的字节速度，写入成功的数据条数 统计的时间点 字符串类型的消息 执行时的异常 执行的状态， 比如成功或失败  Communicat">
@@ -191,6 +191,16 @@
         </li>
       
         
+        <li class="menu-item menu-item-categories">
+          <a href="/categories/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-th"></i> <br>
+            
+            Categories
+          </a>
+        </li>
+      
+        
         <li class="menu-item menu-item-archives">
           <a href="/archives/" rel="section">
             
@@ -273,6 +283,28 @@
           </span>
 
           
+            <span class="post-category">
+            
+              <span class="post-meta-divider">|</span>
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">In</span>
+              
+              
+                <span itemprop="about" itemscope="" itemtype="http://schema.org/Thing">
+                  <a href="/categories/datax/" itemprop="url" rel="index">
+                    <span itemprop="name">datax</span>
+                  </a>
+                </span>
+
+                
+                
+              
+            </span>
+          
 
           
             
@@ -347,7 +379,22 @@
 <p>当需要统计所有的数据时，getJobCommunication实现了这个功能</p>
 <figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">public</span> <span class="keyword">static</span> Communication <span class="title">getJobCommunication</span><span class="params">()</span> </span>&#123;</span><br><span class="line">    <span class="comment">// 初始一个新的Communication，然后更新它的数据</span></span><br><span class="line">    Communication communication = <span class="keyword">new</span> Communication();</span><br><span class="line">    communication.setState(State.SUCCEEDED);</span><br><span class="line">    <span class="comment">// 遍历所有任务的Communication， 调用mergeFrom合并统计结果</span></span><br><span class="line">    <span class="keyword">for</span> (Communication taskGroupCommunication :</span><br><span class="line">            taskGroupCommunicationMap.values()) &#123;</span><br><span class="line">        communication.mergeFrom(taskGroupCommunication);</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> communication;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
 <h2 id="注册Communication"><a href="#注册Communication" class="headerlink" title="注册Communication"></a>注册Communication</h2><p>AbstractScheduler会根据切分后的任务，为每个task组注册一个Communication。registerCommunication接收task配置列表，里面每个配置都包含了task group id。</p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line">sequenceDiagram</span><br><span class="line">	participant AbstractScheduler</span><br><span class="line">    participant StandAloneJobContainerCommunicator</span><br><span class="line">    participant AbstractCollector</span><br><span class="line">    participant LocalTGCommunicationManager</span><br><span class="line">    </span><br><span class="line">	AbstractScheduler -&gt;&gt;+ StandAloneJobContainerCommunicator : registerCommunication(configurationList)</span><br><span class="line">	StandAloneJobContainerCommunicator -&gt;&gt;+ AbstractCollector : registerTGCommunication(configurationList)</span><br><span class="line">	AbstractCollector -&gt;&gt;+ LocalTGCommunicationManager : registerTaskGroupCommunication(taskGroupId, communication)</span><br><span class="line">	</span><br><span class="line">	LocalTGCommunicationManager --&gt;&gt;- AbstractCollector : #</span><br><span class="line">	AbstractCollector --&gt;&gt;- StandAloneJobContainerCommunicator : #</span><br><span class="line">	StandAloneJobContainerCommunicator --&gt;&gt;- AbstractScheduler : #</span><br></pre></td></tr></table></figure>
+<pre class="mermaid">sequenceDiagram
+    participant AbstractScheduler
+    participant StandAloneJobContainerCommunicator
+    participant AbstractCollector
+    participant LocalTGCommunicationManager
+
+    AbstractScheduler ->>+ StandAloneJobContainerCommunicator : registerCommunication(configurationList)
+    StandAloneJobContainerCommunicator ->>+ AbstractCollector : registerTGCommunication(configurationList)
+    AbstractCollector ->>+ LocalTGCommunicationManager : registerTaskGroupCommunication(taskGroupId, communication)
+
+    LocalTGCommunicationManager -->>- AbstractCollector : #
+    AbstractCollector -->>- StandAloneJobContainerCommunicator : #
+    StandAloneJobContainerCommunicator -->>- AbstractScheduler : #</pre>
+
+
+
 <h2 id="更新统计数据"><a href="#更新统计数据" class="headerlink" title="更新统计数据"></a>更新统计数据</h2><p>每个任务执行都会对应着Channel，Channel当每处理一条数据时，都会更新对应Communication的统计信息。</p>
 <p>比如下面的pull方法是Writer从Channel拉取数据，每次pull的时候，都会调用statPull函数，会更新写入数据条数和字节数的信息。</p>
 <figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="keyword">abstract</span> <span class="class"><span class="keyword">class</span> <span class="title">Channel</span> </span>&#123;</span><br><span class="line"></span><br><span class="line">	<span class="keyword">private</span> Communication currentCommunication;</span><br><span class="line">    </span><br><span class="line">    <span class="function"><span class="keyword">public</span> Record <span class="title">pull</span><span class="params">()</span> </span>&#123;</span><br><span class="line">        Record record = <span class="keyword">this</span>.doPull();</span><br><span class="line">        <span class="keyword">this</span>.statPull(<span class="number">1L</span>, record.getByteSize());</span><br><span class="line">        <span class="keyword">return</span> record;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="function"><span class="keyword">private</span> <span class="keyword">void</span> <span class="title">statPull</span><span class="params">(<span class="keyword">long</span> recordSize, <span class="keyword">long</span> byteSize)</span> </span>&#123;</span><br><span class="line">        currentCommunication.increaseCounter(</span><br><span class="line">                CommunicationTool.WRITE_RECEIVED_RECORDS, recordSize);</span><br><span class="line">        currentCommunication.increaseCounter(</span><br><span class="line">                CommunicationTool.WRITE_RECEIVED_BYTES, byteSize);</span><br><span class="line">    &#125;</span><br></pre></td></tr></table></figure>
@@ -362,7 +409,28 @@
 <li><p>getJobCommunication方法会统计所有task的数据，然后返回。</p>
 </li>
 </ol>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line">sequenceDiagram</span><br><span class="line">	participant AbstractScheduler</span><br><span class="line">	participant AbstractContainerCommunicator</span><br><span class="line">	participant StandAloneJobContainerCommunicator</span><br><span class="line">	participant AbstractCollector</span><br><span class="line">	participant ProcessInnerCollector</span><br><span class="line">	participant LocalTGCommunicationManager</span><br><span class="line">	</span><br><span class="line">	AbstractScheduler -&gt;&gt;+ AbstractContainerCommunicator : collect</span><br><span class="line">	AbstractContainerCommunicator -&gt;&gt;+ StandAloneJobContainerCommunicator : collect</span><br><span class="line">	StandAloneJobContainerCommunicator -&gt;&gt;+ AbstractCollector : collectFromTaskGroup</span><br><span class="line">	AbstractCollector -&gt;&gt;+ ProcessInnerCollector : collectFromTaskGroup</span><br><span class="line">	ProcessInnerCollector -&gt;&gt;+ LocalTGCommunicationManager : getJobCommunication</span><br><span class="line">	</span><br><span class="line">	LocalTGCommunicationManager --&gt;&gt;- ProcessInnerCollector : communication</span><br><span class="line">	ProcessInnerCollector --&gt;&gt;- AbstractCollector : communication</span><br><span class="line">	AbstractCollector --&gt;&gt;- StandAloneJobContainerCommunicator : communication</span><br><span class="line">	StandAloneJobContainerCommunicator --&gt;&gt;- AbstractContainerCommunicator : communication</span><br><span class="line">	AbstractContainerCommunicator --&gt;&gt;- AbstractScheduler : communication</span><br></pre></td></tr></table></figure>
+<pre class="mermaid">sequenceDiagram
+    participant AbstractScheduler
+    participant AbstractContainerCommunicator
+    participant StandAloneJobContainerCommunicator
+    participant AbstractCollector
+    participant ProcessInnerCollector
+    participant LocalTGCommunicationManager
+
+    AbstractScheduler ->>+ AbstractContainerCommunicator : collect
+    AbstractContainerCommunicator ->>+ StandAloneJobContainerCommunicator : collect
+    StandAloneJobContainerCommunicator ->>+ AbstractCollector : collectFromTaskGroup
+    AbstractCollector ->>+ ProcessInnerCollector : collectFromTaskGroup
+    ProcessInnerCollector ->>+ LocalTGCommunicationManager : getJobCommunication
+
+    LocalTGCommunicationManager -->>- ProcessInnerCollector : communication
+    ProcessInnerCollector -->>- AbstractCollector : communication
+    AbstractCollector -->>- StandAloneJobContainerCommunicator : communication
+    StandAloneJobContainerCommunicator -->>- AbstractContainerCommunicator : communication
+    AbstractContainerCommunicator -->>- AbstractScheduler : communication</pre>
+
+
+
 
       
     </div>
@@ -492,13 +560,22 @@
             
 
             
+              
+              
+              <div class="site-state-item site-state-categories">
+                <a href="/categories/index.html">
+                  <span class="site-state-item-count">4</span>
+                  <span class="site-state-item-name">categories</span>
+                </a>
+              </div>
+            
 
             
               
               
               <div class="site-state-item site-state-tags">
                 
-                  <span class="site-state-item-count">22</span>
+                  <span class="site-state-item-count">23</span>
                   <span class="site-state-item-name">tags</span>
                 
               </div>
@@ -583,7 +660,7 @@
   <script src="https://unpkg.com/mermaid@7.1.2/dist/mermaid.min.js"></script>
   <script>
     if (window.mermaid) {
-      mermaid.initialize({"startOnload":"true  // default true","theme":"forest"});
+      mermaid.initialize({"startOnload":true,"theme":"forest"});
     }
   </script>
 

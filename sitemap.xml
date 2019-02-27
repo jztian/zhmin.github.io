@@ -2,149 +2,177 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   
   <url>
-    <loc>https://zhmin.github.io/2019/02/25/spark-rpc-server/</loc>
+    <loc>https://zhmin.github.io/2018/12/27/datax-statistics/</loc>
     
-    <lastmod>2019-02-27T13:22:00.837Z</lastmod>
-    
-  </url>
-  
-  <url>
-    <loc>https://zhmin.github.io/2019/02/21/spark-streaming-kafka/</loc>
-    
-    <lastmod>2019-02-21T13:41:36.205Z</lastmod>
-    
-  </url>
-  
-  <url>
-    <loc>https://zhmin.github.io/2019/02/18/spark-streaming-job-flow/</loc>
-    
-    <lastmod>2019-02-18T13:32:58.435Z</lastmod>
-    
-  </url>
-  
-  <url>
-    <loc>https://zhmin.github.io/2019/02/17/spark-streaming-wal/</loc>
-    
-    <lastmod>2019-02-17T13:30:10.167Z</lastmod>
-    
-  </url>
-  
-  <url>
-    <loc>https://zhmin.github.io/2019/02/13/spark-streaming-receiver/</loc>
-    
-    <lastmod>2019-02-13T14:16:37.770Z</lastmod>
-    
-  </url>
-  
-  <url>
-    <loc>https://zhmin.github.io/2019/01/26/spark-shuffle-writer/</loc>
-    
-    <lastmod>2019-01-29T14:18:55.825Z</lastmod>
-    
-  </url>
-  
-  <url>
-    <loc>https://zhmin.github.io/2019/01/29/spark-shuffle-sort-writer-2/</loc>
-    
-    <lastmod>2019-01-29T14:18:05.211Z</lastmod>
-    
-  </url>
-  
-  <url>
-    <loc>https://zhmin.github.io/2019/01/28/spark-shuffle-aggregator/</loc>
-    
-    <lastmod>2019-01-28T14:36:24.134Z</lastmod>
-    
-  </url>
-  
-  <url>
-    <loc>https://zhmin.github.io/2019/01/18/spark-map-output-tracker/</loc>
-    
-    <lastmod>2019-01-26T04:18:18.786Z</lastmod>
-    
-  </url>
-  
-  <url>
-    <loc>https://zhmin.github.io/2019/01/03/spark-rdd-dependency/</loc>
-    
-    <lastmod>2019-01-26T03:57:26.446Z</lastmod>
-    
-  </url>
-  
-  <url>
-    <loc>https://zhmin.github.io/2019/01/19/spark-executor/</loc>
-    
-    <lastmod>2019-01-21T14:01:14.424Z</lastmod>
-    
-  </url>
-  
-  <url>
-    <loc>https://zhmin.github.io/2019/01/15/spark-memory-manager/</loc>
-    
-    <lastmod>2019-01-15T14:52:28.049Z</lastmod>
-    
-  </url>
-  
-  <url>
-    <loc>https://zhmin.github.io/2019/01/02/spark-on-yarn/</loc>
-    
-    <lastmod>2019-01-15T14:13:55.136Z</lastmod>
-    
-  </url>
-  
-  <url>
-    <loc>https://zhmin.github.io/2019/01/13/spark-rpc-flow/</loc>
-    
-    <lastmod>2019-01-14T13:58:05.914Z</lastmod>
-    
-  </url>
-  
-  <url>
-    <loc>https://zhmin.github.io/2019/01/13/spark-rpc-client/</loc>
-    
-    <lastmod>2019-01-14T13:57:14.668Z</lastmod>
-    
-  </url>
-  
-  <url>
-    <loc>https://zhmin.github.io/2019/01/08/spark-serializer/</loc>
-    
-    <lastmod>2019-01-08T15:32:14.730Z</lastmod>
-    
-  </url>
-  
-  <url>
-    <loc>https://zhmin.github.io/2019/01/06/spark-partitioner/</loc>
-    
-    <lastmod>2019-01-06T14:14:44.631Z</lastmod>
-    
-  </url>
-  
-  <url>
-    <loc>https://zhmin.github.io/2018/12/16/datax-ratelimiter-bug/</loc>
-    
-    <lastmod>2019-01-06T14:11:17.949Z</lastmod>
-    
-  </url>
-  
-  <url>
-    <loc>https://zhmin.github.io/2018/12/27/datax-flow/</loc>
-    
-    <lastmod>2019-01-04T14:05:17.076Z</lastmod>
+    <lastmod>2019-02-27T13:37:58.821Z</lastmod>
     
   </url>
   
   <url>
     <loc>https://zhmin.github.io/2018/12/27/datax-plugin/</loc>
     
-    <lastmod>2018-12-28T14:59:06.088Z</lastmod>
+    <lastmod>2019-02-27T13:37:54.141Z</lastmod>
+    
+  </url>
+  
+  <url>
+    <loc>https://zhmin.github.io/2019/02/17/spark-streaming-wal/</loc>
+    
+    <lastmod>2019-02-27T13:36:32.697Z</lastmod>
+    
+  </url>
+  
+  <url>
+    <loc>https://zhmin.github.io/2019/02/13/spark-streaming-receiver/</loc>
+    
+    <lastmod>2019-02-27T13:36:28.590Z</lastmod>
+    
+  </url>
+  
+  <url>
+    <loc>https://zhmin.github.io/2019/02/21/spark-streaming-kafka/</loc>
+    
+    <lastmod>2019-02-27T13:36:24.491Z</lastmod>
+    
+  </url>
+  
+  <url>
+    <loc>https://zhmin.github.io/2019/02/18/spark-streaming-job-flow/</loc>
+    
+    <lastmod>2019-02-27T13:36:20.692Z</lastmod>
+    
+  </url>
+  
+  <url>
+    <loc>https://zhmin.github.io/2019/01/26/spark-shuffle-writer/</loc>
+    
+    <lastmod>2019-02-27T13:35:19.623Z</lastmod>
+    
+  </url>
+  
+  <url>
+    <loc>https://zhmin.github.io/2019/01/29/spark-shuffle-sort-writer-2/</loc>
+    
+    <lastmod>2019-02-27T13:35:01.535Z</lastmod>
+    
+  </url>
+  
+  <url>
+    <loc>https://zhmin.github.io/2019/01/28/spark-shuffle-aggregator/</loc>
+    
+    <lastmod>2019-02-27T13:34:55.665Z</lastmod>
+    
+  </url>
+  
+  <url>
+    <loc>https://zhmin.github.io/2019/01/08/spark-serializer/</loc>
+    
+    <lastmod>2019-02-27T13:34:51.660Z</lastmod>
+    
+  </url>
+  
+  <url>
+    <loc>https://zhmin.github.io/2019/02/25/spark-rpc-server/</loc>
+    
+    <lastmod>2019-02-27T13:34:48.152Z</lastmod>
+    
+  </url>
+  
+  <url>
+    <loc>https://zhmin.github.io/2019/01/13/spark-rpc-flow/</loc>
+    
+    <lastmod>2019-02-27T13:34:44.402Z</lastmod>
+    
+  </url>
+  
+  <url>
+    <loc>https://zhmin.github.io/2019/01/13/spark-rpc-client/</loc>
+    
+    <lastmod>2019-02-27T13:34:40.840Z</lastmod>
+    
+  </url>
+  
+  <url>
+    <loc>https://zhmin.github.io/2019/01/03/spark-rdd-dependency/</loc>
+    
+    <lastmod>2019-02-27T13:34:36.599Z</lastmod>
+    
+  </url>
+  
+  <url>
+    <loc>https://zhmin.github.io/2019/01/06/spark-partitioner/</loc>
+    
+    <lastmod>2019-02-27T13:34:30.298Z</lastmod>
+    
+  </url>
+  
+  <url>
+    <loc>https://zhmin.github.io/2019/01/02/spark-on-yarn/</loc>
+    
+    <lastmod>2019-02-27T13:34:25.659Z</lastmod>
+    
+  </url>
+  
+  <url>
+    <loc>https://zhmin.github.io/2019/01/15/spark-memory-manager/</loc>
+    
+    <lastmod>2019-02-27T13:34:21.849Z</lastmod>
+    
+  </url>
+  
+  <url>
+    <loc>https://zhmin.github.io/2019/01/18/spark-map-output-tracker/</loc>
+    
+    <lastmod>2019-02-27T13:34:17.649Z</lastmod>
+    
+  </url>
+  
+  <url>
+    <loc>https://zhmin.github.io/2019/01/19/spark-executor/</loc>
+    
+    <lastmod>2019-02-27T13:34:12.195Z</lastmod>
+    
+  </url>
+  
+  <url>
+    <loc>https://zhmin.github.io/categories/index.html</loc>
+    
+    <lastmod>2019-02-27T13:33:17.208Z</lastmod>
+    
+  </url>
+  
+  <url>
+    <loc>https://zhmin.github.io/2018/12/22/python-meomory-leak/</loc>
+    
+    <lastmod>2019-02-27T13:32:29.189Z</lastmod>
+    
+  </url>
+  
+  <url>
+    <loc>https://zhmin.github.io/2018/12/16/datax-ratelimiter-bug/</loc>
+    
+    <lastmod>2019-02-27T13:32:15.495Z</lastmod>
     
   </url>
   
   <url>
     <loc>https://zhmin.github.io/2018/12/28/datax-job/</loc>
     
-    <lastmod>2018-12-28T14:59:06.088Z</lastmod>
+    <lastmod>2019-02-27T13:32:08.622Z</lastmod>
+    
+  </url>
+  
+  <url>
+    <loc>https://zhmin.github.io/2018/12/27/datax-flow/</loc>
+    
+    <lastmod>2019-02-27T13:32:01.659Z</lastmod>
+    
+  </url>
+  
+  <url>
+    <loc>https://zhmin.github.io/2018/12/16/datax-channel/</loc>
+    
+    <lastmod>2019-02-27T13:31:53.153Z</lastmod>
     
   </url>
   
@@ -152,27 +180,6 @@
     <loc>https://zhmin.github.io/google88ec8928511b5449.html</loc>
     
     <lastmod>2018-12-27T14:05:27.094Z</lastmod>
-    
-  </url>
-  
-  <url>
-    <loc>https://zhmin.github.io/2018/12/22/python-meomory-leak/</loc>
-    
-    <lastmod>2018-12-27T14:04:19.548Z</lastmod>
-    
-  </url>
-  
-  <url>
-    <loc>https://zhmin.github.io/2018/12/27/datax-statistics/</loc>
-    
-    <lastmod>2018-12-27T14:04:19.547Z</lastmod>
-    
-  </url>
-  
-  <url>
-    <loc>https://zhmin.github.io/2018/12/16/datax-channel/</loc>
-    
-    <lastmod>2018-12-23T14:05:22.556Z</lastmod>
     
   </url>
   

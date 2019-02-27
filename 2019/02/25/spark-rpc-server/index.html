@@ -87,7 +87,7 @@
 <meta property="og:site_name" content="blog">
 <meta property="og:description" content="Spark Rpc 服务端原理Spark Rpc 服务端涉及到多个组件，根据发送消息和接收消息的流程，逐一介绍这些组件。可以参见流程图 Spark Rpc 原理介绍  Rpc Server 启动Spark Rpc的服务端需要运行在NettyRpcEnv环境下，NettyRpcEnv提供了startServer方法，在NettyRpcEnv环境下负责启动Rpc Server。NettyRpcEnv在">
 <meta property="og:locale" content="default">
-<meta property="og:updated_time" content="2019-02-27T13:22:00.837Z">
+<meta property="og:updated_time" content="2019-02-27T13:34:48.152Z">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="Spark Rpc 服务端原理">
 <meta name="twitter:description" content="Spark Rpc 服务端原理Spark Rpc 服务端涉及到多个组件，根据发送消息和接收消息的流程，逐一介绍这些组件。可以参见流程图 Spark Rpc 原理介绍  Rpc Server 启动Spark Rpc的服务端需要运行在NettyRpcEnv环境下，NettyRpcEnv提供了startServer方法，在NettyRpcEnv环境下负责启动Rpc Server。NettyRpcEnv在">
@@ -191,6 +191,16 @@
         </li>
       
         
+        <li class="menu-item menu-item-categories">
+          <a href="/categories/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-th"></i> <br>
+            
+            Categories
+          </a>
+        </li>
+      
+        
         <li class="menu-item menu-item-archives">
           <a href="/archives/" rel="section">
             
@@ -273,6 +283,28 @@
           </span>
 
           
+            <span class="post-category">
+            
+              <span class="post-meta-divider">|</span>
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">In</span>
+              
+              
+                <span itemprop="about" itemscope="" itemtype="http://schema.org/Thing">
+                  <a href="/categories/spark/" itemprop="url" rel="index">
+                    <span itemprop="name">spark</span>
+                  </a>
+                </span>
+
+                
+                
+              
+            </span>
+          
 
           
             
@@ -338,7 +370,19 @@
 <p>上面NettyRpcHandler调用了Dispatcher的postRemoteMessage方法，来将消息分发给对应的服务。</p>
 <figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">private</span>[netty] <span class="class"><span class="keyword">class</span> <span class="title">Dispatcher</span>(<span class="params">nettyEnv: <span class="type">NettyRpcEnv</span></span>) <span class="keyword">extends</span> <span class="title">Logging</span> </span>&#123;</span><br><span class="line">  <span class="comment">// RpcEndpoint集合</span></span><br><span class="line">  <span class="keyword">private</span> <span class="keyword">val</span> endpoints: <span class="type">ConcurrentMap</span>[<span class="type">String</span>, <span class="type">EndpointData</span>] =</span><br><span class="line">    <span class="keyword">new</span> <span class="type">ConcurrentHashMap</span>[<span class="type">String</span>, <span class="type">EndpointData</span>]</span><br><span class="line">    </span><br><span class="line">  <span class="function"><span class="keyword">def</span> <span class="title">postRemoteMessage</span></span>(message: <span class="type">RequestMessage</span>, callback: <span class="type">RpcResponseCallback</span>): <span class="type">Unit</span> = &#123;</span><br><span class="line">    <span class="keyword">val</span> rpcCallContext =</span><br><span class="line">      <span class="keyword">new</span> <span class="type">RemoteNettyRpcCallContext</span>(nettyEnv, callback, message.senderAddress)</span><br><span class="line">    <span class="comment">// 创建RpcMessage消息，调用postMessage方法发送</span></span><br><span class="line">    <span class="keyword">val</span> rpcMessage = <span class="type">RpcMessage</span>(message.senderAddress, message.content, rpcCallContext)</span><br><span class="line">    <span class="comment">// 请求消息message，包含了要请求服务的名称</span></span><br><span class="line">    postMessage(message.receiver.name, rpcMessage, (e) =&gt; callback.onFailure(e))</span><br><span class="line">  &#125;</span><br><span class="line">    </span><br><span class="line">  <span class="keyword">private</span> <span class="function"><span class="keyword">def</span> <span class="title">postMessage</span></span>(</span><br><span class="line">      endpointName: <span class="type">String</span>,</span><br><span class="line">      message: <span class="type">InboxMessage</span>,</span><br><span class="line">      callbackIfStopped: (<span class="type">Exception</span>) =&gt; <span class="type">Unit</span>): <span class="type">Unit</span> = &#123;</span><br><span class="line">    <span class="keyword">val</span> error = synchronized &#123;</span><br><span class="line">      <span class="comment">// 获取对应的EndpointData</span></span><br><span class="line">      <span class="keyword">val</span> data = endpoints.get(endpointName)</span><br><span class="line">      <span class="keyword">if</span> (stopped) &#123;</span><br><span class="line">        <span class="type">Some</span>(<span class="keyword">new</span> <span class="type">RpcEnvStoppedException</span>())</span><br><span class="line">      &#125; <span class="keyword">else</span> <span class="keyword">if</span> (data == <span class="literal">null</span>) &#123;</span><br><span class="line">        <span class="type">Some</span>(<span class="keyword">new</span> <span class="type">SparkException</span>(<span class="string">s"Could not find <span class="subst">$endpointName</span>."</span>))</span><br><span class="line">      &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">        <span class="comment">// 发送给对应的inbox</span></span><br><span class="line">        data.inbox.post(message)</span><br><span class="line">        receivers.offer(data)</span><br><span class="line">        <span class="type">None</span></span><br><span class="line">      &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">// We don't need to call `onStop` in the `synchronized` block</span></span><br><span class="line">    error.foreach(callbackIfStopped)</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
 <h2 id="Inbox"><a href="#Inbox" class="headerlink" title="Inbox"></a>Inbox</h2><p>Inbox 代表着收件箱，一个Inbox对应着一个服务。请求该服务的消息，都由Inbox接收，然后转发给RpcEndpoint处理。</p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line">sequenceDiagram</span><br><span class="line">	participant Dispatcher</span><br><span class="line">	participant Inbox</span><br><span class="line">	participant RpcEndpoint</span><br><span class="line">	Dispatcher -&gt;&gt;+ Inbox : post(message)</span><br><span class="line">	Inbox --&gt;&gt;- Dispatcher : #</span><br><span class="line">	Dispatcher -&gt;&gt;+ Inbox : process(dispatcher)</span><br><span class="line">	Inbox -&gt;&gt;+ RpcEndpoint : receiveAndReply(context)</span><br><span class="line">	RpcEndpoint --&gt;&gt;- Inbox : #</span><br><span class="line">	Inbox --&gt;&gt;- Dispatcher : #</span><br></pre></td></tr></table></figure>
+<pre class="mermaid">sequenceDiagram
+    participant Dispatcher
+    participant Inbox
+    participant RpcEndpoint
+    Dispatcher ->>+ Inbox : post(message)
+    Inbox -->>- Dispatcher : #
+    Dispatcher ->>+ Inbox : process(dispatcher)
+    Inbox ->>+ RpcEndpoint : receiveAndReply(context)
+    RpcEndpoint -->>- Inbox : #
+    Inbox -->>- Dispatcher : #</pre>
+
+
+
 <p>Inbox提供了post方法接收消息，它会将消息都会存储到队列里面。</p>
 <p>Dispatcher的后台线程会调用Inbox的process方法，从队列取出和处理消息。</p>
 <h3 id="处理消息"><a href="#处理消息" class="headerlink" title="处理消息"></a>处理消息</h3><p>首先看Inbox的process方法，它会循环从队列里获取和处理消息。 对于不同的消息会有不同的处理。</p>
@@ -482,13 +526,22 @@
             
 
             
+              
+              
+              <div class="site-state-item site-state-categories">
+                <a href="/categories/index.html">
+                  <span class="site-state-item-count">4</span>
+                  <span class="site-state-item-name">categories</span>
+                </a>
+              </div>
+            
 
             
               
               
               <div class="site-state-item site-state-tags">
                 
-                  <span class="site-state-item-count">22</span>
+                  <span class="site-state-item-count">23</span>
                   <span class="site-state-item-name">tags</span>
                 
               </div>
@@ -573,7 +626,7 @@
   <script src="https://unpkg.com/mermaid@7.1.2/dist/mermaid.min.js"></script>
   <script>
     if (window.mermaid) {
-      mermaid.initialize({"startOnload":"true  // default true","theme":"forest"});
+      mermaid.initialize({"startOnload":true,"theme":"forest"});
     }
   </script>
 

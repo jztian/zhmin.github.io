@@ -87,7 +87,7 @@
 <meta property="og:site_name" content="blog">
 <meta property="og:description" content="Spark 内存管理spark自己实现了一套内存的管理，为了精准的控制内存。因为JVM的垃圾回收不可控制，尤其是大内存的回收，会造成程序暂停长时间。spark为了避免这种情况，实现了内存的管理，尤其是针对大内存。对于大内存，spark会使用内存池的方法，避免了垃圾回收的次数，提高了程序的稳定性。目前spark支持堆内内存分配和堆外内存分配。 内存分配spark分配内存是以内存块为单位。内存块包含内">
 <meta property="og:locale" content="default">
-<meta property="og:updated_time" content="2019-01-15T14:52:28.049Z">
+<meta property="og:updated_time" content="2019-02-27T13:34:21.849Z">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="Spark 内存管理">
 <meta name="twitter:description" content="Spark 内存管理spark自己实现了一套内存的管理，为了精准的控制内存。因为JVM的垃圾回收不可控制，尤其是大内存的回收，会造成程序暂停长时间。spark为了避免这种情况，实现了内存的管理，尤其是针对大内存。对于大内存，spark会使用内存池的方法，避免了垃圾回收的次数，提高了程序的稳定性。目前spark支持堆内内存分配和堆外内存分配。 内存分配spark分配内存是以内存块为单位。内存块包含内">
@@ -191,6 +191,16 @@
         </li>
       
         
+        <li class="menu-item menu-item-categories">
+          <a href="/categories/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-th"></i> <br>
+            
+            Categories
+          </a>
+        </li>
+      
+        
         <li class="menu-item menu-item-archives">
           <a href="/archives/" rel="section">
             
@@ -272,6 +282,28 @@
             
           </span>
 
+          
+            <span class="post-category">
+            
+              <span class="post-meta-divider">|</span>
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">In</span>
+              
+              
+                <span itemprop="about" itemscope="" itemtype="http://schema.org/Thing">
+                  <a href="/categories/spark/" itemprop="url" rel="index">
+                    <span itemprop="name">spark</span>
+                  </a>
+                </span>
+
+                
+                
+              
+            </span>
           
 
           
@@ -510,13 +542,22 @@
             
 
             
+              
+              
+              <div class="site-state-item site-state-categories">
+                <a href="/categories/index.html">
+                  <span class="site-state-item-count">4</span>
+                  <span class="site-state-item-name">categories</span>
+                </a>
+              </div>
+            
 
             
               
               
               <div class="site-state-item site-state-tags">
                 
-                  <span class="site-state-item-count">22</span>
+                  <span class="site-state-item-count">23</span>
                   <span class="site-state-item-name">tags</span>
                 
               </div>
@@ -601,7 +642,7 @@
   <script src="https://unpkg.com/mermaid@7.1.2/dist/mermaid.min.js"></script>
   <script>
     if (window.mermaid) {
-      mermaid.initialize({"startOnload":"true  // default true","theme":"forest"});
+      mermaid.initialize({"startOnload":true,"theme":"forest"});
     }
   </script>
 

@@ -87,7 +87,7 @@
 <meta property="og:site_name" content="blog">
 <meta property="og:description" content="Spark Streaming WAL 原理WAL表示预写日志，经常在数据库中会使用到，在宕机后也能根据WAL恢复数据。Spark Streaming为了提高服务的容错性，也引入了WAL。它会将WAL存到可靠的文件系统 hdfs 里。Spark Streaming 运行在 executor 节点的 receiver， 从数据源读取数据后，如果配置了wal选项，会将数据写入WAL。这样当 execu">
 <meta property="og:locale" content="default">
-<meta property="og:updated_time" content="2019-02-17T13:30:10.167Z">
+<meta property="og:updated_time" content="2019-02-27T13:36:32.697Z">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="Spark Streaming WAL 原理">
 <meta name="twitter:description" content="Spark Streaming WAL 原理WAL表示预写日志，经常在数据库中会使用到，在宕机后也能根据WAL恢复数据。Spark Streaming为了提高服务的容错性，也引入了WAL。它会将WAL存到可靠的文件系统 hdfs 里。Spark Streaming 运行在 executor 节点的 receiver， 从数据源读取数据后，如果配置了wal选项，会将数据写入WAL。这样当 execu">
@@ -191,6 +191,16 @@
         </li>
       
         
+        <li class="menu-item menu-item-categories">
+          <a href="/categories/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-th"></i> <br>
+            
+            Categories
+          </a>
+        </li>
+      
+        
         <li class="menu-item menu-item-archives">
           <a href="/archives/" rel="section">
             
@@ -272,6 +282,28 @@
             
           </span>
 
+          
+            <span class="post-category">
+            
+              <span class="post-meta-divider">|</span>
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">In</span>
+              
+              
+                <span itemprop="about" itemscope="" itemtype="http://schema.org/Thing">
+                  <a href="/categories/spark-streaming/" itemprop="url" rel="index">
+                    <span itemprop="name">spark streaming</span>
+                  </a>
+                </span>
+
+                
+                
+              
+            </span>
           
 
           
@@ -482,13 +514,22 @@
             
 
             
+              
+              
+              <div class="site-state-item site-state-categories">
+                <a href="/categories/index.html">
+                  <span class="site-state-item-count">4</span>
+                  <span class="site-state-item-name">categories</span>
+                </a>
+              </div>
+            
 
             
               
               
               <div class="site-state-item site-state-tags">
                 
-                  <span class="site-state-item-count">22</span>
+                  <span class="site-state-item-count">23</span>
                   <span class="site-state-item-name">tags</span>
                 
               </div>
@@ -573,7 +614,7 @@
   <script src="https://unpkg.com/mermaid@7.1.2/dist/mermaid.min.js"></script>
   <script>
     if (window.mermaid) {
-      mermaid.initialize({"startOnload":"true  // default true","theme":"forest"});
+      mermaid.initialize({"startOnload":true,"theme":"forest"});
     }
   </script>
 

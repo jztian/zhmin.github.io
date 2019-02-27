@@ -87,7 +87,7 @@
 <meta property="og:site_name" content="blog">
 <meta property="og:description" content="分区器当触发到shuffle的时候，会将数据重新打乱分配。分区器会决定数据分配到哪个分区。分区器的接口很简单， 123456abstract class Partitioner extends Serializable &amp;#123;  // 分区的数目  def numPartitions: Int  // 计算key对应的分区索引  def getPartition(key: Any): Int">
 <meta property="og:locale" content="default">
-<meta property="og:updated_time" content="2019-01-06T14:14:44.631Z">
+<meta property="og:updated_time" content="2019-02-27T13:34:30.298Z">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="Spark Partitioner 原理">
 <meta name="twitter:description" content="分区器当触发到shuffle的时候，会将数据重新打乱分配。分区器会决定数据分配到哪个分区。分区器的接口很简单， 123456abstract class Partitioner extends Serializable &amp;#123;  // 分区的数目  def numPartitions: Int  // 计算key对应的分区索引  def getPartition(key: Any): Int">
@@ -191,6 +191,16 @@
         </li>
       
         
+        <li class="menu-item menu-item-categories">
+          <a href="/categories/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-th"></i> <br>
+            
+            Categories
+          </a>
+        </li>
+      
+        
         <li class="menu-item menu-item-archives">
           <a href="/archives/" rel="section">
             
@@ -272,6 +282,28 @@
             
           </span>
 
+          
+            <span class="post-category">
+            
+              <span class="post-meta-divider">|</span>
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">In</span>
+              
+              
+                <span itemprop="about" itemscope="" itemtype="http://schema.org/Thing">
+                  <a href="/categories/spark/" itemprop="url" rel="index">
+                    <span itemprop="name">spark</span>
+                  </a>
+                </span>
+
+                
+                
+              
+            </span>
           
 
           
@@ -475,13 +507,22 @@
             
 
             
+              
+              
+              <div class="site-state-item site-state-categories">
+                <a href="/categories/index.html">
+                  <span class="site-state-item-count">4</span>
+                  <span class="site-state-item-name">categories</span>
+                </a>
+              </div>
+            
 
             
               
               
               <div class="site-state-item site-state-tags">
                 
-                  <span class="site-state-item-count">22</span>
+                  <span class="site-state-item-count">23</span>
                   <span class="site-state-item-name">tags</span>
                 
               </div>
@@ -566,7 +607,7 @@
   <script src="https://unpkg.com/mermaid@7.1.2/dist/mermaid.min.js"></script>
   <script>
     if (window.mermaid) {
-      mermaid.initialize({"startOnload":"true  // default true","theme":"forest"});
+      mermaid.initialize({"startOnload":true,"theme":"forest"});
     }
   </script>
 

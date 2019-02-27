@@ -68,7 +68,7 @@
 
 
 
-  <meta name="keywords" content="Hexo, NexT">
+  <meta name="keywords" content="spark,">
 
 
 
@@ -80,6 +80,7 @@
 
 
 <meta name="description" content="Spark Executor 节点运行原理Executor运行流程图 Executor 节点启动这里讲的spark运行的场景都是在Yarn上。从这边博客 Spark 运行在Yarn上的原理 ，可以看到Executor节点的启动函数，是CoarseGrainedExecutorBackend的main函数。 1234567891011121314151617181920212223242526272">
+<meta name="keywords" content="spark">
 <meta property="og:type" content="article">
 <meta property="og:title" content="Spark Executor 节点运行原理">
 <meta property="og:url" content="https://zhmin.github.io/2019/01/19/spark-executor/index.html">
@@ -87,7 +88,7 @@
 <meta property="og:description" content="Spark Executor 节点运行原理Executor运行流程图 Executor 节点启动这里讲的spark运行的场景都是在Yarn上。从这边博客 Spark 运行在Yarn上的原理 ，可以看到Executor节点的启动函数，是CoarseGrainedExecutorBackend的main函数。 1234567891011121314151617181920212223242526272">
 <meta property="og:locale" content="default">
 <meta property="og:image" content="https://zhmin.github.io/2019/01/19/spark-executor/spark-executor-communicate.svg">
-<meta property="og:updated_time" content="2019-01-21T14:01:14.424Z">
+<meta property="og:updated_time" content="2019-02-27T13:34:12.195Z">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="Spark Executor 节点运行原理">
 <meta name="twitter:description" content="Spark Executor 节点运行原理Executor运行流程图 Executor 节点启动这里讲的spark运行的场景都是在Yarn上。从这边博客 Spark 运行在Yarn上的原理 ，可以看到Executor节点的启动函数，是CoarseGrainedExecutorBackend的main函数。 1234567891011121314151617181920212223242526272">
@@ -192,6 +193,16 @@
         </li>
       
         
+        <li class="menu-item menu-item-categories">
+          <a href="/categories/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-th"></i> <br>
+            
+            Categories
+          </a>
+        </li>
+      
+        
         <li class="menu-item menu-item-archives">
           <a href="/archives/" rel="section">
             
@@ -274,6 +285,28 @@
           </span>
 
           
+            <span class="post-category">
+            
+              <span class="post-meta-divider">|</span>
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">In</span>
+              
+              
+                <span itemprop="about" itemscope="" itemtype="http://schema.org/Thing">
+                  <a href="/categories/spark/" itemprop="url" rel="index">
+                    <span itemprop="name">spark</span>
+                  </a>
+                </span>
+
+                
+                
+              
+            </span>
+          
 
           
             
@@ -352,6 +385,12 @@
     
 
     <footer class="post-footer">
+      
+        <div class="post-tags">
+          
+            <a href="/tags/spark/" rel="tag"># spark</a>
+          
+        </div>
       
 
       
@@ -461,13 +500,22 @@
             
 
             
+              
+              
+              <div class="site-state-item site-state-categories">
+                <a href="/categories/index.html">
+                  <span class="site-state-item-count">4</span>
+                  <span class="site-state-item-name">categories</span>
+                </a>
+              </div>
+            
 
             
               
               
               <div class="site-state-item site-state-tags">
                 
-                  <span class="site-state-item-count">22</span>
+                  <span class="site-state-item-count">23</span>
                   <span class="site-state-item-name">tags</span>
                 
               </div>
@@ -552,7 +600,7 @@
   <script src="https://unpkg.com/mermaid@7.1.2/dist/mermaid.min.js"></script>
   <script>
     if (window.mermaid) {
-      mermaid.initialize({"startOnload":"true  // default true","theme":"forest"});
+      mermaid.initialize({"startOnload":true,"theme":"forest"});
     }
   </script>
 

@@ -88,7 +88,7 @@
 <meta property="og:description" content="Datax 插件加载原理插件类型Datax有好几种类型的插件，每个插件都有不同的作用。  reader， 读插件。Reader就是属于这种类型的 writer， 写插件。Writer就是属于这种类型的 transformer， 目前还未知 handler， 主要用于任务执行前的准备工作和完成的收尾工作。  插件类型由PluginType枚举表示 123public enum PluginType">
 <meta property="og:locale" content="default">
 <meta property="og:image" content="https://github.com/zhmin/blog/blob/datax/datax/images/plugin-uml.png?raw=true">
-<meta property="og:updated_time" content="2018-12-28T14:59:06.088Z">
+<meta property="og:updated_time" content="2019-02-27T13:37:54.141Z">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="Datax 插件加载原理">
 <meta name="twitter:description" content="Datax 插件加载原理插件类型Datax有好几种类型的插件，每个插件都有不同的作用。  reader， 读插件。Reader就是属于这种类型的 writer， 写插件。Writer就是属于这种类型的 transformer， 目前还未知 handler， 主要用于任务执行前的准备工作和完成的收尾工作。  插件类型由PluginType枚举表示 123public enum PluginType">
@@ -193,6 +193,16 @@
         </li>
       
         
+        <li class="menu-item menu-item-categories">
+          <a href="/categories/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-th"></i> <br>
+            
+            Categories
+          </a>
+        </li>
+      
+        
         <li class="menu-item menu-item-archives">
           <a href="/archives/" rel="section">
             
@@ -274,6 +284,28 @@
             
           </span>
 
+          
+            <span class="post-category">
+            
+              <span class="post-meta-divider">|</span>
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">In</span>
+              
+              
+                <span itemprop="about" itemscope="" itemtype="http://schema.org/Thing">
+                  <a href="/categories/datax/" itemprop="url" rel="index">
+                    <span itemprop="name">datax</span>
+                  </a>
+                </span>
+
+                
+                
+              
+            </span>
           
 
           
@@ -478,13 +510,22 @@
             
 
             
+              
+              
+              <div class="site-state-item site-state-categories">
+                <a href="/categories/index.html">
+                  <span class="site-state-item-count">4</span>
+                  <span class="site-state-item-name">categories</span>
+                </a>
+              </div>
+            
 
             
               
               
               <div class="site-state-item site-state-tags">
                 
-                  <span class="site-state-item-count">22</span>
+                  <span class="site-state-item-count">23</span>
                   <span class="site-state-item-name">tags</span>
                 
               </div>
@@ -569,7 +610,7 @@
   <script src="https://unpkg.com/mermaid@7.1.2/dist/mermaid.min.js"></script>
   <script>
     if (window.mermaid) {
-      mermaid.initialize({"startOnload":"true  // default true","theme":"forest"});
+      mermaid.initialize({"startOnload":true,"theme":"forest"});
     }
   </script>
 

@@ -87,7 +87,7 @@
 <meta property="og:site_name" content="blog">
 <meta property="og:description" content="Datax 任务分配原理Datax根首先据配置文件，确定好channel的并发数目。然后将整个job分成一个个小的task，然后划分成组。 确定channel数目如果指定字节数限速，则计算字节限速后的并发数目。如果指定记录数限速，则计算记录数限速后的并发数目。再取两者中最小的channel并发数目。如果两者限速都没指定，则看是否配置文件指定了channel并发数目。 比如以下面这个配置为例： 12">
 <meta property="og:locale" content="default">
-<meta property="og:updated_time" content="2018-12-28T14:59:06.088Z">
+<meta property="og:updated_time" content="2019-02-27T13:32:08.622Z">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="Datax 任务分配原理">
 <meta name="twitter:description" content="Datax 任务分配原理Datax根首先据配置文件，确定好channel的并发数目。然后将整个job分成一个个小的task，然后划分成组。 确定channel数目如果指定字节数限速，则计算字节限速后的并发数目。如果指定记录数限速，则计算记录数限速后的并发数目。再取两者中最小的channel并发数目。如果两者限速都没指定，则看是否配置文件指定了channel并发数目。 比如以下面这个配置为例： 12">
@@ -191,6 +191,16 @@
         </li>
       
         
+        <li class="menu-item menu-item-categories">
+          <a href="/categories/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-th"></i> <br>
+            
+            Categories
+          </a>
+        </li>
+      
+        
         <li class="menu-item menu-item-archives">
           <a href="/archives/" rel="section">
             
@@ -272,6 +282,28 @@
             
           </span>
 
+          
+            <span class="post-category">
+            
+              <span class="post-meta-divider">|</span>
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">In</span>
+              
+              
+                <span itemprop="about" itemscope="" itemtype="http://schema.org/Thing">
+                  <a href="/categories/datax/" itemprop="url" rel="index">
+                    <span itemprop="name">datax</span>
+                  </a>
+                </span>
+
+                
+                
+              
+            </span>
           
 
           
@@ -501,13 +533,22 @@
             
 
             
+              
+              
+              <div class="site-state-item site-state-categories">
+                <a href="/categories/index.html">
+                  <span class="site-state-item-count">4</span>
+                  <span class="site-state-item-name">categories</span>
+                </a>
+              </div>
+            
 
             
               
               
               <div class="site-state-item site-state-tags">
                 
-                  <span class="site-state-item-count">22</span>
+                  <span class="site-state-item-count">23</span>
                   <span class="site-state-item-name">tags</span>
                 
               </div>
@@ -592,7 +633,7 @@
   <script src="https://unpkg.com/mermaid@7.1.2/dist/mermaid.min.js"></script>
   <script>
     if (window.mermaid) {
-      mermaid.initialize({"startOnload":"true  // default true","theme":"forest"});
+      mermaid.initialize({"startOnload":true,"theme":"forest"});
     }
   </script>
 

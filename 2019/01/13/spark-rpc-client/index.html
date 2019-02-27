@@ -87,7 +87,7 @@
 <meta property="og:site_name" content="blog">
 <meta property="og:description" content="Spark Rpc 客户端原理Spark Rpc 客户端涉及到多个组件，根据发送消息和接收消息的流程，逐一介绍这些组件。可以参见流程图 Spark Rpc 原理介绍  RpcEndpointRefRpcEndpointRef表示客户端，它提供了两个接口发送请求。send方法表示发送请求但不需要返回值，ask方法表示发送请求并且需要获取返回值。 RpcEndpointRef目前只有一个实现类Nett">
 <meta property="og:locale" content="default">
-<meta property="og:updated_time" content="2019-01-14T13:57:14.668Z">
+<meta property="og:updated_time" content="2019-02-27T13:34:40.840Z">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="Spark Rpc 客户端原理">
 <meta name="twitter:description" content="Spark Rpc 客户端原理Spark Rpc 客户端涉及到多个组件，根据发送消息和接收消息的流程，逐一介绍这些组件。可以参见流程图 Spark Rpc 原理介绍  RpcEndpointRefRpcEndpointRef表示客户端，它提供了两个接口发送请求。send方法表示发送请求但不需要返回值，ask方法表示发送请求并且需要获取返回值。 RpcEndpointRef目前只有一个实现类Nett">
@@ -191,6 +191,16 @@
         </li>
       
         
+        <li class="menu-item menu-item-categories">
+          <a href="/categories/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-th"></i> <br>
+            
+            Categories
+          </a>
+        </li>
+      
+        
         <li class="menu-item menu-item-archives">
           <a href="/archives/" rel="section">
             
@@ -272,6 +282,28 @@
             
           </span>
 
+          
+            <span class="post-category">
+            
+              <span class="post-meta-divider">|</span>
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">In</span>
+              
+              
+                <span itemprop="about" itemscope="" itemtype="http://schema.org/Thing">
+                  <a href="/categories/spark/" itemprop="url" rel="index">
+                    <span itemprop="name">spark</span>
+                  </a>
+                </span>
+
+                
+                
+              
+            </span>
           
 
           
@@ -515,13 +547,22 @@
             
 
             
+              
+              
+              <div class="site-state-item site-state-categories">
+                <a href="/categories/index.html">
+                  <span class="site-state-item-count">4</span>
+                  <span class="site-state-item-name">categories</span>
+                </a>
+              </div>
+            
 
             
               
               
               <div class="site-state-item site-state-tags">
                 
-                  <span class="site-state-item-count">22</span>
+                  <span class="site-state-item-count">23</span>
                   <span class="site-state-item-name">tags</span>
                 
               </div>
@@ -606,7 +647,7 @@
   <script src="https://unpkg.com/mermaid@7.1.2/dist/mermaid.min.js"></script>
   <script>
     if (window.mermaid) {
-      mermaid.initialize({"startOnload":"true  // default true","theme":"forest"});
+      mermaid.initialize({"startOnload":true,"theme":"forest"});
     }
   </script>
 
