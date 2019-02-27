@@ -2,6 +2,13 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   
   <url>
+    <loc>https://zhmin.github.io/2019/02/25/spark-rpc-server/</loc>
+    
+    <lastmod>2019-02-27T13:22:00.837Z</lastmod>
+    
+  </url>
+  
+  <url>
     <loc>https://zhmin.github.io/2019/02/21/spark-streaming-kafka/</loc>
     
     <lastmod>2019-02-21T13:41:36.205Z</lastmod>
@@ -128,14 +135,14 @@
   </url>
   
   <url>
-    <loc>https://zhmin.github.io/2018/12/28/datax-job/</loc>
+    <loc>https://zhmin.github.io/2018/12/27/datax-plugin/</loc>
     
     <lastmod>2018-12-28T14:59:06.088Z</lastmod>
     
   </url>
   
   <url>
-    <loc>https://zhmin.github.io/2018/12/27/datax-plugin/</loc>
+    <loc>https://zhmin.github.io/2018/12/28/datax-job/</loc>
     
     <lastmod>2018-12-28T14:59:06.088Z</lastmod>
     

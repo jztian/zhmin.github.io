@@ -1,0 +1,883 @@
+<!DOCTYPE html>
+
+
+
+  
+
+
+<html class="theme-next mist use-motion" lang="">
+<head><meta name="generator" content="Hexo 3.8.0">
+  <meta charset="UTF-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="theme-color" content="#222">
+
+
+
+
+
+
+
+
+
+<meta http-equiv="Cache-Control" content="no-transform">
+<meta http-equiv="Cache-Control" content="no-siteapp">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+  <link href="/lib/fancybox/source/jquery.fancybox.css?v=2.1.5" rel="stylesheet" type="text/css">
+
+
+
+
+
+
+
+<link href="/lib/font-awesome/css/font-awesome.min.css?v=4.6.2" rel="stylesheet" type="text/css">
+
+<link href="/css/main.css?v=5.1.4" rel="stylesheet" type="text/css">
+
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png?v=5.1.4">
+
+
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png?v=5.1.4">
+
+
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png?v=5.1.4">
+
+
+  <link rel="mask-icon" href="/images/logo.svg?v=5.1.4" color="#222">
+
+
+
+
+
+  <meta name="keywords" content="Spark Rpc 服务端原理,">
+
+
+
+
+
+
+
+
+
+
+<meta name="description" content="Spark Rpc 服务端原理Spark Rpc 服务端涉及到多个组件，根据发送消息和接收消息的流程，逐一介绍这些组件。可以参见流程图 Spark Rpc 原理介绍  Rpc Server 启动Spark Rpc的服务端需要运行在NettyRpcEnv环境下，NettyRpcEnv提供了startServer方法，在NettyRpcEnv环境下负责启动Rpc Server。NettyRpcEnv在">
+<meta name="keywords" content="Spark Rpc 服务端原理">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Spark Rpc 服务端原理">
+<meta property="og:url" content="https://zhmin.github.io/2019/02/25/spark-rpc-server/index.html">
+<meta property="og:site_name" content="blog">
+<meta property="og:description" content="Spark Rpc 服务端原理Spark Rpc 服务端涉及到多个组件，根据发送消息和接收消息的流程，逐一介绍这些组件。可以参见流程图 Spark Rpc 原理介绍  Rpc Server 启动Spark Rpc的服务端需要运行在NettyRpcEnv环境下，NettyRpcEnv提供了startServer方法，在NettyRpcEnv环境下负责启动Rpc Server。NettyRpcEnv在">
+<meta property="og:locale" content="default">
+<meta property="og:updated_time" content="2019-02-27T13:22:00.837Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Spark Rpc 服务端原理">
+<meta name="twitter:description" content="Spark Rpc 服务端原理Spark Rpc 服务端涉及到多个组件，根据发送消息和接收消息的流程，逐一介绍这些组件。可以参见流程图 Spark Rpc 原理介绍  Rpc Server 启动Spark Rpc的服务端需要运行在NettyRpcEnv环境下，NettyRpcEnv提供了startServer方法，在NettyRpcEnv环境下负责启动Rpc Server。NettyRpcEnv在">
+
+
+
+<script type="text/javascript" id="hexo.configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '/',
+    scheme: 'Mist',
+    version: '5.1.4',
+    sidebar: {"position":"left","display":"hide","offset":12,"b2t":false,"scrollpercent":false,"onmobile":false},
+    fancybox: true,
+    tabs: true,
+    motion: {"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},
+    duoshuo: {
+      userId: '0',
+      author: 'Author'
+    },
+    algolia: {
+      applicationID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    }
+  };
+</script>
+
+
+
+  <link rel="canonical" href="https://zhmin.github.io/2019/02/25/spark-rpc-server/">
+
+
+
+
+
+  <title>Spark Rpc 服务端原理 | blog</title>
+  
+
+
+
+
+
+
+
+
+</head>
+
+<body itemscope="" itemtype="http://schema.org/WebPage" lang="default">
+
+  
+  
+    
+  
+
+  <div class="container sidebar-position-left page-post-detail">
+    <div class="headband"></div>
+
+    <header id="header" class="header" itemscope="" itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-wrapper">
+  <div class="site-meta ">
+    
+
+    <div class="custom-logo-site-title">
+      <a href="/" class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">blog</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+      
+        <h1 class="site-subtitle" itemprop="description"></h1>
+      
+  </div>
+
+  <div class="site-nav-toggle">
+    <button>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+    </button>
+  </div>
+</div>
+
+<nav class="site-nav">
+  
+
+  
+    <ul id="menu" class="menu">
+      
+        
+        <li class="menu-item menu-item-home">
+          <a href="/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-home"></i> <br>
+            
+            Home
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-archives">
+          <a href="/archives/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-archive"></i> <br>
+            
+            Archives
+          </a>
+        </li>
+      
+
+      
+    </ul>
+  
+
+  
+</nav>
+
+
+
+ </div>
+    </header>
+
+    <main id="main" class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          <div id="content" class="content">
+            
+
+  <div id="posts" class="posts-expand">
+    
+
+  
+
+  
+  
+  
+
+  <article class="post post-type-normal" itemscope="" itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block">
+    <link itemprop="mainEntityOfPage" href="https://zhmin.github.io/2019/02/25/spark-rpc-server/">
+
+    <span hidden itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="zhmin">
+      <meta itemprop="description" content="">
+      <meta itemprop="image" content="/images/avatar.gif">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope="" itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="blog">
+    </span>
+
+    
+      <header class="post-header">
+
+        
+        
+          <h2 class="post-title" itemprop="name headline">Spark Rpc 服务端原理</h2>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">Posted on</span>
+              
+              <time title="Post created" itemprop="dateCreated datePublished" datetime="2019-02-25T21:23:38+08:00">
+                2019-02-25
+              </time>
+            
+
+            
+
+            
+          </span>
+
+          
+
+          
+            
+              <span class="post-comments-count">
+                <span class="post-meta-divider">|</span>
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-comment-o"></i>
+                </span>
+                <a href="/2019/02/25/spark-rpc-server/#comments" itemprop="discussionUrl">
+                  <span class="post-comments-count valine-comment-count" data-xid="/2019/02/25/spark-rpc-server/" itemprop="commentCount"></span>
+                </a>
+              </span>
+            
+          
+
+          
+          
+             <span id="/2019/02/25/spark-rpc-server/" class="leancloud_visitors" data-flag-title="Spark Rpc 服务端原理">
+               <span class="post-meta-divider">|</span>
+               <span class="post-meta-item-icon">
+                 <i class="fa fa-eye"></i>
+               </span>
+               
+                 <span class="post-meta-item-text">Visitors&#58;</span>
+               
+                 <span class="leancloud-visitors-count"></span>
+             </span>
+          
+
+          
+
+          
+
+          
+
+        </div>
+      </header>
+    
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+      
+
+      
+        <h1 id="Spark-Rpc-服务端原理"><a href="#Spark-Rpc-服务端原理" class="headerlink" title="Spark Rpc 服务端原理"></a>Spark Rpc 服务端原理</h1><p>Spark Rpc 服务端涉及到多个组件，根据发送消息和接收消息的流程，逐一介绍这些组件。可以参见流程图 <a href="/2019/01/13/spark-rpc-flow/" title="Spark Rpc 原理介绍">Spark Rpc 原理介绍</a> </p>
+<h2 id="Rpc-Server-启动"><a href="#Rpc-Server-启动" class="headerlink" title="Rpc Server 启动"></a>Rpc Server 启动</h2><p>Spark Rpc的服务端需要运行在NettyRpcEnv环境下，NettyRpcEnv提供了startServer方法，在NettyRpcEnv环境下负责启动Rpc Server。NettyRpcEnv在启动 Rpc Server时，会将服务注册在Dispatcher里。</p>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">private</span>[netty] <span class="class"><span class="keyword">class</span> <span class="title">NettyRpcEnv</span>(<span class="params"></span></span></span><br><span class="line"><span class="class"><span class="params">    val conf: <span class="type">SparkConf</span>,</span></span></span><br><span class="line"><span class="class"><span class="params">    javaSerializerInstance: <span class="type">JavaSerializerInstance</span>,</span></span></span><br><span class="line"><span class="class"><span class="params">    host: <span class="type">String</span>,</span></span></span><br><span class="line"><span class="class"><span class="params">    securityManager: <span class="type">SecurityManager</span></span>) <span class="keyword">extends</span> <span class="title">RpcEnv</span>(<span class="params">conf</span>) <span class="keyword">with</span> <span class="title">Logging</span> </span>&#123;</span><br><span class="line">  <span class="comment">// 消息分发器，负责将消息发送给对应的Rpc Server（因为一个NettyRpcEnv可以运行多个Rpc Server）</span></span><br><span class="line">  <span class="keyword">private</span> <span class="keyword">val</span> dispatcher: <span class="type">Dispatcher</span> = <span class="keyword">new</span> <span class="type">Dispatcher</span>(<span class="keyword">this</span>)</span><br><span class="line">  <span class="comment">// 初始化TransportContext，传递了NettyRpcHandler，作为netty server的回调</span></span><br><span class="line">  <span class="keyword">private</span> <span class="keyword">val</span> transportContext = <span class="keyword">new</span> <span class="type">TransportContext</span>(transportConf,</span><br><span class="line">    <span class="keyword">new</span> <span class="type">NettyRpcHandler</span>(dispatcher, <span class="keyword">this</span>, streamManager))</span><br><span class="line">      </span><br><span class="line">  <span class="function"><span class="keyword">def</span> <span class="title">startServer</span></span>(bindAddress: <span class="type">String</span>, port: <span class="type">Int</span>): <span class="type">Unit</span> = &#123;</span><br><span class="line">    <span class="keyword">val</span> bootstraps: java.util.<span class="type">List</span>[<span class="type">TransportServerBootstrap</span>] =</span><br><span class="line">      <span class="keyword">if</span> (securityManager.isAuthenticationEnabled()) &#123;</span><br><span class="line">        java.util.<span class="type">Arrays</span>.asList(<span class="keyword">new</span> <span class="type">AuthServerBootstrap</span>(transportConf, securityManager))</span><br><span class="line">      &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">        java.util.<span class="type">Collections</span>.emptyList()</span><br><span class="line">      &#125;</span><br><span class="line">    <span class="comment">// 调用transportContext实例TransportServer</span></span><br><span class="line">    server = transportContext.createServer(bindAddress, port, bootstraps)</span><br><span class="line">    <span class="comment">// 向分发器注册自身服务，这样分发器才能根据名称找到服务</span></span><br><span class="line">    dispatcher.registerRpcEndpoint(</span><br><span class="line">      <span class="type">RpcEndpointVerifier</span>.<span class="type">NAME</span>, <span class="keyword">new</span> <span class="type">RpcEndpointVerifier</span>(<span class="keyword">this</span>, dispatcher))</span><br><span class="line">  &#125;</span><br></pre></td></tr></table></figure>
+<p>TransportContext的createServer方法，只是简单的实例化TransportServer，并传递了RpcHandler参数，这里RpcHandler负责处理rpc消息。接下来看看TransportServer的初始化，里面包含了Netty服务端的初始化</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">TransportServer</span> <span class="keyword">implements</span> <span class="title">Closeable</span> </span>&#123;</span><br><span class="line"></span><br><span class="line">  <span class="keyword">private</span> <span class="keyword">final</span> RpcHandler appRpcHandler;</span><br><span class="line">  </span><br><span class="line">  <span class="function"><span class="keyword">private</span> <span class="keyword">void</span> <span class="title">init</span><span class="params">(String hostToBind, <span class="keyword">int</span> portToBind)</span> </span>&#123;</span><br><span class="line"></span><br><span class="line">    IOMode ioMode = IOMode.valueOf(conf.ioMode());</span><br><span class="line">    <span class="comment">// 根据io的配置，选择NioEventLoopGroup或者EpollEventLoopGroup</span></span><br><span class="line">    EventLoopGroup bossGroup =</span><br><span class="line">      NettyUtils.createEventLoop(ioMode, conf.serverThreads(), conf.getModuleName() + <span class="string">"-server"</span>);</span><br><span class="line">    <span class="comment">// bossGroup和workerGroup是同一个线程池</span></span><br><span class="line">    EventLoopGroup workerGroup = bossGroup;</span><br><span class="line">    <span class="comment">// 使用缓存池分配空间</span></span><br><span class="line">    PooledByteBufAllocator allocator = NettyUtils.createPooledByteBufAllocator(</span><br><span class="line">      conf.preferDirectBufs(), <span class="keyword">true</span> <span class="comment">/* allowCache */</span>, conf.serverThreads());</span><br><span class="line"></span><br><span class="line">    <span class="comment">// Netty初始化</span></span><br><span class="line">    bootstrap = <span class="keyword">new</span> ServerBootstrap()</span><br><span class="line">      .group(bossGroup, workerGroup)</span><br><span class="line">      .channel(NettyUtils.getServerChannelClass(ioMode))</span><br><span class="line">      .option(ChannelOption.ALLOCATOR, allocator)</span><br><span class="line">      .childOption(ChannelOption.ALLOCATOR, allocator);</span><br><span class="line">    <span class="comment">// 初始化Netty的时间处理回调</span></span><br><span class="line">    bootstrap.childHandler(<span class="keyword">new</span> ChannelInitializer&lt;SocketChannel&gt;() &#123;</span><br><span class="line">      <span class="meta">@Override</span></span><br><span class="line">      <span class="function"><span class="keyword">protected</span> <span class="keyword">void</span> <span class="title">initChannel</span><span class="params">(SocketChannel ch)</span> <span class="keyword">throws</span> Exception </span>&#123;</span><br><span class="line">        RpcHandler rpcHandler = appRpcHandler;</span><br><span class="line">        <span class="keyword">for</span> (TransportServerBootstrap bootstrap : bootstraps) &#123;</span><br><span class="line">          rpcHandler = bootstrap.doBootstrap(ch, rpcHandler);</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="comment">// 这里调用了TransportContext的方法，添加channel的处理器</span></span><br><span class="line">        context.initializePipeline(ch, rpcHandler);</span><br><span class="line">      &#125;</span><br><span class="line">    &#125;);</span><br><span class="line"></span><br><span class="line">    InetSocketAddress address = hostToBind == <span class="keyword">null</span> ?</span><br><span class="line">        <span class="keyword">new</span> InetSocketAddress(portToBind): <span class="keyword">new</span> InetSocketAddress(hostToBind, portToBind);</span><br><span class="line">    <span class="comment">// 绑定监听地址</span></span><br><span class="line">    channelFuture = bootstrap.bind(address);</span><br><span class="line">    channelFuture.syncUninterruptibly();</span><br><span class="line"></span><br><span class="line">    port = ((InetSocketAddress) channelFuture.channel().localAddress()).getPort();</span><br><span class="line">    logger.debug(<span class="string">"Shuffle server started on port: &#123;&#125;"</span>, port);</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>上面调用了TransportContext的initializePipeline方法，给Channel添加了TransportChannelHandler。TransportChannelHandler继承ChannelInboundHandlerAdapter，实现了channelRead方法来处理请求。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">TransportChannelHandler</span> <span class="keyword">extends</span> <span class="title">ChannelInboundHandlerAdapter</span> </span>&#123;</span><br><span class="line">    </span><br><span class="line">  <span class="meta">@Override</span></span><br><span class="line">  <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">channelRead</span><span class="params">(ChannelHandlerContext ctx, Object request)</span> <span class="keyword">throws</span> Exception </span>&#123;</span><br><span class="line">    <span class="keyword">if</span> (request <span class="keyword">instanceof</span> RequestMessage) &#123;</span><br><span class="line">      <span class="comment">// 调用了TransportRequestHandler处理请求</span></span><br><span class="line">      requestHandler.handle((RequestMessage) request);</span><br><span class="line">    &#125; <span class="keyword">else</span> <span class="keyword">if</span> (request <span class="keyword">instanceof</span> ResponseMessage) &#123;</span><br><span class="line">      responseHandler.handle((ResponseMessage) request);</span><br><span class="line">    &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">      ctx.fireChannelRead(request);</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h2 id="TransportRequestHandler"><a href="#TransportRequestHandler" class="headerlink" title="TransportRequestHandler"></a>TransportRequestHandler</h2><p>TransportRequestHandler可以处理多种请求，这里只将Rpc请求。它接收到Rpc请求后，会调用processRpcRequest方法处理。这里的RpcHandler就是Netty创建Server的时候，生成的NettyRpcHandler。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">TransportRequestHandler</span> <span class="keyword">extends</span> <span class="title">MessageHandler</span>&lt;<span class="title">RequestMessage</span>&gt; </span>&#123;</span><br><span class="line">    </span><br><span class="line">  <span class="keyword">private</span> <span class="keyword">final</span> RpcHandler rpcHandler;</span><br><span class="line"></span><br><span class="line">  <span class="meta">@Override</span></span><br><span class="line">  <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">handle</span><span class="params">(RequestMessage request)</span> </span>&#123;</span><br><span class="line">    <span class="keyword">if</span> (request <span class="keyword">instanceof</span> ChunkFetchRequest) &#123;</span><br><span class="line">      processFetchRequest((ChunkFetchRequest) request);</span><br><span class="line">    &#125; <span class="keyword">else</span> <span class="keyword">if</span> (request <span class="keyword">instanceof</span> RpcRequest) &#123;</span><br><span class="line">      processRpcRequest((RpcRequest) request);</span><br><span class="line">    &#125; <span class="keyword">else</span> <span class="keyword">if</span> (request <span class="keyword">instanceof</span> OneWayMessage) &#123;</span><br><span class="line">      processOneWayMessage((OneWayMessage) request);</span><br><span class="line">    &#125; <span class="keyword">else</span> <span class="keyword">if</span> (request <span class="keyword">instanceof</span> StreamRequest) &#123;</span><br><span class="line">      processStreamRequest((StreamRequest) request);</span><br><span class="line">    &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">      <span class="keyword">throw</span> <span class="keyword">new</span> IllegalArgumentException(<span class="string">"Unknown request type: "</span> + request);</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  <span class="function"><span class="keyword">private</span> <span class="keyword">void</span> <span class="title">processRpcRequest</span><span class="params">(<span class="keyword">final</span> RpcRequest req)</span> </span>&#123;</span><br><span class="line">    <span class="keyword">try</span> &#123;</span><br><span class="line">      rpcHandler.receive(reverseClient, req.body().nioByteBuffer(), <span class="keyword">new</span> RpcResponseCallback() &#123;</span><br><span class="line">        <span class="meta">@Override</span></span><br><span class="line">        <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">onSuccess</span><span class="params">(ByteBuffer response)</span> </span>&#123;</span><br><span class="line">          respond(<span class="keyword">new</span> RpcResponse(req.requestId, <span class="keyword">new</span> NioManagedBuffer(response)));</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        <span class="meta">@Override</span></span><br><span class="line">        <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">onFailure</span><span class="params">(Throwable e)</span> </span>&#123;</span><br><span class="line">          respond(<span class="keyword">new</span> RpcFailure(req.requestId, Throwables.getStackTraceAsString(e)));</span><br><span class="line">        &#125;</span><br><span class="line">      &#125;);</span><br><span class="line">    &#125; <span class="keyword">catch</span> (Exception e) &#123;</span><br><span class="line">      logger.error(<span class="string">"Error while invoking RpcHandler#receive() on RPC id "</span> + req.requestId, e);</span><br><span class="line">      respond(<span class="keyword">new</span> RpcFailure(req.requestId, Throwables.getStackTraceAsString(e)));</span><br><span class="line">    &#125; <span class="keyword">finally</span> &#123;</span><br><span class="line">      req.body().release();</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h2 id="NettyRpcHandler"><a href="#NettyRpcHandler" class="headerlink" title="NettyRpcHandler"></a>NettyRpcHandler</h2><p>NettyRpcHandler的receive方法，首先调用了internalReceive生成RequestMessage，然后转发给dispatcher。</p>
+<p>NettyRpcHandler还有个属性remoteAddresses，它保存了client的地址。通过remoteAddresses， 可以确定这个client是否为新连接。每当新的client连接时，都会发送一个RemoteProcessConnected消息。</p>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">private</span>[netty] <span class="class"><span class="keyword">class</span> <span class="title">NettyRpcHandler</span> </span>&#123;</span><br><span class="line">    </span><br><span class="line">  <span class="keyword">override</span> <span class="function"><span class="keyword">def</span> <span class="title">receive</span></span>(</span><br><span class="line">      client: <span class="type">TransportClient</span>,</span><br><span class="line">      message: <span class="type">ByteBuffer</span>,</span><br><span class="line">      callback: <span class="type">RpcResponseCallback</span>): <span class="type">Unit</span> = &#123;</span><br><span class="line">    <span class="keyword">val</span> messageToDispatch = internalReceive(client, message)</span><br><span class="line">    dispatcher.postRemoteMessage(messageToDispatch, callback)</span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  <span class="keyword">private</span> <span class="function"><span class="keyword">def</span> <span class="title">internalReceive</span></span>(client: <span class="type">TransportClient</span>, message: <span class="type">ByteBuffer</span>): <span class="type">RequestMessage</span> = &#123;</span><br><span class="line">    <span class="keyword">val</span> addr = client.getChannel().remoteAddress().asInstanceOf[<span class="type">InetSocketAddress</span>]</span><br><span class="line">    assert(addr != <span class="literal">null</span>)</span><br><span class="line">    <span class="keyword">val</span> clientAddr = <span class="type">RpcAddress</span>(addr.getHostString, addr.getPort)</span><br><span class="line">    <span class="keyword">val</span> requestMessage = <span class="type">RequestMessage</span>(nettyEnv, client, message)</span><br><span class="line">    <span class="keyword">if</span> (requestMessage.senderAddress == <span class="literal">null</span>) &#123;</span><br><span class="line">      <span class="comment">// client和server在同一个进程</span></span><br><span class="line">      <span class="keyword">new</span> <span class="type">RequestMessage</span>(clientAddr, requestMessage.receiver, requestMessage.content)</span><br><span class="line">    &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">      <span class="keyword">val</span> remoteEnvAddress = requestMessage.senderAddress</span><br><span class="line">      <span class="keyword">if</span> (remoteAddresses.putIfAbsent(clientAddr, remoteEnvAddress) == <span class="literal">null</span>) &#123;</span><br><span class="line">        <span class="comment">//  如果是新连接的client，给所有的endpoint发送消息</span></span><br><span class="line">        dispatcher.postToAll(<span class="type">RemoteProcessConnected</span>(remoteEnvAddress))</span><br><span class="line">      &#125;</span><br><span class="line">      requestMessage</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h2 id="Dispatcher"><a href="#Dispatcher" class="headerlink" title="Dispatcher"></a>Dispatcher</h2><p>Dispatcher负责管理消息的分发，它包含多个服务。当Dispatcher接收到消息后，会根据消息中的名称，发送到对应的服务。服务RpcEndpoint的信息都会保存在endpoints哈希表里。key值为RpcEndpoint的名称，value为EndpointData。EndpointData包含了服务对应的消息收件箱。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line">private[netty] class Dispatcher(nettyEnv: NettyRpcEnv) extends Logging &#123;</span><br><span class="line"></span><br><span class="line">  <span class="function"><span class="keyword">private</span> class <span class="title">EndpointData</span><span class="params">(</span></span></span><br><span class="line"><span class="function"><span class="params">      val name: String,</span></span></span><br><span class="line"><span class="function"><span class="params">      val endpoint: RpcEndpoint,</span></span></span><br><span class="line"><span class="function"><span class="params">      val ref: NettyRpcEndpointRef)</span> </span>&#123;</span><br><span class="line">    val inbox = <span class="keyword">new</span> Inbox(ref, endpoint)</span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  <span class="keyword">private</span> val endpoints: ConcurrentMap[String, EndpointData] =</span><br><span class="line">    <span class="keyword">new</span> ConcurrentHashMap[String, EndpointData]</span><br><span class="line">    </span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>上面NettyRpcHandler调用了Dispatcher的postRemoteMessage方法，来将消息分发给对应的服务。</p>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">private</span>[netty] <span class="class"><span class="keyword">class</span> <span class="title">Dispatcher</span>(<span class="params">nettyEnv: <span class="type">NettyRpcEnv</span></span>) <span class="keyword">extends</span> <span class="title">Logging</span> </span>&#123;</span><br><span class="line">  <span class="comment">// RpcEndpoint集合</span></span><br><span class="line">  <span class="keyword">private</span> <span class="keyword">val</span> endpoints: <span class="type">ConcurrentMap</span>[<span class="type">String</span>, <span class="type">EndpointData</span>] =</span><br><span class="line">    <span class="keyword">new</span> <span class="type">ConcurrentHashMap</span>[<span class="type">String</span>, <span class="type">EndpointData</span>]</span><br><span class="line">    </span><br><span class="line">  <span class="function"><span class="keyword">def</span> <span class="title">postRemoteMessage</span></span>(message: <span class="type">RequestMessage</span>, callback: <span class="type">RpcResponseCallback</span>): <span class="type">Unit</span> = &#123;</span><br><span class="line">    <span class="keyword">val</span> rpcCallContext =</span><br><span class="line">      <span class="keyword">new</span> <span class="type">RemoteNettyRpcCallContext</span>(nettyEnv, callback, message.senderAddress)</span><br><span class="line">    <span class="comment">// 创建RpcMessage消息，调用postMessage方法发送</span></span><br><span class="line">    <span class="keyword">val</span> rpcMessage = <span class="type">RpcMessage</span>(message.senderAddress, message.content, rpcCallContext)</span><br><span class="line">    <span class="comment">// 请求消息message，包含了要请求服务的名称</span></span><br><span class="line">    postMessage(message.receiver.name, rpcMessage, (e) =&gt; callback.onFailure(e))</span><br><span class="line">  &#125;</span><br><span class="line">    </span><br><span class="line">  <span class="keyword">private</span> <span class="function"><span class="keyword">def</span> <span class="title">postMessage</span></span>(</span><br><span class="line">      endpointName: <span class="type">String</span>,</span><br><span class="line">      message: <span class="type">InboxMessage</span>,</span><br><span class="line">      callbackIfStopped: (<span class="type">Exception</span>) =&gt; <span class="type">Unit</span>): <span class="type">Unit</span> = &#123;</span><br><span class="line">    <span class="keyword">val</span> error = synchronized &#123;</span><br><span class="line">      <span class="comment">// 获取对应的EndpointData</span></span><br><span class="line">      <span class="keyword">val</span> data = endpoints.get(endpointName)</span><br><span class="line">      <span class="keyword">if</span> (stopped) &#123;</span><br><span class="line">        <span class="type">Some</span>(<span class="keyword">new</span> <span class="type">RpcEnvStoppedException</span>())</span><br><span class="line">      &#125; <span class="keyword">else</span> <span class="keyword">if</span> (data == <span class="literal">null</span>) &#123;</span><br><span class="line">        <span class="type">Some</span>(<span class="keyword">new</span> <span class="type">SparkException</span>(<span class="string">s"Could not find <span class="subst">$endpointName</span>."</span>))</span><br><span class="line">      &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">        <span class="comment">// 发送给对应的inbox</span></span><br><span class="line">        data.inbox.post(message)</span><br><span class="line">        receivers.offer(data)</span><br><span class="line">        <span class="type">None</span></span><br><span class="line">      &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">// We don't need to call `onStop` in the `synchronized` block</span></span><br><span class="line">    error.foreach(callbackIfStopped)</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h2 id="Inbox"><a href="#Inbox" class="headerlink" title="Inbox"></a>Inbox</h2><p>Inbox 代表着收件箱，一个Inbox对应着一个服务。请求该服务的消息，都由Inbox接收，然后转发给RpcEndpoint处理。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line">sequenceDiagram</span><br><span class="line">	participant Dispatcher</span><br><span class="line">	participant Inbox</span><br><span class="line">	participant RpcEndpoint</span><br><span class="line">	Dispatcher -&gt;&gt;+ Inbox : post(message)</span><br><span class="line">	Inbox --&gt;&gt;- Dispatcher : #</span><br><span class="line">	Dispatcher -&gt;&gt;+ Inbox : process(dispatcher)</span><br><span class="line">	Inbox -&gt;&gt;+ RpcEndpoint : receiveAndReply(context)</span><br><span class="line">	RpcEndpoint --&gt;&gt;- Inbox : #</span><br><span class="line">	Inbox --&gt;&gt;- Dispatcher : #</span><br></pre></td></tr></table></figure>
+<p>Inbox提供了post方法接收消息，它会将消息都会存储到队列里面。</p>
+<p>Dispatcher的后台线程会调用Inbox的process方法，从队列取出和处理消息。</p>
+<h3 id="处理消息"><a href="#处理消息" class="headerlink" title="处理消息"></a>处理消息</h3><p>首先看Inbox的process方法，它会循环从队列里获取和处理消息。 对于不同的消息会有不同的处理。</p>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">private</span>[netty] <span class="class"><span class="keyword">class</span> <span class="title">Inbox</span>(<span class="params"></span></span></span><br><span class="line"><span class="class"><span class="params">    val endpointRef: <span class="type">NettyRpcEndpointRef</span>,</span></span></span><br><span class="line"><span class="class"><span class="params">    val endpoint: <span class="type">RpcEndpoint</span></span>)</span></span><br><span class="line"><span class="class">  <span class="keyword">extends</span> <span class="title">Logging</span> </span>&#123;</span><br><span class="line">      </span><br><span class="line">  <span class="function"><span class="keyword">def</span> <span class="title">process</span></span>(dispatcher: <span class="type">Dispatcher</span>): <span class="type">Unit</span> = &#123;</span><br><span class="line">    <span class="keyword">var</span> message: <span class="type">InboxMessage</span> = <span class="literal">null</span></span><br><span class="line">    inbox.synchronized &#123;</span><br><span class="line">      <span class="comment">// 如果该服务不支持多线程，那么只允许一个线程处理消息</span></span><br><span class="line">      <span class="keyword">if</span> (!enableConcurrent &amp;&amp; numActiveThreads != <span class="number">0</span>) &#123;</span><br><span class="line">        <span class="keyword">return</span></span><br><span class="line">      &#125;</span><br><span class="line">      <span class="comment">// 从队列中获取消息</span></span><br><span class="line">      message = messages.poll()</span><br><span class="line">      <span class="keyword">if</span> (message != <span class="literal">null</span>) &#123;</span><br><span class="line">        numActiveThreads += <span class="number">1</span></span><br><span class="line">      &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">        <span class="keyword">return</span></span><br><span class="line">      &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">while</span> (<span class="literal">true</span>) &#123;</span><br><span class="line">      safelyCall(endpoint) &#123;</span><br><span class="line">        message <span class="keyword">match</span> &#123;</span><br><span class="line">          <span class="comment">// Rpc消息，需要返回响应</span></span><br><span class="line">          <span class="keyword">case</span> <span class="type">RpcMessage</span>(_sender, content, context) =&gt;</span><br><span class="line">            <span class="keyword">try</span> &#123;</span><br><span class="line">              <span class="comment">// 这里调用了endpoint的receiveAndReply方法处理消息</span></span><br><span class="line">              endpoint.receiveAndReply(context).applyOrElse[<span class="type">Any</span>, <span class="type">Unit</span>](content, &#123; msg =&gt;</span><br><span class="line">                <span class="keyword">throw</span> <span class="keyword">new</span> <span class="type">SparkException</span>(<span class="string">s"Unsupported message <span class="subst">$message</span> from <span class="subst">$&#123;_sender&#125;</span>"</span>)</span><br><span class="line">              &#125;)</span><br><span class="line">            &#125; <span class="keyword">catch</span> &#123;</span><br><span class="line">              <span class="keyword">case</span> <span class="type">NonFatal</span>(e) =&gt;</span><br><span class="line">                context.sendFailure(e)</span><br><span class="line">                <span class="comment">// Throw the exception -- this exception will be caught by the safelyCall function.</span></span><br><span class="line">                <span class="comment">// The endpoint's onError function will be called.</span></span><br><span class="line">                <span class="keyword">throw</span> e</span><br><span class="line">            &#125;</span><br><span class="line">          <span class="comment">// 不需要响应的Rpc消息</span></span><br><span class="line">          <span class="keyword">case</span> <span class="type">OneWayMessage</span>(_sender, content) =&gt;</span><br><span class="line">            <span class="comment">// 这里调用了endpoint的receive方法处理消息</span></span><br><span class="line">            endpoint.receive.applyOrElse[<span class="type">Any</span>, <span class="type">Unit</span>](content, &#123; msg =&gt;</span><br><span class="line">              <span class="keyword">throw</span> <span class="keyword">new</span> <span class="type">SparkException</span>(<span class="string">s"Unsupported message <span class="subst">$message</span> from <span class="subst">$&#123;_sender&#125;</span>"</span>)</span><br><span class="line">            &#125;)</span><br><span class="line">          <span class="comment">// 启动消息，在Inbox初始化时会发送</span></span><br><span class="line">          <span class="keyword">case</span> <span class="type">OnStart</span> =&gt;</span><br><span class="line">            <span class="comment">// 调用endpoint的OnStart回调函数</span></span><br><span class="line">            endpoint.onStart()</span><br><span class="line">            &#125;</span><br><span class="line">          <span class="comment">// 退出消息</span></span><br><span class="line">          <span class="keyword">case</span> <span class="type">OnStop</span> =&gt;</span><br><span class="line">            <span class="keyword">val</span> activeThreads = inbox.synchronized &#123; inbox.numActiveThreads &#125;</span><br><span class="line">            assert(activeThreads == <span class="number">1</span>,</span><br><span class="line">              <span class="string">s"There should be only a single active thread but found <span class="subst">$activeThreads</span> threads."</span>)</span><br><span class="line">            <span class="comment">// 从dispatcher注销该服务</span></span><br><span class="line">            dispatcher.removeRpcEndpointRef(endpoint)</span><br><span class="line">            <span class="comment">// 调用endpoint的OnStop回调函数</span></span><br><span class="line">            endpoint.onStop()</span><br><span class="line">      &#125;</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>上面在处理RpcMessage消息时， 调用了RpcEndpoint的方法。</p>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">private</span>[spark] <span class="class"><span class="keyword">trait</span> <span class="title">RpcEndpoint</span> </span>&#123;</span><br><span class="line">  <span class="function"><span class="keyword">def</span> <span class="title">receiveAndReply</span></span>(context: <span class="type">RpcCallContext</span>): <span class="type">PartialFunction</span>[<span class="type">Any</span>, <span class="type">Unit</span>] = &#123;</span><br><span class="line">    <span class="keyword">case</span> _ =&gt; context.sendFailure(<span class="keyword">new</span> <span class="type">SparkException</span>(self + <span class="string">" won't reply anything"</span>))</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>可以看出消息最后转发给RpcEndpoint的receiveAndReply方法。receiveAndReply返回了偏函数，PartialFunction[Any, Unit]， 然后调用偏函数。如果自定义RpcEndpoint，必须实现receiveAndReply方法，使用case语句生成偏函数。可以参见这篇博客 <a href="/2019/01/13/spark-rpc-flow/" title="Spark Rpc 原理介绍">Spark Rpc 原理介绍</a>  的HelloEndpoint服务。</p>
+<h3 id="消息处理线程"><a href="#消息处理线程" class="headerlink" title="消息处理线程"></a>消息处理线程</h3><p>Inbox的消息队列由Dispatcher的线程池负责处理，首先看看线程池的创建</p>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">private</span> <span class="keyword">val</span> threadpool: <span class="type">ThreadPoolExecutor</span> = &#123;</span><br><span class="line">    <span class="keyword">val</span> numThreads = nettyEnv.conf.getInt(<span class="string">"spark.rpc.netty.dispatcher.numThreads"</span>,</span><br><span class="line">      math.max(<span class="number">2</span>, <span class="type">Runtime</span>.getRuntime.availableProcessors()))</span><br><span class="line">    <span class="keyword">val</span> pool = <span class="type">ThreadUtils</span>.newDaemonFixedThreadPool(numThreads, <span class="string">"dispatcher-event-loop"</span>)</span><br><span class="line">    <span class="keyword">for</span> (i &lt;- <span class="number">0</span> until numThreads) &#123;</span><br><span class="line">      pool.execute(<span class="keyword">new</span> <span class="type">MessageLoop</span>)</span><br><span class="line">    &#125;</span><br><span class="line">    pool</span><br><span class="line">  &#125;</span><br></pre></td></tr></table></figure>
+<p>Dispatcher的线程池会运行MessageLoop任务。MessageLoop会调用Inbox的process方法处理消息。</p>
+<p>当有消息通过Dispatcher分发时，Dispatcher会将服务的信息添加到 receivers队列里，所以这个队列会保存着有消息的服务。MessageLoop会循环从receivers中获取EndpointData，然后调用Inbox的process方法处理消息。</p>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">private</span> <span class="class"><span class="keyword">class</span> <span class="title">MessageLoop</span> <span class="keyword">extends</span> <span class="title">Runnable</span> </span>&#123;</span><br><span class="line">  <span class="keyword">override</span> <span class="function"><span class="keyword">def</span> <span class="title">run</span></span>(): <span class="type">Unit</span> = &#123;</span><br><span class="line">    <span class="keyword">try</span> &#123;</span><br><span class="line">      <span class="keyword">while</span> (<span class="literal">true</span>) &#123;</span><br><span class="line">        <span class="keyword">try</span> &#123;</span><br><span class="line">          <span class="comment">// 从receivers队列获取EndpointData</span></span><br><span class="line">          <span class="keyword">val</span> data = receivers.take()</span><br><span class="line">          <span class="keyword">if</span> (data == <span class="type">PoisonPill</span>) &#123;</span><br><span class="line">            <span class="comment">// Put PoisonPill back so that other MessageLoops can see it.</span></span><br><span class="line">            receivers.offer(<span class="type">PoisonPill</span>)</span><br><span class="line">            <span class="keyword">return</span></span><br><span class="line">          &#125;</span><br><span class="line">          data.inbox.process(<span class="type">Dispatcher</span>.<span class="keyword">this</span>)</span><br><span class="line">        &#125; <span class="keyword">catch</span> &#123;</span><br><span class="line">          <span class="keyword">case</span> <span class="type">NonFatal</span>(e) =&gt; logError(e.getMessage, e)</span><br><span class="line">        &#125;</span><br><span class="line">      &#125;</span><br><span class="line">    &#125; <span class="keyword">catch</span> &#123;</span><br><span class="line">      <span class="keyword">case</span> ie: <span class="type">InterruptedException</span> =&gt; <span class="comment">// exit</span></span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h2 id="发送响应"><a href="#发送响应" class="headerlink" title="发送响应"></a>发送响应</h2><p>这里注意到Dispatcher分发消息的时候，实例化了RemoteNettyRpcCallContext， 它提供了send或reply方法，返回数据。</p>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">private</span>[netty] <span class="class"><span class="keyword">class</span> <span class="title">RemoteNettyRpcCallContext</span>(<span class="params"></span></span></span><br><span class="line"><span class="class"><span class="params">    nettyEnv: <span class="type">NettyRpcEnv</span>,</span></span></span><br><span class="line"><span class="class"><span class="params">    callback: <span class="type">RpcResponseCallback</span>,</span></span></span><br><span class="line"><span class="class"><span class="params">    senderAddress: <span class="type">RpcAddress</span></span>)</span></span><br><span class="line"><span class="class">  <span class="keyword">extends</span> <span class="title">NettyRpcCallContext</span>(<span class="params">senderAddress</span>) </span>&#123;</span><br><span class="line"></span><br><span class="line">  <span class="keyword">override</span> <span class="keyword">protected</span> <span class="function"><span class="keyword">def</span> <span class="title">send</span></span>(message: <span class="type">Any</span>): <span class="type">Unit</span> = &#123;</span><br><span class="line">    <span class="comment">// 序列化结果</span></span><br><span class="line">    <span class="keyword">val</span> reply = nettyEnv.serialize(message)</span><br><span class="line">    <span class="comment">// 调用回调函数</span></span><br><span class="line">    callback.onSuccess(reply)</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>这里send方法，是调用了RpcResponseCallback回调函数。callback的定义，在TransportRequestHandler的processRpcRequest方法里。这里调用了TransportRequestHandler的respond方法。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">@Override</span></span><br><span class="line"><span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">onSuccess</span><span class="params">(ByteBuffer response)</span> </span>&#123;</span><br><span class="line">    respond(<span class="keyword">new</span> RpcResponse(req.requestId, <span class="keyword">new</span> NioManagedBuffer(response)));</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>继续看respond方法，调用Channel的writeAndFlush将数据发送出去。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">private</span> <span class="keyword">void</span> <span class="title">respond</span><span class="params">(Encodable result)</span> </span>&#123;</span><br><span class="line">  SocketAddress remoteAddress = channel.remoteAddress();</span><br><span class="line">  channel.writeAndFlush(result).addListener(future -&gt; &#123;</span><br><span class="line">    <span class="keyword">if</span> (future.isSuccess()) &#123;</span><br><span class="line">      logger.trace(<span class="string">"Sent result &#123;&#125; to client &#123;&#125;"</span>, result, remoteAddress);</span><br><span class="line">    &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">      logger.error(String.format(<span class="string">"Error sending result %s to %s; closing connection"</span>,</span><br><span class="line">        result, remoteAddress), future.cause());</span><br><span class="line">      channel.close();</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+      
+    </div>
+    
+    
+    
+
+    
+
+    
+
+    
+
+    <footer class="post-footer">
+      
+        <div class="post-tags">
+          
+            <a href="/tags/Spark-Rpc-服务端原理/" rel="tag"># Spark Rpc 服务端原理</a>
+          
+        </div>
+      
+
+      
+      
+      
+
+      
+        <div class="post-nav">
+          <div class="post-nav-next post-nav-item">
+            
+              <a href="/2019/02/21/spark-streaming-kafka/" rel="next" title="Spark Streaming Kafka 原理">
+                <i class="fa fa-chevron-left"></i> Spark Streaming Kafka 原理
+              </a>
+            
+          </div>
+
+          <span class="post-nav-divider"></span>
+
+          <div class="post-nav-prev post-nav-item">
+            
+          </div>
+        </div>
+      
+
+      
+      
+    </footer>
+  </div>
+  
+  
+  
+  </article>
+
+
+
+    <div class="post-spread">
+      
+    </div>
+  </div>
+
+
+          </div>
+          
+
+
+          
+
+  
+    <div class="comments" id="comments">
+    </div>
+  
+
+
+
+        </div>
+        
+          
+  
+  <div class="sidebar-toggle">
+    <div class="sidebar-toggle-line-wrap">
+      <span class="sidebar-toggle-line sidebar-toggle-line-first"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-middle"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-last"></span>
+    </div>
+  </div>
+
+  <aside id="sidebar" class="sidebar">
+    
+    <div class="sidebar-inner">
+
+      
+
+      
+        <ul class="sidebar-nav motion-element">
+          <li class="sidebar-nav-toc sidebar-nav-active" data-target="post-toc-wrap">
+            Table of Contents
+          </li>
+          <li class="sidebar-nav-overview" data-target="site-overview-wrap">
+            Overview
+          </li>
+        </ul>
+      
+
+      <section class="site-overview-wrap sidebar-panel">
+        <div class="site-overview">
+          <div class="site-author motion-element" itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+            
+              <p class="site-author-name" itemprop="name">zhmin</p>
+              <p class="site-description motion-element" itemprop="description"></p>
+          </div>
+
+          <nav class="site-state motion-element">
+
+            
+              <div class="site-state-item site-state-posts">
+              
+                <a href="/archives/">
+              
+                  <span class="site-state-item-count">24</span>
+                  <span class="site-state-item-name">posts</span>
+                </a>
+              </div>
+            
+
+            
+
+            
+              
+              
+              <div class="site-state-item site-state-tags">
+                
+                  <span class="site-state-item-count">22</span>
+                  <span class="site-state-item-name">tags</span>
+                
+              </div>
+            
+
+          </nav>
+
+          
+
+          
+            <div class="links-of-author motion-element">
+                
+                  <span class="links-of-author-item">
+                    <a href="https://github.com/zhmin" target="_blank" title="GitHub">
+                      
+                        <i class="fa fa-fw fa-github"></i>GitHub</a>
+                  </span>
+                
+            </div>
+          
+
+          
+          
+
+          
+          
+
+          
+
+        </div>
+      </section>
+
+      
+      <!--noindex-->
+        <section class="post-toc-wrap motion-element sidebar-panel sidebar-panel-active">
+          <div class="post-toc">
+
+            
+              
+            
+
+            
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#Spark-Rpc-服务端原理"><span class="nav-number">1.</span> <span class="nav-text">Spark Rpc 服务端原理</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#Rpc-Server-启动"><span class="nav-number">1.1.</span> <span class="nav-text">Rpc Server 启动</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#TransportRequestHandler"><span class="nav-number">1.2.</span> <span class="nav-text">TransportRequestHandler</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#NettyRpcHandler"><span class="nav-number">1.3.</span> <span class="nav-text">NettyRpcHandler</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Dispatcher"><span class="nav-number">1.4.</span> <span class="nav-text">Dispatcher</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Inbox"><span class="nav-number">1.5.</span> <span class="nav-text">Inbox</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#处理消息"><span class="nav-number">1.5.1.</span> <span class="nav-text">处理消息</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#消息处理线程"><span class="nav-number">1.5.2.</span> <span class="nav-text">消息处理线程</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#发送响应"><span class="nav-number">1.6.</span> <span class="nav-text">发送响应</span></a></li></ol></li></ol></div>
+            
+
+          </div>
+        </section>
+      <!--/noindex-->
+      
+
+      
+
+    </div>
+  </aside>
+
+
+        
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="footer-inner">
+        <div class="copyright">&copy; <span itemprop="copyrightYear">2019</span>
+  <span class="with-love">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">zhmin</span>
+
+  
+</div>
+
+
+
+
+
+
+
+
+
+
+
+  <script src="https://unpkg.com/mermaid@7.1.2/dist/mermaid.min.js"></script>
+  <script>
+    if (window.mermaid) {
+      mermaid.initialize({"startOnload":"true  // default true","theme":"forest"});
+    }
+  </script>
+
+
+
+<script async src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+<span id="busuanzi_container_site_pv">
+    访问量<span id="busuanzi_value_site_pv"></span>
+</span>
+<span class="post-meta-divider">|</span>
+<span id="busuanzi_container_site_uv">
+  访客数<span id="busuanzi_value_site_uv"></span>
+</span>
+
+        
+
+
+
+
+
+
+
+        
+      </div>
+    </footer>
+
+    
+      <div class="back-to-top">
+        <i class="fa fa-arrow-up"></i>
+        
+      </div>
+    
+
+    
+
+  </div>
+
+  
+
+<script type="text/javascript">
+  if (Object.prototype.toString.call(window.Promise) !== '[object Function]') {
+    window.Promise = null;
+  }
+</script>
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery/index.js?v=2.1.3"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fastclick/lib/fastclick.min.js?v=1.0.6"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery_lazyload/jquery.lazyload.js?v=1.9.7"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.ui.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fancybox/source/jquery.fancybox.pack.js?v=2.1.5"></script>
+  
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/utils.js?v=5.1.4"></script>
+
+  <script type="text/javascript" src="/js/src/motion.js?v=5.1.4"></script>
+
+
+
+  
+  
+
+  
+  <script type="text/javascript" src="/js/src/scrollspy.js?v=5.1.4"></script>
+<script type="text/javascript" src="/js/src/post-details.js?v=5.1.4"></script>
+
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/bootstrap.js?v=5.1.4"></script>
+
+
+
+  
+
+
+  
+
+
+
+
+	
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+  <script src="//cdn1.lncld.net/static/js/3.0.4/av-min.js"></script>
+  <script src="//unpkg.com/valine/dist/Valine.min.js"></script>
+  
+  <script type="text/javascript">
+    var GUEST = ['nick','mail','link'];
+    var guest = 'nick';
+    guest = guest.split(',').filter(item=>{
+      return GUEST.indexOf(item)>-1;
+    });
+    new Valine({
+        el: '#comments' ,
+        verify: false,
+        notify: false,
+        appId: 'iYiPQlDR2X2zg2QIql2UEe2o-gzGzoHsz',
+        appKey: 'EW8G4sftwX1pef1zS9EsOeKE',
+        placeholder: 'comment here',
+        avatar:'mm',
+        guest_info:guest,
+        pageSize:'10' || 10,
+    });
+  </script>
+
+
+
+  
+
+
+
+
+
+  
+
+  
+  <script src="https://cdn1.lncld.net/static/js/av-core-mini-0.6.4.js"></script>
+  <script>AV.initialize("iYiPQlDR2X2zg2QIql2UEe2o-gzGzoHsz", "EW8G4sftwX1pef1zS9EsOeKE");</script>
+  <script>
+    function showTime(Counter) {
+      var query = new AV.Query(Counter);
+      var entries = [];
+      var $visitors = $(".leancloud_visitors");
+
+      $visitors.each(function () {
+        entries.push( $(this).attr("id").trim() );
+      });
+
+      query.containedIn('url', entries);
+      query.find()
+        .done(function (results) {
+          var COUNT_CONTAINER_REF = '.leancloud-visitors-count';
+
+          if (results.length === 0) {
+            $visitors.find(COUNT_CONTAINER_REF).text(0);
+            return;
+          }
+
+          for (var i = 0; i < results.length; i++) {
+            var item = results[i];
+            var url = item.get('url');
+            var time = item.get('time');
+            var element = document.getElementById(url);
+
+            $(element).find(COUNT_CONTAINER_REF).text(time);
+          }
+          for(var i = 0; i < entries.length; i++) {
+            var url = entries[i];
+            var element = document.getElementById(url);
+            var countSpan = $(element).find(COUNT_CONTAINER_REF);
+            if( countSpan.text() == '') {
+              countSpan.text(0);
+            }
+          }
+        })
+        .fail(function (object, error) {
+          console.log("Error: " + error.code + " " + error.message);
+        });
+    }
+
+    function addCount(Counter) {
+      var $visitors = $(".leancloud_visitors");
+      var url = $visitors.attr('id').trim();
+      var title = $visitors.attr('data-flag-title').trim();
+      var query = new AV.Query(Counter);
+
+      query.equalTo("url", url);
+      query.find({
+        success: function(results) {
+          if (results.length > 0) {
+            var counter = results[0];
+            counter.fetchWhenSave(true);
+            counter.increment("time");
+            counter.save(null, {
+              success: function(counter) {
+                var $element = $(document.getElementById(url));
+                $element.find('.leancloud-visitors-count').text(counter.get('time'));
+              },
+              error: function(counter, error) {
+                console.log('Failed to save Visitor num, with error message: ' + error.message);
+              }
+            });
+          } else {
+            var newcounter = new Counter();
+            /* Set ACL */
+            var acl = new AV.ACL();
+            acl.setPublicReadAccess(true);
+            acl.setPublicWriteAccess(true);
+            newcounter.setACL(acl);
+            /* End Set ACL */
+            newcounter.set("title", title);
+            newcounter.set("url", url);
+            newcounter.set("time", 1);
+            newcounter.save(null, {
+              success: function(newcounter) {
+                var $element = $(document.getElementById(url));
+                $element.find('.leancloud-visitors-count').text(newcounter.get('time'));
+              },
+              error: function(newcounter, error) {
+                console.log('Failed to create');
+              }
+            });
+          }
+        },
+        error: function(error) {
+          console.log('Error:' + error.code + " " + error.message);
+        }
+      });
+    }
+
+    $(function() {
+      var Counter = AV.Object.extend("Counter");
+      if ($('.leancloud_visitors').length == 1) {
+        addCount(Counter);
+      } else if ($('.post-title-link').length > 1) {
+        showTime(Counter);
+      }
+    });
+  </script>
+
+
+
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+</body>
+</html>
