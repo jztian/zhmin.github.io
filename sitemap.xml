@@ -2,6 +2,13 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   
   <url>
+    <loc>https://zhmin.github.io/2019/03/04/kafka-protocol/</loc>
+    
+    <lastmod>2019-03-04T16:12:59.484Z</lastmod>
+    
+  </url>
+  
+  <url>
     <loc>https://zhmin.github.io/2018/12/27/datax-statistics/</loc>
     
     <lastmod>2019-02-27T13:37:58.821Z</lastmod>
