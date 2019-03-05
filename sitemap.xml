@@ -2,6 +2,13 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   
   <url>
+    <loc>https://zhmin.github.io/2019/03/06/kafka-networkclient/</loc>
+    
+    <lastmod>2019-03-05T17:00:38.924Z</lastmod>
+    
+  </url>
+  
+  <url>
     <loc>https://zhmin.github.io/2019/03/04/kafka-protocol/</loc>
     
     <lastmod>2019-03-04T16:12:59.484Z</lastmod>
