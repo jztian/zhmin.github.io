@@ -90,7 +90,7 @@
 <meta property="og:image" content="http://www.plantuml.com/plantuml/svg/ZLD13e8m4Bpt5Vq07o3664vUk4YCvnKMRAp5R9U3niUBMi12GK_DxinsPhOWDfQ1kBbe8U1ecI1dcMkmLcQdfYmrRi4K6eNuD6K25eD8ShksHufKOLOJ1paPaWAjxbYCOA-KgqSK1OGc7KTS4fwPcJMY32ELa6CNFmK35LAVO53e4Rzs0W5UUBy7KZpS7mxZSsQ1lR5GuWZoogMDBGpynmhAJnQwGoY-ykewFsTS4uvWhtIsVt2x1uYYjV_nobWILigsJbn_QSP5YcM5F4eRO3k3RtRdPuEcUFrHJm00">
 <meta property="og:image" content="https://zhmin.github.io/2019/01/26/spark-shuffle-writer/spark-shuffle-bypass.svg">
 <meta property="og:image" content="https://zhmin.github.io/2019/01/26/spark-shuffle-writer/spark-shuffle-unsafe.svg">
-<meta property="og:updated_time" content="2019-02-27T13:35:19.623Z">
+<meta property="og:updated_time" content="2019-03-06T13:14:41.931Z">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="Spark ShuffleWriter 原理">
 <meta name="twitter:description" content="Spark ShuffleWriter 原理Spark的shuffle过程比较复杂，涉及到map端和reduce端的共同配合，这篇文章主要介绍map端的运行原理。map端的操作主要由ShuffleWriter实现，它对于不同的情形，会选用不同的算法。 shuffle 算法选择spark 根据不同的情形，提供三种shuffle writer选择。  BypassMergeSortShuffleWri">
@@ -361,7 +361,7 @@
 <h2 id="shuffle-算法选择"><a href="#shuffle-算法选择" class="headerlink" title="shuffle 算法选择"></a>shuffle 算法选择</h2><p>spark 根据不同的情形，提供三种shuffle writer选择。</p>
 <ul>
 <li>BypassMergeSortShuffleWriter ： 当前shuffle没有聚合， 并且分区数小于spark.shuffle.sort.bypassMergeThreshold（默认200）</li>
-<li>UnsafeShuffleWriter ： 当前rdd的数据支持序列化（即UnsafeRowSerializer），并且没有聚合， 并且分区数小于  2^24。</li>
+<li>UnsafeShuffleWriter ： 当条件不满足BypassMergeSortShuffleWriter 时， 并且当前rdd的数据支持序列化（即UnsafeRowSerializer），也不需要聚合， 分区数小于  2^24。</li>
 <li>SortShuffleWriter ： 其余</li>
 </ul>
 <p>下图是相关的uml图</p>
@@ -371,7 +371,7 @@
 <p>ShuffleManager 提供了registerShuffle方法，根据shuffle的dependency情况，选择出哪种ShuffleHandler。它对于不同的ShuffleHandler，有着不同的条件</p>
 <ul>
 <li>BypassMergeSortShuffleHandle :  该shuffle不需要聚合，并且reduce端的分区数目小于配置项spark.shuffle.sort.bypassMergeThreshold，默认为200</li>
-<li>SerializedShuffleHandle  :  该shuffle支持数据不需要聚合，并且必须支持序列化时seek位置，还需要reduce端的分区数目小于16777216（1 &lt;&lt; 24 + 1）</li>
+<li>SerializedShuffleHandle  :  该shuffle不需要聚合，并且必须支持序列化时seek位置，还需要reduce端的分区数目小于16777216（1 &lt;&lt; 24 + 1）</li>
 <li>BaseShuffleHandle  :  其余情况</li>
 </ul>
 <p>getWriter方法会根据registerShuffle方法返回的ShuffleHandler，选择出哪种 shuffle writer，原理比较简单：</p>

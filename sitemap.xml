@@ -2,6 +2,34 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   
   <url>
+    <loc>https://zhmin.github.io/2019/01/06/spark-partitioner/</loc>
+    
+    <lastmod>2019-03-06T13:18:26.227Z</lastmod>
+    
+  </url>
+  
+  <url>
+    <loc>https://zhmin.github.io/2019/01/26/spark-shuffle-writer/</loc>
+    
+    <lastmod>2019-03-06T13:14:41.931Z</lastmod>
+    
+  </url>
+  
+  <url>
+    <loc>https://zhmin.github.io/2019/01/03/spark-rdd-dependency/</loc>
+    
+    <lastmod>2019-03-06T13:14:41.931Z</lastmod>
+    
+  </url>
+  
+  <url>
+    <loc>https://zhmin.github.io/2019/01/02/spark-on-yarn/</loc>
+    
+    <lastmod>2019-03-06T13:14:41.930Z</lastmod>
+    
+  </url>
+  
+  <url>
     <loc>https://zhmin.github.io/2019/03/06/kafka-networkclient/</loc>
     
     <lastmod>2019-03-05T17:00:38.924Z</lastmod>
@@ -58,13 +86,6 @@
   </url>
   
   <url>
-    <loc>https://zhmin.github.io/2019/01/26/spark-shuffle-writer/</loc>
-    
-    <lastmod>2019-02-27T13:35:19.623Z</lastmod>
-    
-  </url>
-  
-  <url>
     <loc>https://zhmin.github.io/2019/01/29/spark-shuffle-sort-writer-2/</loc>
     
     <lastmod>2019-02-27T13:35:01.535Z</lastmod>
@@ -103,27 +124,6 @@
     <loc>https://zhmin.github.io/2019/01/13/spark-rpc-client/</loc>
     
     <lastmod>2019-02-27T13:34:40.840Z</lastmod>
-    
-  </url>
-  
-  <url>
-    <loc>https://zhmin.github.io/2019/01/03/spark-rdd-dependency/</loc>
-    
-    <lastmod>2019-02-27T13:34:36.599Z</lastmod>
-    
-  </url>
-  
-  <url>
-    <loc>https://zhmin.github.io/2019/01/06/spark-partitioner/</loc>
-    
-    <lastmod>2019-02-27T13:34:30.298Z</lastmod>
-    
-  </url>
-  
-  <url>
-    <loc>https://zhmin.github.io/2019/01/02/spark-on-yarn/</loc>
-    
-    <lastmod>2019-02-27T13:34:25.659Z</lastmod>
     
   </url>
   
