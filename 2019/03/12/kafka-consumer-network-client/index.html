@@ -1,0 +1,917 @@
+<!DOCTYPE html>
+
+
+
+  
+
+
+<html class="theme-next mist use-motion" lang="">
+<head><meta name="generator" content="Hexo 3.8.0">
+  <meta charset="UTF-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="theme-color" content="#222">
+
+
+
+
+
+
+
+
+
+<meta http-equiv="Cache-Control" content="no-transform">
+<meta http-equiv="Cache-Control" content="no-siteapp">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+  <link href="/lib/fancybox/source/jquery.fancybox.css?v=2.1.5" rel="stylesheet" type="text/css">
+
+
+
+
+
+
+
+<link href="/lib/font-awesome/css/font-awesome.min.css?v=4.6.2" rel="stylesheet" type="text/css">
+
+<link href="/css/main.css?v=5.1.4" rel="stylesheet" type="text/css">
+
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png?v=5.1.4">
+
+
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png?v=5.1.4">
+
+
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png?v=5.1.4">
+
+
+  <link rel="mask-icon" href="/images/logo.svg?v=5.1.4" color="#222">
+
+
+
+
+
+  <meta name="keywords" content="kafka, consumer, network, client,">
+
+
+
+
+
+
+
+
+
+
+<meta name="description" content="Kafka ConsumerNetworkClient 原理Kafka消费者会使用ConsumerNetworkClient发送和处理请求。ConsumerNetworkClient是在NetworkClient之外封装了一层，提供了异步的请求方法。它每次发送请求，会返回RequestFuture。RequestFuture实现了类似Future的功能，而且 支持添加事件回调函数。 Request">
+<meta name="keywords" content="kafka, consumer, network, client">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Kafka ConsumerNetworkClient 原理">
+<meta property="og:url" content="https://zhmin.github.io/2019/03/12/kafka-consumer-network-client/index.html">
+<meta property="og:site_name" content="blog">
+<meta property="og:description" content="Kafka ConsumerNetworkClient 原理Kafka消费者会使用ConsumerNetworkClient发送和处理请求。ConsumerNetworkClient是在NetworkClient之外封装了一层，提供了异步的请求方法。它每次发送请求，会返回RequestFuture。RequestFuture实现了类似Future的功能，而且 支持添加事件回调函数。 Request">
+<meta property="og:locale" content="default">
+<meta property="og:updated_time" content="2019-03-12T13:59:49.415Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Kafka ConsumerNetworkClient 原理">
+<meta name="twitter:description" content="Kafka ConsumerNetworkClient 原理Kafka消费者会使用ConsumerNetworkClient发送和处理请求。ConsumerNetworkClient是在NetworkClient之外封装了一层，提供了异步的请求方法。它每次发送请求，会返回RequestFuture。RequestFuture实现了类似Future的功能，而且 支持添加事件回调函数。 Request">
+
+
+
+<script type="text/javascript" id="hexo.configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '/',
+    scheme: 'Mist',
+    version: '5.1.4',
+    sidebar: {"position":"left","display":"hide","offset":12,"b2t":false,"scrollpercent":false,"onmobile":false},
+    fancybox: true,
+    tabs: true,
+    motion: {"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},
+    duoshuo: {
+      userId: '0',
+      author: 'Author'
+    },
+    algolia: {
+      applicationID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    }
+  };
+</script>
+
+
+
+  <link rel="canonical" href="https://zhmin.github.io/2019/03/12/kafka-consumer-network-client/">
+
+
+
+
+
+  <title>Kafka ConsumerNetworkClient 原理 | blog</title>
+  
+
+
+
+
+
+
+
+
+</head>
+
+<body itemscope="" itemtype="http://schema.org/WebPage" lang="default">
+
+  
+  
+    
+  
+
+  <div class="container sidebar-position-left page-post-detail">
+    <div class="headband"></div>
+
+    <header id="header" class="header" itemscope="" itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-wrapper">
+  <div class="site-meta ">
+    
+
+    <div class="custom-logo-site-title">
+      <a href="/" class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">blog</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+      
+        <h1 class="site-subtitle" itemprop="description"></h1>
+      
+  </div>
+
+  <div class="site-nav-toggle">
+    <button>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+    </button>
+  </div>
+</div>
+
+<nav class="site-nav">
+  
+
+  
+    <ul id="menu" class="menu">
+      
+        
+        <li class="menu-item menu-item-home">
+          <a href="/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-home"></i> <br>
+            
+            Home
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-categories">
+          <a href="/categories/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-th"></i> <br>
+            
+            Categories
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-archives">
+          <a href="/archives/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-archive"></i> <br>
+            
+            Archives
+          </a>
+        </li>
+      
+
+      
+    </ul>
+  
+
+  
+</nav>
+
+
+
+ </div>
+    </header>
+
+    <main id="main" class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          <div id="content" class="content">
+            
+
+  <div id="posts" class="posts-expand">
+    
+
+  
+
+  
+  
+  
+
+  <article class="post post-type-normal" itemscope="" itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block">
+    <link itemprop="mainEntityOfPage" href="https://zhmin.github.io/2019/03/12/kafka-consumer-network-client/">
+
+    <span hidden itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="zhmin">
+      <meta itemprop="description" content="">
+      <meta itemprop="image" content="/images/avatar.gif">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope="" itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="blog">
+    </span>
+
+    
+      <header class="post-header">
+
+        
+        
+          <h2 class="post-title" itemprop="name headline">Kafka ConsumerNetworkClient 原理</h2>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">Posted on</span>
+              
+              <time title="Post created" itemprop="dateCreated datePublished" datetime="2019-03-12T21:29:12+08:00">
+                2019-03-12
+              </time>
+            
+
+            
+
+            
+          </span>
+
+          
+            <span class="post-category">
+            
+              <span class="post-meta-divider">|</span>
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">In</span>
+              
+              
+                <span itemprop="about" itemscope="" itemtype="http://schema.org/Thing">
+                  <a href="/categories/kafka/" itemprop="url" rel="index">
+                    <span itemprop="name">kafka</span>
+                  </a>
+                </span>
+
+                
+                
+              
+            </span>
+          
+
+          
+            
+              <span class="post-comments-count">
+                <span class="post-meta-divider">|</span>
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-comment-o"></i>
+                </span>
+                <a href="/2019/03/12/kafka-consumer-network-client/#comments" itemprop="discussionUrl">
+                  <span class="post-comments-count valine-comment-count" data-xid="/2019/03/12/kafka-consumer-network-client/" itemprop="commentCount"></span>
+                </a>
+              </span>
+            
+          
+
+          
+          
+             <span id="/2019/03/12/kafka-consumer-network-client/" class="leancloud_visitors" data-flag-title="Kafka ConsumerNetworkClient 原理">
+               <span class="post-meta-divider">|</span>
+               <span class="post-meta-item-icon">
+                 <i class="fa fa-eye"></i>
+               </span>
+               
+                 <span class="post-meta-item-text">Visitors&#58;</span>
+               
+                 <span class="leancloud-visitors-count"></span>
+             </span>
+          
+
+          
+
+          
+
+          
+
+        </div>
+      </header>
+    
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+      
+
+      
+        <h1 id="Kafka-ConsumerNetworkClient-原理"><a href="#Kafka-ConsumerNetworkClient-原理" class="headerlink" title="Kafka ConsumerNetworkClient 原理"></a>Kafka ConsumerNetworkClient 原理</h1><p>Kafka消费者会使用ConsumerNetworkClient发送和处理请求。ConsumerNetworkClient是在NetworkClient之外封装了一层，提供了异步的请求方法。它每次发送请求，会返回RequestFuture。RequestFuture实现了类似Future的功能，而且 支持添加事件回调函数。</p>
+<h2 id="RequestFuture-原理"><a href="#RequestFuture-原理" class="headerlink" title="RequestFuture 原理"></a>RequestFuture 原理</h2><p>RequestFuture实现了类似Future的功能，它使用了CountDownLatch来实现等待和通知的功能。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">RequestFuture</span>&lt;<span class="title">T</span>&gt; <span class="keyword">implements</span> <span class="title">ConsumerNetworkClient</span>.<span class="title">PollCondition</span> </span>&#123;</span><br><span class="line">    <span class="keyword">private</span> <span class="keyword">static</span> <span class="keyword">final</span> Object INCOMPLETE_SENTINEL = <span class="keyword">new</span> Object();</span><br><span class="line">    <span class="comment">// result保存了结果</span></span><br><span class="line">    <span class="keyword">private</span> <span class="keyword">final</span> AtomicReference&lt;Object&gt; result = <span class="keyword">new</span> AtomicReference&lt;&gt;(INCOMPLETE_SENTINEL);</span><br><span class="line">    <span class="comment">// CountDownLatch变量，用来执行等待和通知</span></span><br><span class="line">    <span class="keyword">private</span> <span class="keyword">final</span> CountDownLatch completedLatch = <span class="keyword">new</span> CountDownLatch(<span class="number">1</span>);</span><br><span class="line">    </span><br><span class="line">    <span class="comment">// 等待完成</span></span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">boolean</span> <span class="title">awaitDone</span><span class="params">(<span class="keyword">long</span> timeout, TimeUnit unit)</span> <span class="keyword">throws</span> InterruptedException </span>&#123;</span><br><span class="line">        <span class="comment">// 使用了CountDownLatch的await方法实现等待</span></span><br><span class="line">        <span class="keyword">return</span> completedLatch.await(timeout, unit);</span><br><span class="line">    &#125;</span><br><span class="line">    </span><br><span class="line">    <span class="comment">// 判断是否完成，INCOMPLETE_SENTINEL表示未完成</span></span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">boolean</span> <span class="title">isDone</span><span class="params">()</span> </span>&#123;</span><br><span class="line">        <span class="keyword">return</span> result.get() != INCOMPLETE_SENTINEL;</span><br><span class="line">    &#125;</span><br><span class="line">    </span><br><span class="line">    <span class="comment">// 获取值</span></span><br><span class="line">    <span class="function"><span class="keyword">public</span> T <span class="title">value</span><span class="params">()</span> </span>&#123;</span><br><span class="line">        <span class="keyword">if</span> (!succeeded())</span><br><span class="line">            <span class="keyword">throw</span> <span class="keyword">new</span> IllegalStateException(<span class="string">"Attempt to retrieve value from future which hasn't successfully completed"</span>);</span><br><span class="line">        <span class="keyword">return</span> (T) result.get();</span><br><span class="line">    &#125;    </span><br><span class="line">    </span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h3 id="管理监听器"><a href="#管理监听器" class="headerlink" title="管理监听器"></a>管理监听器</h3><p>RequestFuture在Future基础之上，还添加了监听器的功能，这使得编程回调更加方便。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">RequestFuture</span>&lt;<span class="title">T</span>&gt; <span class="keyword">implements</span> <span class="title">ConsumerNetworkClient</span>.<span class="title">PollCondition</span> </span>&#123;</span><br><span class="line">    <span class="comment">// 保存了监听器的队列</span></span><br><span class="line">    <span class="keyword">private</span> <span class="keyword">final</span> ConcurrentLinkedQueue&lt;RequestFutureListener&lt;T&gt;&gt; listeners = <span class="keyword">new</span> ConcurrentLinkedQueue&lt;&gt;();</span><br><span class="line">    </span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">addListener</span><span class="params">(RequestFutureListener&lt;T&gt; listener)</span> </span>&#123;</span><br><span class="line">        <span class="comment">// 将监听器保存到队列里</span></span><br><span class="line">        <span class="keyword">this</span>.listeners.add(listener);</span><br><span class="line">        </span><br><span class="line">        <span class="keyword">if</span> (failed())</span><br><span class="line">            <span class="comment">// 如果结果已经完成，并且结果失败，则执行回调函数</span></span><br><span class="line">            fireFailure();</span><br><span class="line">        <span class="keyword">else</span> <span class="keyword">if</span> (succeeded())</span><br><span class="line">            <span class="comment">// 如果结果已经完成，并且结果成功，则执行回调函数</span></span><br><span class="line">            fireSuccess();</span><br><span class="line">    &#125;</span><br><span class="line">    </span><br><span class="line">    <span class="function"><span class="keyword">private</span> <span class="keyword">void</span> <span class="title">fireSuccess</span><span class="params">()</span> </span>&#123;</span><br><span class="line">        <span class="comment">// 获取值</span></span><br><span class="line">        T value = value();</span><br><span class="line">        <span class="comment">// 从队列里取出监听器，依次执行onSuccess回调</span></span><br><span class="line">        <span class="keyword">while</span> (<span class="keyword">true</span>) &#123;</span><br><span class="line">            RequestFutureListener&lt;T&gt; listener = listeners.poll();</span><br><span class="line">            <span class="keyword">if</span> (listener == <span class="keyword">null</span>)</span><br><span class="line">                <span class="keyword">break</span>;</span><br><span class="line">            listener.onSuccess(value);</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="function"><span class="keyword">private</span> <span class="keyword">void</span> <span class="title">fireFailure</span><span class="params">()</span> </span>&#123;</span><br><span class="line">        <span class="comment">// 获取异常，</span></span><br><span class="line">        RuntimeException exception = exception();</span><br><span class="line">        <span class="comment">// 从队列里取出监听器，依次执行onFailure回调</span></span><br><span class="line">        <span class="keyword">while</span> (<span class="keyword">true</span>) &#123;</span><br><span class="line">            RequestFutureListener&lt;T&gt; listener = listeners.poll();</span><br><span class="line">            <span class="keyword">if</span> (listener == <span class="keyword">null</span>)</span><br><span class="line">                <span class="keyword">break</span>;</span><br><span class="line">            listener.onFailure(exception);</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h3 id="设置结果"><a href="#设置结果" class="headerlink" title="设置结果"></a>设置结果</h3><p>RequestFuture提供了两个方法设置结果，一个是成功完成，调用complete方法设置结果。另一个是执行失败，调用raise方法设置异常。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">complete</span><span class="params">(T value)</span> </span>&#123;</span><br><span class="line">    <span class="keyword">try</span> &#123;</span><br><span class="line">        <span class="comment">// value必须为值，不能为异常</span></span><br><span class="line">        <span class="keyword">if</span> (value <span class="keyword">instanceof</span> RuntimeException)</span><br><span class="line">            <span class="keyword">throw</span> <span class="keyword">new</span> IllegalArgumentException(<span class="string">"The argument to complete can not be an instance of RuntimeException"</span>);</span><br><span class="line">        <span class="comment">// 检查result的值是否为INCOMPLETE_SENTINEL，并且设置为value</span></span><br><span class="line">        <span class="comment">// 否则认为result的值已经被设置过了</span></span><br><span class="line">        <span class="keyword">if</span> (!result.compareAndSet(INCOMPLETE_SENTINEL, value))</span><br><span class="line">            <span class="keyword">throw</span> <span class="keyword">new</span> IllegalStateException(<span class="string">"Invalid attempt to complete a request future which is already complete"</span>);</span><br><span class="line">        <span class="comment">// 执行监听器</span></span><br><span class="line">        fireSuccess();</span><br><span class="line">    &#125; <span class="keyword">finally</span> &#123;</span><br><span class="line">        <span class="comment">// 调用completedLatch的countDown方法，通知等待线程</span></span><br><span class="line">        completedLatch.countDown();</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">raise</span><span class="params">(RuntimeException e)</span> </span>&#123;</span><br><span class="line">    <span class="keyword">try</span> &#123;</span><br><span class="line">        <span class="comment">// 异常不能为空</span></span><br><span class="line">        <span class="keyword">if</span> (e == <span class="keyword">null</span>)</span><br><span class="line">            <span class="keyword">throw</span> <span class="keyword">new</span> IllegalArgumentException(<span class="string">"The exception passed to raise must not be null"</span>);</span><br><span class="line">        <span class="comment">// 检查result的值是否为INCOMPLETE_SENTINEL，并且设置为异常</span></span><br><span class="line">        <span class="keyword">if</span> (!result.compareAndSet(INCOMPLETE_SENTINEL, e))</span><br><span class="line">            <span class="keyword">throw</span> <span class="keyword">new</span> IllegalStateException(<span class="string">"Invalid attempt to complete a request future which is already complete"</span>);</span><br><span class="line">        <span class="comment">// 执行监听器</span></span><br><span class="line">        fireFailure();</span><br><span class="line">    &#125; <span class="keyword">finally</span> &#123;</span><br><span class="line">        <span class="comment">// 调用completedLatch的countDown方法，通知等待线程</span></span><br><span class="line">        completedLatch.countDown();</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h3 id="装饰-RequestFuture"><a href="#装饰-RequestFuture" class="headerlink" title="装饰 RequestFuture"></a>装饰 RequestFuture</h3><p>RequestFuture有两个方法比较特殊，</p>
+<p>chain方法，负责连接一个RequestFuture。当父RequestFuture完成时，子RequestFuture也同时完成。这里需要注意到两个RequestFuture的泛型必须相同。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">chain</span><span class="params">(<span class="keyword">final</span> RequestFuture&lt;T&gt; future)</span> </span>&#123;</span><br><span class="line">    <span class="comment">// 添加监听器来实现</span></span><br><span class="line">    addListener(<span class="keyword">new</span> RequestFutureListener&lt;T&gt;() &#123;</span><br><span class="line">        <span class="meta">@Override</span></span><br><span class="line">        <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">onSuccess</span><span class="params">(T value)</span> </span>&#123;</span><br><span class="line">            <span class="comment">// 当父RequestFuture完成时，会调用这个监听器的onSuccess方法</span></span><br><span class="line">            <span class="comment">// 这个监听器执行时，会调用future的complete方法设置结果</span></span><br><span class="line">            future.complete(value);</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        <span class="meta">@Override</span></span><br><span class="line">        <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">onFailure</span><span class="params">(RuntimeException e)</span> </span>&#123;</span><br><span class="line">            <span class="comment">// 当父RequestFuture完成时，会调用这个监听器的onFailure方法</span></span><br><span class="line">            <span class="comment">// 这个监听器执行时，会调用future的raise方法设置结果</span></span><br><span class="line">            future.raise(e);</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>compose方法，负责转换RequestFuture的泛型。比如一个RequestFuture<string> 类型，表示它的结果是String类型的。现在需要将结果转换为Integer类型，返回RequestFuture<integer> ，那么就需要compose方法。</integer></string></p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// T 表示源类型，S表示目标类型</span></span><br><span class="line"><span class="keyword">public</span> &lt;S&gt; <span class="function">RequestFuture&lt;S&gt; <span class="title">compose</span><span class="params">(<span class="keyword">final</span> RequestFutureAdapter&lt;T, S&gt; adapter)</span> </span>&#123;</span><br><span class="line">    <span class="comment">// 这里生成S类型的RequestFuture</span></span><br><span class="line">    <span class="keyword">final</span> RequestFuture&lt;S&gt; adapted = <span class="keyword">new</span> RequestFuture&lt;&gt;();</span><br><span class="line">    <span class="comment">// 添加监听器</span></span><br><span class="line">    addListener(<span class="keyword">new</span> RequestFutureListener&lt;T&gt;() &#123;</span><br><span class="line">        <span class="meta">@Override</span></span><br><span class="line">        <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">onSuccess</span><span class="params">(T value)</span> </span>&#123;</span><br><span class="line">            <span class="comment">// 当父RequestFuture完成时，会调用这个监听器的onSuccess方法</span></span><br><span class="line">            <span class="comment">// 这个监听器调用了RequestFutureAdapter的onSucceess方法，</span></span><br><span class="line">            <span class="comment">// RequestFutureAdapter这里需要设置adapted的结果</span></span><br><span class="line">            adapter.onSuccess(value, adapted);</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        <span class="meta">@Override</span></span><br><span class="line">        <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">onFailure</span><span class="params">(RuntimeException e)</span> </span>&#123;</span><br><span class="line">            adapter.onFailure(e, adapted);</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;);</span><br><span class="line">    <span class="keyword">return</span> adapted;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>这里注意下传递的RequestFutureAdapter参数。RequestFutureAdapter它是一个接口，用户必须实现它的onSuccess和onFailure方法。</p>
+<p>onSuccess方法，必须根据value参数，生成结果，并且赋予给S类型的RequestFuture。</p>
+<p>onFailure方法，必须根据exception参数，生成结果，并且赋予给S类型的RequestFuture。</p>
+<h2 id="构造请求"><a href="#构造请求" class="headerlink" title="构造请求"></a>构造请求</h2><p>ConsumerNetworkClient发送请求，本质上是通过NetworkClient发送。注意到以前讲述NetworkClient的原理，它发送请求之前，是需要先构造ClientRequest的。</p>
+<p>ConsumerNetworkClient在构建请求时，传递了包含回调函数的类。回调类由RequestFutureCompletionHandler表示，它实现了RequestCompletionHandler接口。</p>
+<p>这里着重看下RequestFutureCompletionHandler的onComplete函数，当请求响应完成后，会调用onComplete方法。这里只是将自身保存在一个队列里，等待之后的统一调用。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">private</span> <span class="class"><span class="keyword">class</span> <span class="title">RequestFutureCompletionHandler</span> <span class="keyword">implements</span> <span class="title">RequestCompletionHandler</span> </span>&#123;</span><br><span class="line">    <span class="keyword">private</span> ClientResponse response;</span><br><span class="line">    </span><br><span class="line">    <span class="meta">@Override</span></span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">onComplete</span><span class="params">(ClientResponse response)</span> </span>&#123;</span><br><span class="line">        <span class="comment">// 更新响应数据</span></span><br><span class="line">        <span class="keyword">this</span>.response = response;</span><br><span class="line">        <span class="comment">// 将自身添加到pendingCompletion队列里</span></span><br><span class="line">        pendingCompletion.add(<span class="keyword">this</span>);</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>ConsumerNetworkClient的send方法，负责构建请求，然后将请求保存到UnsentRequests集合里。UnsentRequests为每个节点都保存了一个请求队列。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">ConsumerNetworkClient</span> <span class="keyword">implements</span> <span class="title">Closeable</span> </span>&#123;</span><br><span class="line">    <span class="comment">// NetworkClient 实例</span></span><br><span class="line">    <span class="keyword">private</span> <span class="keyword">final</span> KafkaClient client;</span><br><span class="line">    <span class="comment">// ClientRequest集合，它为每个节点保存了一个请求队列</span></span><br><span class="line">    <span class="keyword">private</span> <span class="keyword">final</span> UnsentRequests unsent = <span class="keyword">new</span> UnsentRequests();</span><br><span class="line"></span><br><span class="line">    <span class="function"><span class="keyword">public</span> RequestFuture&lt;ClientResponse&gt; <span class="title">send</span><span class="params">(Node node,</span></span></span><br><span class="line"><span class="function"><span class="params">                                              AbstractRequest.Builder&lt;?&gt; requestBuilder,</span></span></span><br><span class="line"><span class="function"><span class="params">                                              <span class="keyword">int</span> requestTimeoutMs)</span> </span>&#123;</span><br><span class="line">        <span class="keyword">long</span> now = time.milliseconds();</span><br><span class="line">        <span class="comment">// 实例化RequestFutureCompletionHandler，里面实例化了RequestFuture</span></span><br><span class="line">        RequestFutureCompletionHandler completionHandler = <span class="keyword">new</span> RequestFutureCompletionHandler();</span><br><span class="line">        <span class="comment">// 构建ClientRequest，需要注意的是completionHandler，它作为回调函数</span></span><br><span class="line">        ClientRequest clientRequest = client.newClientRequest(node.idString(), requestBuilder, now, <span class="keyword">true</span>,</span><br><span class="line">                requestTimeoutMs, completionHandler);</span><br><span class="line">        <span class="comment">// 将请求保存到unsent集合里</span></span><br><span class="line">        unsent.put(node, clientRequest);</span><br><span class="line"></span><br><span class="line">        <span class="comment">// 如果NetworkClient阻塞了，通知它</span></span><br><span class="line">        client.wakeup();</span><br><span class="line">        <span class="comment">// 返回 RequestFuture</span></span><br><span class="line">        <span class="keyword">return</span> completionHandler.future;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h2 id="处理响应"><a href="#处理响应" class="headerlink" title="处理响应"></a>处理响应</h2><p>send方法只是将请求保存到了队列里，并没有发送。ConsumerNetworkClient还提供了poll方法，可以接收RequestFuture参数，等待请求完成。ConsumerNetworkClient放入poll方法，不仅仅负责发送请求，还包括处理响应。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">ConsumerNetworkClient</span> <span class="keyword">implements</span> <span class="title">Closeable</span> </span>&#123;</span><br><span class="line">    </span><br><span class="line">     <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">poll</span><span class="params">(RequestFuture&lt;?&gt; future)</span> </span>&#123;</span><br><span class="line">         <span class="comment">// 循环执行poll方法，直到future完成</span></span><br><span class="line">        <span class="keyword">while</span> (!future.isDone())</span><br><span class="line">            poll(Long.MAX_VALUE, time.milliseconds(), future);</span><br><span class="line">    &#125;</span><br><span class="line">    </span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">poll</span><span class="params">(<span class="keyword">long</span> timeout, <span class="keyword">long</span> now, PollCondition pollCondition)</span> </span>&#123;</span><br><span class="line">        poll(timeout, now, pollCondition, <span class="keyword">false</span>);</span><br><span class="line">    &#125;</span><br><span class="line">    </span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">poll</span><span class="params">(<span class="keyword">long</span> timeout, <span class="keyword">long</span> now, PollCondition pollCondition, <span class="keyword">boolean</span> disableWakeup)</span> </span>&#123;</span><br><span class="line">        <span class="comment">// 执行完成的回调函数</span></span><br><span class="line">        firePendingCompletedRequests();</span><br><span class="line">        lock.lock();</span><br><span class="line">        <span class="keyword">try</span> &#123;</span><br><span class="line">            handlePendingDisconnects();</span><br><span class="line">            <span class="comment">// 发送请求</span></span><br><span class="line">            <span class="keyword">long</span> pollDelayMs = trySend(now);</span><br><span class="line">            timeout = Math.min(timeout, pollDelayMs);</span><br><span class="line">            <span class="keyword">if</span> (pendingCompletion.isEmpty() &amp;&amp; (pollCondition == <span class="keyword">null</span> || pollCondition.shouldBlock())) &#123;</span><br><span class="line">                <span class="keyword">if</span> (client.inFlightRequestCount() == <span class="number">0</span>)</span><br><span class="line">                    timeout = Math.min(timeout, retryBackoffMs);</span><br><span class="line">                client.poll(Math.min(maxPollTimeoutMs, timeout), now);</span><br><span class="line">                now = time.milliseconds();</span><br><span class="line">            &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">                client.poll(<span class="number">0</span>, now);</span><br><span class="line">            &#125;</span><br><span class="line">            checkDisconnects(now);</span><br><span class="line">            <span class="keyword">if</span> (!disableWakeup) &#123;</span><br><span class="line">                maybeTriggerWakeup();</span><br><span class="line">            &#125;</span><br><span class="line">            maybeThrowInterruptException();</span><br><span class="line">            <span class="comment">// 发送请求</span></span><br><span class="line">            trySend(now);</span><br><span class="line"></span><br><span class="line">            <span class="comment">// 处理过期的请求</span></span><br><span class="line">            failExpiredRequests(now);</span><br><span class="line"></span><br><span class="line">            <span class="comment">// 清空unset集合，因为请求都已经发送出去了</span></span><br><span class="line">            unsent.clean();</span><br><span class="line">        &#125; <span class="keyword">finally</span> &#123;</span><br><span class="line">            lock.unlock();<span class="number">0</span>.</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="comment">// 执行完成的回调函数</span></span><br><span class="line">        firePendingCompletedRequests();</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>trySend方法负责发送请求。它会遍历请求集合unsent，依次发送。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">private</span> <span class="keyword">long</span> <span class="title">trySend</span><span class="params">(<span class="keyword">long</span> now)</span> </span>&#123;</span><br><span class="line">    <span class="keyword">long</span> pollDelayMs = Long.MAX_VALUE;</span><br><span class="line">    <span class="comment">// 遍历unsent请求</span></span><br><span class="line">    <span class="keyword">for</span> (Node node : unsent.nodes()) &#123;</span><br><span class="line">        <span class="comment">// 提取该节点的请求</span></span><br><span class="line">        Iterator&lt;ClientRequest&gt; iterator = unsent.requestIterator(node);</span><br><span class="line">        <span class="keyword">if</span> (iterator.hasNext())</span><br><span class="line">            pollDelayMs = Math.min(pollDelayMs, client.pollDelayMs(node, now));</span><br><span class="line">        </span><br><span class="line">        <span class="keyword">while</span> (iterator.hasNext()) &#123;</span><br><span class="line">            <span class="comment">// 遍历该节点的请求</span></span><br><span class="line">            ClientRequest request = iterator.next();</span><br><span class="line">            <span class="comment">// 调用ready创建连接</span></span><br><span class="line">            <span class="keyword">if</span> (client.ready(node, now)) &#123;</span><br><span class="line">                <span class="comment">// 调用NetworkClient的send方法发送请求</span></span><br><span class="line">                client.send(request, now);</span><br><span class="line">                <span class="comment">// 移除掉已发送的请求</span></span><br><span class="line">                iterator.remove();</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> pollDelayMs;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>firePendingCompletedRequests方法负责处理响应。我们回想下，在构建请求时，指定了回调类。回调函数执行时，会将自身添加到pendingCompletion队列里。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">ConsumerNetworkClient</span> <span class="keyword">implements</span> <span class="title">Closeable</span> </span>&#123;</span><br><span class="line">    <span class="comment">// 请求完成的回调队列</span></span><br><span class="line">    <span class="keyword">private</span> <span class="keyword">final</span> ConcurrentLinkedQueue&lt;RequestFutureCompletionHandler&gt; pendingCompletion = <span class="keyword">new</span> ConcurrentLinkedQueue&lt;&gt;();</span><br><span class="line">    </span><br><span class="line">    <span class="function"><span class="keyword">private</span> <span class="keyword">void</span> <span class="title">firePendingCompletedRequests</span><span class="params">()</span> </span>&#123;</span><br><span class="line">        <span class="keyword">boolean</span> completedRequestsFired = <span class="keyword">false</span>;</span><br><span class="line">        <span class="keyword">for</span> (;;) &#123;</span><br><span class="line">            <span class="comment">// 循环从队列中，提取completionHandler</span></span><br><span class="line">            RequestFutureCompletionHandler completionHandler = pendingCompletion.poll();</span><br><span class="line">            <span class="keyword">if</span> (completionHandler == <span class="keyword">null</span>)</span><br><span class="line">                <span class="keyword">break</span>;</span><br><span class="line">            <span class="comment">// 执行回调函数</span></span><br><span class="line">            completionHandler.fireCompletion();</span><br><span class="line">        &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>最后看看RequestFutureCompletionHandler的fireCompletion方法，它会根据响应结果，来设置RequestFuture的结果。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">private</span> <span class="class"><span class="keyword">class</span> <span class="title">RequestFutureCompletionHandler</span> <span class="keyword">implements</span> <span class="title">RequestCompletionHandler</span> </span>&#123;</span><br><span class="line">    </span><br><span class="line">    <span class="keyword">private</span> <span class="keyword">final</span> RequestFuture&lt;ClientResponse&gt; future;</span><br><span class="line">    <span class="comment">// 响应数据</span></span><br><span class="line">    <span class="keyword">private</span> ClientResponse response;</span><br><span class="line">    <span class="comment">// 如果请求失败，这里会设置异常值</span></span><br><span class="line">    <span class="keyword">private</span> RuntimeException e;</span><br><span class="line">    </span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">fireCompletion</span><span class="params">()</span> </span>&#123;</span><br><span class="line">        <span class="keyword">if</span> (e != <span class="keyword">null</span>) &#123;</span><br><span class="line">            <span class="comment">// 如果请求出现异常，则调用raise方法设置异常，完成future</span></span><br><span class="line">            future.raise(e);</span><br><span class="line">        &#125; <span class="keyword">else</span> <span class="keyword">if</span> (response.versionMismatch() != <span class="keyword">null</span>) &#123;</span><br><span class="line">            <span class="comment">// 响应出现版本不支持错误</span></span><br><span class="line">            future.raise(response.versionMismatch());</span><br><span class="line">        &#125; <span class="keyword">else</span> <span class="keyword">if</span> (....) &#123;</span><br><span class="line">            <span class="comment">// 检查其他错误</span></span><br><span class="line">            .....</span><br><span class="line">        &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">            <span class="comment">// 调用complete方法，设置future的结果</span></span><br><span class="line">            future.complete(response);</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+      
+    </div>
+    
+    
+    
+
+    
+
+    
+
+    
+
+    <footer class="post-footer">
+      
+        <div class="post-tags">
+          
+            <a href="/tags/kafka-consumer-network-client/" rel="tag"># kafka, consumer, network, client</a>
+          
+        </div>
+      
+
+      
+      
+      
+
+      
+        <div class="post-nav">
+          <div class="post-nav-next post-nav-item">
+            
+              <a href="/2019/03/11/kafka-producer/" rel="next" title="KafkaProducer 原理">
+                <i class="fa fa-chevron-left"></i> KafkaProducer 原理
+              </a>
+            
+          </div>
+
+          <span class="post-nav-divider"></span>
+
+          <div class="post-nav-prev post-nav-item">
+            
+          </div>
+        </div>
+      
+
+      
+      
+    </footer>
+  </div>
+  
+  
+  
+  </article>
+
+
+
+    <div class="post-spread">
+      
+    </div>
+  </div>
+
+
+          </div>
+          
+
+
+          
+
+  
+    <div class="comments" id="comments">
+    </div>
+  
+
+
+
+        </div>
+        
+          
+  
+  <div class="sidebar-toggle">
+    <div class="sidebar-toggle-line-wrap">
+      <span class="sidebar-toggle-line sidebar-toggle-line-first"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-middle"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-last"></span>
+    </div>
+  </div>
+
+  <aside id="sidebar" class="sidebar">
+    
+    <div class="sidebar-inner">
+
+      
+
+      
+        <ul class="sidebar-nav motion-element">
+          <li class="sidebar-nav-toc sidebar-nav-active" data-target="post-toc-wrap">
+            Table of Contents
+          </li>
+          <li class="sidebar-nav-overview" data-target="site-overview-wrap">
+            Overview
+          </li>
+        </ul>
+      
+
+      <section class="site-overview-wrap sidebar-panel">
+        <div class="site-overview">
+          <div class="site-author motion-element" itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+            
+              <p class="site-author-name" itemprop="name">zhmin</p>
+              <p class="site-description motion-element" itemprop="description"></p>
+          </div>
+
+          <nav class="site-state motion-element">
+
+            
+              <div class="site-state-item site-state-posts">
+              
+                <a href="/archives/">
+              
+                  <span class="site-state-item-count">29</span>
+                  <span class="site-state-item-name">posts</span>
+                </a>
+              </div>
+            
+
+            
+              
+              
+              <div class="site-state-item site-state-categories">
+                <a href="/categories/index.html">
+                  <span class="site-state-item-count">5</span>
+                  <span class="site-state-item-name">categories</span>
+                </a>
+              </div>
+            
+
+            
+              
+              
+              <div class="site-state-item site-state-tags">
+                
+                  <span class="site-state-item-count">27</span>
+                  <span class="site-state-item-name">tags</span>
+                
+              </div>
+            
+
+          </nav>
+
+          
+
+          
+            <div class="links-of-author motion-element">
+                
+                  <span class="links-of-author-item">
+                    <a href="https://github.com/zhmin" target="_blank" title="GitHub">
+                      
+                        <i class="fa fa-fw fa-github"></i>GitHub</a>
+                  </span>
+                
+            </div>
+          
+
+          
+          
+
+          
+          
+
+          
+
+        </div>
+      </section>
+
+      
+      <!--noindex-->
+        <section class="post-toc-wrap motion-element sidebar-panel sidebar-panel-active">
+          <div class="post-toc">
+
+            
+              
+            
+
+            
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#Kafka-ConsumerNetworkClient-原理"><span class="nav-number">1.</span> <span class="nav-text">Kafka ConsumerNetworkClient 原理</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#RequestFuture-原理"><span class="nav-number">1.1.</span> <span class="nav-text">RequestFuture 原理</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#管理监听器"><span class="nav-number">1.1.1.</span> <span class="nav-text">管理监听器</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#设置结果"><span class="nav-number">1.1.2.</span> <span class="nav-text">设置结果</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#装饰-RequestFuture"><span class="nav-number">1.1.3.</span> <span class="nav-text">装饰 RequestFuture</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#构造请求"><span class="nav-number">1.2.</span> <span class="nav-text">构造请求</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#处理响应"><span class="nav-number">1.3.</span> <span class="nav-text">处理响应</span></a></li></ol></li></ol></div>
+            
+
+          </div>
+        </section>
+      <!--/noindex-->
+      
+
+      
+
+    </div>
+  </aside>
+
+
+        
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="footer-inner">
+        <div class="copyright">&copy; <span itemprop="copyrightYear">2019</span>
+  <span class="with-love">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">zhmin</span>
+
+  
+</div>
+
+
+
+
+
+
+
+
+
+
+
+  <script src="https://unpkg.com/mermaid@7.1.2/dist/mermaid.min.js"></script>
+  <script>
+    if (window.mermaid) {
+      mermaid.initialize({"startOnload":true,"theme":"forest"});
+    }
+  </script>
+
+
+
+<script async src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+<span id="busuanzi_container_site_pv">
+    访问量<span id="busuanzi_value_site_pv"></span>
+</span>
+<span class="post-meta-divider">|</span>
+<span id="busuanzi_container_site_uv">
+  访客数<span id="busuanzi_value_site_uv"></span>
+</span>
+
+        
+
+
+
+
+
+
+
+        
+      </div>
+    </footer>
+
+    
+      <div class="back-to-top">
+        <i class="fa fa-arrow-up"></i>
+        
+      </div>
+    
+
+    
+
+  </div>
+
+  
+
+<script type="text/javascript">
+  if (Object.prototype.toString.call(window.Promise) !== '[object Function]') {
+    window.Promise = null;
+  }
+</script>
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery/index.js?v=2.1.3"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fastclick/lib/fastclick.min.js?v=1.0.6"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery_lazyload/jquery.lazyload.js?v=1.9.7"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.ui.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fancybox/source/jquery.fancybox.pack.js?v=2.1.5"></script>
+  
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/utils.js?v=5.1.4"></script>
+
+  <script type="text/javascript" src="/js/src/motion.js?v=5.1.4"></script>
+
+
+
+  
+  
+
+  
+  <script type="text/javascript" src="/js/src/scrollspy.js?v=5.1.4"></script>
+<script type="text/javascript" src="/js/src/post-details.js?v=5.1.4"></script>
+
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/bootstrap.js?v=5.1.4"></script>
+
+
+
+  
+
+
+  
+
+
+
+
+	
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+  <script src="//cdn1.lncld.net/static/js/3.0.4/av-min.js"></script>
+  <script src="//unpkg.com/valine/dist/Valine.min.js"></script>
+  
+  <script type="text/javascript">
+    var GUEST = ['nick','mail','link'];
+    var guest = 'nick';
+    guest = guest.split(',').filter(item=>{
+      return GUEST.indexOf(item)>-1;
+    });
+    new Valine({
+        el: '#comments' ,
+        verify: false,
+        notify: false,
+        appId: 'iYiPQlDR2X2zg2QIql2UEe2o-gzGzoHsz',
+        appKey: 'EW8G4sftwX1pef1zS9EsOeKE',
+        placeholder: 'comment here',
+        avatar:'mm',
+        guest_info:guest,
+        pageSize:'10' || 10,
+    });
+  </script>
+
+
+
+  
+
+
+
+
+
+  
+
+  
+  <script src="https://cdn1.lncld.net/static/js/av-core-mini-0.6.4.js"></script>
+  <script>AV.initialize("iYiPQlDR2X2zg2QIql2UEe2o-gzGzoHsz", "EW8G4sftwX1pef1zS9EsOeKE");</script>
+  <script>
+    function showTime(Counter) {
+      var query = new AV.Query(Counter);
+      var entries = [];
+      var $visitors = $(".leancloud_visitors");
+
+      $visitors.each(function () {
+        entries.push( $(this).attr("id").trim() );
+      });
+
+      query.containedIn('url', entries);
+      query.find()
+        .done(function (results) {
+          var COUNT_CONTAINER_REF = '.leancloud-visitors-count';
+
+          if (results.length === 0) {
+            $visitors.find(COUNT_CONTAINER_REF).text(0);
+            return;
+          }
+
+          for (var i = 0; i < results.length; i++) {
+            var item = results[i];
+            var url = item.get('url');
+            var time = item.get('time');
+            var element = document.getElementById(url);
+
+            $(element).find(COUNT_CONTAINER_REF).text(time);
+          }
+          for(var i = 0; i < entries.length; i++) {
+            var url = entries[i];
+            var element = document.getElementById(url);
+            var countSpan = $(element).find(COUNT_CONTAINER_REF);
+            if( countSpan.text() == '') {
+              countSpan.text(0);
+            }
+          }
+        })
+        .fail(function (object, error) {
+          console.log("Error: " + error.code + " " + error.message);
+        });
+    }
+
+    function addCount(Counter) {
+      var $visitors = $(".leancloud_visitors");
+      var url = $visitors.attr('id').trim();
+      var title = $visitors.attr('data-flag-title').trim();
+      var query = new AV.Query(Counter);
+
+      query.equalTo("url", url);
+      query.find({
+        success: function(results) {
+          if (results.length > 0) {
+            var counter = results[0];
+            counter.fetchWhenSave(true);
+            counter.increment("time");
+            counter.save(null, {
+              success: function(counter) {
+                var $element = $(document.getElementById(url));
+                $element.find('.leancloud-visitors-count').text(counter.get('time'));
+              },
+              error: function(counter, error) {
+                console.log('Failed to save Visitor num, with error message: ' + error.message);
+              }
+            });
+          } else {
+            var newcounter = new Counter();
+            /* Set ACL */
+            var acl = new AV.ACL();
+            acl.setPublicReadAccess(true);
+            acl.setPublicWriteAccess(true);
+            newcounter.setACL(acl);
+            /* End Set ACL */
+            newcounter.set("title", title);
+            newcounter.set("url", url);
+            newcounter.set("time", 1);
+            newcounter.save(null, {
+              success: function(newcounter) {
+                var $element = $(document.getElementById(url));
+                $element.find('.leancloud-visitors-count').text(newcounter.get('time'));
+              },
+              error: function(newcounter, error) {
+                console.log('Failed to create');
+              }
+            });
+          }
+        },
+        error: function(error) {
+          console.log('Error:' + error.code + " " + error.message);
+        }
+      });
+    }
+
+    $(function() {
+      var Counter = AV.Object.extend("Counter");
+      if ($('.leancloud_visitors').length == 1) {
+        addCount(Counter);
+      } else if ($('.post-title-link').length > 1) {
+        showTime(Counter);
+      }
+    });
+  </script>
+
+
+
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+</body>
+</html>
