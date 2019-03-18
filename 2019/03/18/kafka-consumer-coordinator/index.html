@@ -1,0 +1,1218 @@
+<!DOCTYPE html>
+
+
+
+  
+
+
+<html class="theme-next mist use-motion" lang="">
+<head><meta name="generator" content="Hexo 3.8.0">
+  <meta charset="UTF-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="theme-color" content="#222">
+
+
+
+
+
+
+
+
+
+<meta http-equiv="Cache-Control" content="no-transform">
+<meta http-equiv="Cache-Control" content="no-siteapp">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+  <link href="/lib/fancybox/source/jquery.fancybox.css?v=2.1.5" rel="stylesheet" type="text/css">
+
+
+
+
+
+
+
+<link href="/lib/font-awesome/css/font-awesome.min.css?v=4.6.2" rel="stylesheet" type="text/css">
+
+<link href="/css/main.css?v=5.1.4" rel="stylesheet" type="text/css">
+
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png?v=5.1.4">
+
+
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png?v=5.1.4">
+
+
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png?v=5.1.4">
+
+
+  <link rel="mask-icon" href="/images/logo.svg?v=5.1.4" color="#222">
+
+
+
+
+
+  <meta name="keywords" content="kafka,">
+
+
+
+
+
+
+
+
+
+
+<meta name="description" content="KafkaConsumer  Coordinator 原理Kafka消费者提供了组的概念，它允许多个consumer共同消费一个topic，而不会造成冲突。Kafka提供了Coordinator服务，负责管理消费组。当有新增的consumer加入组，或者有consumer离开组，都会触发Coordinator的重新平衡操作，Coordinator会将topic的分区重新分配给各个consumer。">
+<meta name="keywords" content="kafka">
+<meta property="og:type" content="article">
+<meta property="og:title" content="KafkaConsumer Coordinator 原理">
+<meta property="og:url" content="https://zhmin.github.io/2019/03/18/kafka-consumer-coordinator/index.html">
+<meta property="og:site_name" content="blog">
+<meta property="og:description" content="KafkaConsumer  Coordinator 原理Kafka消费者提供了组的概念，它允许多个consumer共同消费一个topic，而不会造成冲突。Kafka提供了Coordinator服务，负责管理消费组。当有新增的consumer加入组，或者有consumer离开组，都会触发Coordinator的重新平衡操作，Coordinator会将topic的分区重新分配给各个consumer。">
+<meta property="og:locale" content="default">
+<meta property="og:updated_time" content="2019-03-18T14:16:52.686Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="KafkaConsumer Coordinator 原理">
+<meta name="twitter:description" content="KafkaConsumer  Coordinator 原理Kafka消费者提供了组的概念，它允许多个consumer共同消费一个topic，而不会造成冲突。Kafka提供了Coordinator服务，负责管理消费组。当有新增的consumer加入组，或者有consumer离开组，都会触发Coordinator的重新平衡操作，Coordinator会将topic的分区重新分配给各个consumer。">
+
+
+
+<script type="text/javascript" id="hexo.configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '/',
+    scheme: 'Mist',
+    version: '5.1.4',
+    sidebar: {"position":"left","display":"hide","offset":12,"b2t":false,"scrollpercent":false,"onmobile":false},
+    fancybox: true,
+    tabs: true,
+    motion: {"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},
+    duoshuo: {
+      userId: '0',
+      author: 'Author'
+    },
+    algolia: {
+      applicationID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    }
+  };
+</script>
+
+
+
+  <link rel="canonical" href="https://zhmin.github.io/2019/03/18/kafka-consumer-coordinator/">
+
+
+
+
+
+  <title>KafkaConsumer Coordinator 原理 | blog</title>
+  
+
+
+
+
+
+
+
+
+</head>
+
+<body itemscope="" itemtype="http://schema.org/WebPage" lang="default">
+
+  
+  
+    
+  
+
+  <div class="container sidebar-position-left page-post-detail">
+    <div class="headband"></div>
+
+    <header id="header" class="header" itemscope="" itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-wrapper">
+  <div class="site-meta ">
+    
+
+    <div class="custom-logo-site-title">
+      <a href="/" class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">blog</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+      
+        <h1 class="site-subtitle" itemprop="description"></h1>
+      
+  </div>
+
+  <div class="site-nav-toggle">
+    <button>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+    </button>
+  </div>
+</div>
+
+<nav class="site-nav">
+  
+
+  
+    <ul id="menu" class="menu">
+      
+        
+        <li class="menu-item menu-item-home">
+          <a href="/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-home"></i> <br>
+            
+            Home
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-categories">
+          <a href="/categories/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-th"></i> <br>
+            
+            Categories
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-archives">
+          <a href="/archives/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-archive"></i> <br>
+            
+            Archives
+          </a>
+        </li>
+      
+
+      
+    </ul>
+  
+
+  
+</nav>
+
+
+
+ </div>
+    </header>
+
+    <main id="main" class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          <div id="content" class="content">
+            
+
+  <div id="posts" class="posts-expand">
+    
+
+  
+
+  
+  
+  
+
+  <article class="post post-type-normal" itemscope="" itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block">
+    <link itemprop="mainEntityOfPage" href="https://zhmin.github.io/2019/03/18/kafka-consumer-coordinator/">
+
+    <span hidden itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="zhmin">
+      <meta itemprop="description" content="">
+      <meta itemprop="image" content="/images/avatar.gif">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope="" itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="blog">
+    </span>
+
+    
+      <header class="post-header">
+
+        
+        
+          <h2 class="post-title" itemprop="name headline">KafkaConsumer Coordinator 原理</h2>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">Posted on</span>
+              
+              <time title="Post created" itemprop="dateCreated datePublished" datetime="2019-03-18T22:11:55+08:00">
+                2019-03-18
+              </time>
+            
+
+            
+
+            
+          </span>
+
+          
+            <span class="post-category">
+            
+              <span class="post-meta-divider">|</span>
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">In</span>
+              
+              
+                <span itemprop="about" itemscope="" itemtype="http://schema.org/Thing">
+                  <a href="/categories/kafka/" itemprop="url" rel="index">
+                    <span itemprop="name">kafka</span>
+                  </a>
+                </span>
+
+                
+                
+              
+            </span>
+          
+
+          
+            
+              <span class="post-comments-count">
+                <span class="post-meta-divider">|</span>
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-comment-o"></i>
+                </span>
+                <a href="/2019/03/18/kafka-consumer-coordinator/#comments" itemprop="discussionUrl">
+                  <span class="post-comments-count valine-comment-count" data-xid="/2019/03/18/kafka-consumer-coordinator/" itemprop="commentCount"></span>
+                </a>
+              </span>
+            
+          
+
+          
+          
+             <span id="/2019/03/18/kafka-consumer-coordinator/" class="leancloud_visitors" data-flag-title="KafkaConsumer Coordinator 原理">
+               <span class="post-meta-divider">|</span>
+               <span class="post-meta-item-icon">
+                 <i class="fa fa-eye"></i>
+               </span>
+               
+                 <span class="post-meta-item-text">Visitors&#58;</span>
+               
+                 <span class="leancloud-visitors-count"></span>
+             </span>
+          
+
+          
+
+          
+
+          
+
+        </div>
+      </header>
+    
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+      
+
+      
+        <h1 id="KafkaConsumer-Coordinator-原理"><a href="#KafkaConsumer-Coordinator-原理" class="headerlink" title="KafkaConsumer  Coordinator 原理"></a>KafkaConsumer  Coordinator 原理</h1><p>Kafka消费者提供了组的概念，它允许多个consumer共同消费一个topic，而不会造成冲突。Kafka提供了Coordinator服务，负责管理消费组。当有新增的consumer加入组，或者有consumer离开组，都会触发Coordinator的重新平衡操作，Coordinator会将topic的分区重新分配给各个consumer。</p>
+<p>新的consumer加入到组的过程如下：</p>
+<ol>
+<li>consumer首先从Kafka集群中选择出一个节点，并且发出请求，寻找Coordinator的地址</li>
+<li>获取Coordinator的地址后，consumer向Coordinator发送请求加入，请求会包含自己的订阅信息</li>
+<li>Coordinator会为每个consumer分配 id 号，并且从中选择出leader角色。</li>
+<li>consumer收到响应后，如果是被选择是leader角色，那么执行分配算法，将所有consumer的分区分配结果发送给Coordinator。如果是follower角色，那么向Coordinator发送请求获取该consumer的分配结果。</li>
+</ol>
+<h2 id="寻找Coordinator地址"><a href="#寻找Coordinator地址" class="headerlink" title="寻找Coordinator地址"></a>寻找Coordinator地址</h2><p>consumer第一步是需要找到Coordinator的地址，才能进行后续的请求。它从Kafka集群中选择出一个负载最轻的节点，并且发出寻找Coordinator地址的请求。</p>
+<h3 id="协议格式"><a href="#协议格式" class="headerlink" title="协议格式"></a>协议格式</h3><p>请求格式的主要字段：</p>
+<table>
+<thead>
+<tr>
+<th>字段名</th>
+<th>字段类型</th>
+<th>字段含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>coordinator_key</td>
+<td>字符串</td>
+<td>group id 或者 transaction id</td>
+</tr>
+<tr>
+<td>coordinator_type</td>
+<td>字符串</td>
+<td>coordinator_key是哪一种类型</td>
+</tr>
+</tbody>
+</table>
+<p>响应格式的主要字段：</p>
+<table>
+<thead>
+<tr>
+<th>字段名</th>
+<th>字段类型</th>
+<th>字段含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>node_id</td>
+<td>字符串</td>
+<td>coordinator服务所在主机的 id 号</td>
+</tr>
+<tr>
+<td>host</td>
+<td>字符串</td>
+<td>主机地址</td>
+</tr>
+<tr>
+<td>port</td>
+<td>整数</td>
+<td>服务端口号</td>
+</tr>
+</tbody>
+</table>
+<h3 id="源码分析"><a href="#源码分析" class="headerlink" title="源码分析"></a>源码分析</h3><p>AbstractCoordinator的ensureCoordinatorReady会发送寻找Coordinator的请求，并且创建连接。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="keyword">abstract</span> <span class="class"><span class="keyword">class</span> <span class="title">AbstractCoordinator</span> <span class="keyword">implements</span> <span class="title">Closeable</span> </span>&#123;</span><br><span class="line">    </span><br><span class="line">    <span class="keyword">protected</span> <span class="keyword">final</span> ConsumerNetworkClient client;    </span><br><span class="line">    </span><br><span class="line">    <span class="function"><span class="keyword">protected</span> <span class="keyword">synchronized</span> <span class="keyword">boolean</span> <span class="title">ensureCoordinatorReady</span><span class="params">(<span class="keyword">final</span> <span class="keyword">long</span> timeoutMs)</span> </span>&#123;</span><br><span class="line">        <span class="keyword">final</span> <span class="keyword">long</span> startTimeMs = time.milliseconds();</span><br><span class="line">        <span class="keyword">long</span> elapsedTime = <span class="number">0L</span>;</span><br><span class="line">        <span class="comment">// 调用coordinatorUnknown方法，检测Coordinator地址是否已经获取了</span></span><br><span class="line">        <span class="keyword">while</span> (coordinatorUnknown()) &#123;</span><br><span class="line">            <span class="comment">// 发送寻找Coordinator的请求</span></span><br><span class="line">            <span class="keyword">final</span> RequestFuture&lt;Void&gt; future = lookupCoordinator();</span><br><span class="line">            <span class="comment">// 等待响应完成，remainingTimeAtLeastZero方法计算等待时长</span></span><br><span class="line">            client.poll(future, remainingTimeAtLeastZero(timeoutMs, elapsedTime));</span><br><span class="line">            <span class="keyword">if</span> (!future.isDone()) &#123;</span><br><span class="line">                <span class="comment">// 如果超时，还没有收到响应</span></span><br><span class="line">                <span class="keyword">break</span>;</span><br><span class="line">            &#125;</span><br><span class="line"></span><br><span class="line">            <span class="keyword">if</span> (future.failed()) &#123;</span><br><span class="line">                <span class="comment">// 检测是否可以重试</span></span><br><span class="line">                <span class="keyword">if</span> (future.isRetriable()) &#123;</span><br><span class="line">                    elapsedTime = time.milliseconds() - startTimeMs;</span><br><span class="line">                    <span class="keyword">if</span> (elapsedTime &gt;= timeoutMs) <span class="keyword">break</span>;</span><br><span class="line">                    <span class="comment">// 更新元数据并且等待完成</span></span><br><span class="line">                    client.awaitMetadataUpdate(remainingTimeAtLeastZero(timeoutMs, elapsedTime));</span><br><span class="line">                    elapsedTime = time.milliseconds() - startTimeMs;</span><br><span class="line">                &#125; <span class="keyword">else</span></span><br><span class="line">                    <span class="keyword">throw</span> future.exception();</span><br><span class="line">            &#125; <span class="keyword">else</span> <span class="keyword">if</span> (coordinator != <span class="keyword">null</span> &amp;&amp; client.isUnavailable(coordinator)) &#123;</span><br><span class="line">                <span class="comment">// 虽然找到了Coordinator地址，但是连接失败</span></span><br><span class="line">                markCoordinatorUnknown();</span><br><span class="line">                <span class="keyword">final</span> <span class="keyword">long</span> sleepTime = Math.min(retryBackoffMs, remainingTimeAtLeastZero(timeoutMs, elapsedTime));</span><br><span class="line">                time.sleep(sleepTime);</span><br><span class="line">                elapsedTime += sleepTime;</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="comment">// 返回是否与Coordinator建立连接</span></span><br><span class="line">        <span class="keyword">return</span> !coordinatorUnknown();</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>注意到上面的lookupCoordinator方法，它负责构建和发送请求。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="keyword">abstract</span> <span class="class"><span class="keyword">class</span> <span class="title">AbstractCoordinator</span> <span class="keyword">implements</span> <span class="title">Closeable</span> </span>&#123;</span><br><span class="line">    </span><br><span class="line">    <span class="keyword">protected</span> <span class="keyword">final</span> ConsumerNetworkClient client;</span><br><span class="line">    <span class="keyword">private</span> RequestFuture&lt;Void&gt; findCoordinatorFuture = <span class="keyword">null</span>;</span><br><span class="line">    </span><br><span class="line"></span><br><span class="line">    <span class="function"><span class="keyword">protected</span> <span class="keyword">synchronized</span> RequestFuture&lt;Void&gt; <span class="title">lookupCoordinator</span><span class="params">()</span> </span>&#123;</span><br><span class="line">        <span class="keyword">if</span> (findCoordinatorFuture == <span class="keyword">null</span>) &#123;</span><br><span class="line">            <span class="comment">// 找到负载最轻的节点</span></span><br><span class="line">            Node node = <span class="keyword">this</span>.client.leastLoadedNode();</span><br><span class="line">            <span class="keyword">if</span> (node == <span class="keyword">null</span>) &#123;</span><br><span class="line">                <span class="keyword">return</span> RequestFuture.noBrokersAvailable();</span><br><span class="line">            &#125; <span class="keyword">else</span></span><br><span class="line">                <span class="comment">// 发送请求</span></span><br><span class="line">                findCoordinatorFuture = sendFindCoordinatorRequest(node);</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="keyword">return</span> findCoordinatorFuture;</span><br><span class="line">    &#125;</span><br><span class="line">    </span><br><span class="line">    <span class="function"><span class="keyword">private</span> RequestFuture&lt;Void&gt; <span class="title">sendFindCoordinatorRequest</span><span class="params">(Node node)</span> </span>&#123;</span><br><span class="line">        <span class="comment">// 构建请求</span></span><br><span class="line">        FindCoordinatorRequest.Builder requestBuilder =</span><br><span class="line">                <span class="keyword">new</span> FindCoordinatorRequest.Builder(FindCoordinatorRequest.CoordinatorType.GROUP, <span class="keyword">this</span>.groupId);</span><br><span class="line">        <span class="comment">// 这里先调用了client的send方法，返回RequestFuture&lt;ClientResponse&gt;类型</span></span><br><span class="line">        <span class="comment">// 然后调用了compose方法，转换为RequestFuture&lt;Void&gt;类型</span></span><br><span class="line">        <span class="keyword">return</span> client.send(node, requestBuilder)</span><br><span class="line">                     .compose(<span class="keyword">new</span> FindCoordinatorResponseHandler());</span><br><span class="line">    &#125; </span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>上面涉及到了RequestFuture类型的转换，关于RequestFuture的原理，可以参考这篇博客 <a href="/2019/03/12/kafka-consumer-network-client/" title="Kafka ConsumerNetworkClient 原理">Kafka ConsumerNetworkClient 原理</a> 。FindCoordinatorResponseHandler在响应完成时，会保存coordinator地址，并且创建与coordinator的连接。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">private</span> <span class="class"><span class="keyword">class</span> <span class="title">FindCoordinatorResponseHandler</span> <span class="keyword">extends</span> <span class="title">RequestFutureAdapter</span>&lt;<span class="title">ClientResponse</span>, <span class="title">Void</span>&gt; </span>&#123;</span><br><span class="line">    </span><br><span class="line">    <span class="meta">@Override</span></span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">onSuccess</span><span class="params">(ClientResponse resp, RequestFuture&lt;Void&gt; future)</span> </span>&#123;</span><br><span class="line">        clearFindCoordinatorFuture();</span><br><span class="line">        <span class="comment">// 强制转换为FindCoordinatorResponse类型</span></span><br><span class="line">        FindCoordinatorResponse findCoordinatorResponse = (FindCoordinatorResponse) resp.responseBody();</span><br><span class="line">        <span class="comment">// 查看响应是否有错误</span></span><br><span class="line">        Errors error = findCoordinatorResponse.error();</span><br><span class="line">        <span class="keyword">if</span> (error == Errors.NONE) &#123;</span><br><span class="line">            <span class="keyword">synchronized</span> (AbstractCoordinator.<span class="keyword">this</span>) &#123;</span><br><span class="line">                <span class="comment">// use MAX_VALUE - node.id as the coordinator id to allow separate connections</span></span><br><span class="line">                <span class="comment">// for the coordinator in the underlying network client layer</span></span><br><span class="line">                <span class="keyword">int</span> coordinatorConnectionId = Integer.MAX_VALUE - findCoordinatorResponse.node().id();</span><br><span class="line">                <span class="comment">// 保存coordinator地址</span></span><br><span class="line">                AbstractCoordinator.<span class="keyword">this</span>.coordinator = <span class="keyword">new</span> Node(</span><br><span class="line">                        coordinatorConnectionId,</span><br><span class="line">                        findCoordinatorResponse.node().host(),</span><br><span class="line">                        findCoordinatorResponse.node().port());</span><br><span class="line">                <span class="comment">// 连接 Coordinator节点</span></span><br><span class="line">                client.tryConnect(coordinator);</span><br><span class="line">                <span class="comment">// 设置心跳的超时时间</span></span><br><span class="line">                heartbeat.resetTimeouts(time.milliseconds());</span><br><span class="line">            &#125;</span><br><span class="line">            <span class="comment">// 设置future的结果</span></span><br><span class="line">            future.complete(<span class="keyword">null</span>);</span><br><span class="line">        &#125; <span class="keyword">else</span> <span class="keyword">if</span> (error == Errors.GROUP_AUTHORIZATION_FAILED) &#123;</span><br><span class="line">            <span class="comment">// 设置future的异常</span></span><br><span class="line">            future.raise(<span class="keyword">new</span> GroupAuthorizationException(groupId));</span><br><span class="line">        &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">            <span class="comment">// 设置future的异常</span></span><br><span class="line">            future.raise(error);</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br></pre></td></tr></table></figure>
+<h2 id="请求加入组"><a href="#请求加入组" class="headerlink" title="请求加入组"></a>请求加入组</h2><p>consumer在连接coordinator之后，会与它进行请求交互。它首先会发送加入组的请求，coordinator会分配consumer id，并且会从组中选出leader角色和follower角色。</p>
+<h3 id="协议格式-1"><a href="#协议格式-1" class="headerlink" title="协议格式"></a>协议格式</h3><p>请求格式的主要字段：</p>
+<table>
+<thead>
+<tr>
+<th>字段名</th>
+<th>字段类型</th>
+<th>字段含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>group_id</td>
+<td>字符串</td>
+<td>consumer 所在的 group id</td>
+</tr>
+<tr>
+<td>session_timeout</td>
+<td>整数</td>
+<td>心跳超时时间</td>
+</tr>
+<tr>
+<td>rebalance_timeout</td>
+<td>整数</td>
+<td>rebalance超时时间</td>
+</tr>
+<tr>
+<td>protocol_type</td>
+<td>字符串</td>
+<td>coordinator协议名称，默认是 ”consumer“</td>
+</tr>
+<tr>
+<td>group_protocols</td>
+<td>group_protocol 类型列表</td>
+<td>group_protocol 类型列表</td>
+</tr>
+</tbody>
+</table>
+<p>group_protocol 数据格式</p>
+<table>
+<thead>
+<tr>
+<th>字段名</th>
+<th>字段类型</th>
+<th>字段含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>protocol_name</td>
+<td>字符串</td>
+<td>consumer支持的分配算法的名称</td>
+</tr>
+<tr>
+<td>protocol_metadata</td>
+<td>字节数组</td>
+<td>consumer对于此算法的自定义数据</td>
+</tr>
+</tbody>
+</table>
+<p>响应格式的主要字段：</p>
+<table>
+<thead>
+<tr>
+<th>字段名</th>
+<th>字段类型</th>
+<th>字段含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>error_code</td>
+<td>整数</td>
+<td>错误码</td>
+</tr>
+<tr>
+<td>generation_id</td>
+<td>字符串</td>
+<td>表示coordinator的版本</td>
+</tr>
+<tr>
+<td>group_protocol</td>
+<td>字符串</td>
+<td>选用的分配算法名称</td>
+</tr>
+<tr>
+<td>leader_id</td>
+<td>整数</td>
+<td>leader角色的 id 号</td>
+</tr>
+<tr>
+<td>member_id</td>
+<td>整数</td>
+<td>该consumer 的 id 号</td>
+</tr>
+<tr>
+<td>members</td>
+<td>member 类型列表</td>
+<td>所有consumer的订阅信息</td>
+</tr>
+</tbody>
+</table>
+<p>member 数据格式</p>
+<table>
+<thead>
+<tr>
+<th>字段名</th>
+<th>字段类型</th>
+<th>字段含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>member_id</td>
+<td>整数</td>
+<td>consumer 的 id 号</td>
+</tr>
+<tr>
+<td>member_metadata</td>
+<td>字节数组</td>
+<td>consumer自定义的数据</td>
+</tr>
+</tbody>
+</table>
+<h3 id="源码分析-1"><a href="#源码分析-1" class="headerlink" title="源码分析"></a>源码分析</h3><p>initiateJoinGroup方法会负责与Coordinator的请求交互</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">private</span> <span class="keyword">synchronized</span> RequestFuture&lt;ByteBuffer&gt; <span class="title">initiateJoinGroup</span><span class="params">()</span> </span>&#123;</span><br><span class="line">    <span class="keyword">if</span> (joinFuture == <span class="keyword">null</span>) &#123;</span><br><span class="line">        <span class="comment">// 暂停心跳线程</span></span><br><span class="line">        disableHeartbeatThread();</span><br><span class="line"></span><br><span class="line">        state = MemberState.REBALANCING;</span><br><span class="line">        <span class="comment">// 发送加入group请求，返回RequestFuture</span></span><br><span class="line">        joinFuture = sendJoinGroupRequest();</span><br><span class="line">        <span class="comment">// 添加监听器，当接收到响应后，会继续启动心跳线程</span></span><br><span class="line">        joinFuture.addListener(<span class="keyword">new</span> RequestFutureListener&lt;ByteBuffer&gt;() &#123;</span><br><span class="line">            <span class="meta">@Override</span></span><br><span class="line">            <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">onSuccess</span><span class="params">(ByteBuffer value)</span> </span>&#123;</span><br><span class="line">                <span class="keyword">synchronized</span> (AbstractCoordinator.<span class="keyword">this</span>) &#123;</span><br><span class="line">                    <span class="comment">//更新状态</span></span><br><span class="line">                    state = MemberState.STABLE;</span><br><span class="line">                    <span class="comment">// 设置rejoinNeeded为false，因为join请求已经完成了</span></span><br><span class="line">                    rejoinNeeded = <span class="keyword">false</span>;</span><br><span class="line">                    <span class="keyword">if</span> (heartbeatThread != <span class="keyword">null</span>)</span><br><span class="line">                        <span class="comment">// 启动心跳线程</span></span><br><span class="line">                        heartbeatThread.enable();</span><br><span class="line">                &#125;</span><br><span class="line">            &#125;</span><br><span class="line"></span><br><span class="line">            <span class="meta">@Override</span></span><br><span class="line">            <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">onFailure</span><span class="params">(RuntimeException e)</span> </span>&#123;</span><br><span class="line">                <span class="keyword">synchronized</span> (AbstractCoordinator.<span class="keyword">this</span>) &#123;</span><br><span class="line">                    <span class="comment">// 设置状态</span></span><br><span class="line">                    state = MemberState.UNJOINED;</span><br><span class="line">                &#125;</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;);</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> joinFuture;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function">RequestFuture&lt;ByteBuffer&gt; <span class="title">sendJoinGroupRequest</span><span class="params">()</span> </span>&#123;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 构建请求</span></span><br><span class="line">    JoinGroupRequest.Builder requestBuilder = <span class="keyword">new</span> JoinGroupRequest.Builder(</span><br><span class="line">        groupId,</span><br><span class="line">        <span class="keyword">this</span>.sessionTimeoutMs,</span><br><span class="line">        <span class="keyword">this</span>.generation.memberId,</span><br><span class="line">        protocolType(),  <span class="comment">// 返回protocol_type，这里是”consumer“</span></span><br><span class="line">        metadata()).setRebalanceTimeout(<span class="keyword">this</span>.rebalanceTimeoutMs);  <span class="comment">// metadata方法返回分配算法的信息</span></span><br><span class="line"></span><br><span class="line">    <span class="keyword">int</span> joinGroupTimeoutMs = Math.max(rebalanceTimeoutMs, rebalanceTimeoutMs + <span class="number">5000</span>);</span><br><span class="line">    <span class="comment">// 调用client的send发送请求，返回 RequestFuture&lt;ClientResponse&gt;</span></span><br><span class="line">    <span class="comment">// 这里调用compose方法，转换为 RequestFuture&lt;ByteBuffer&gt;</span></span><br><span class="line">    <span class="keyword">return</span> client.send(coordinator, requestBuilder, joinGroupTimeoutMs)</span><br><span class="line">        .compose(<span class="keyword">new</span> JoinGroupResponseHandler());</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>JoinGroupResponseHandler，会比较响应内容的memberId和leaderId字段，如果两者相同则表示这个consumer是leader角色，否则就是follower角色。leader角色会执行分区的分配算法，follower角色会去请求分配的结果。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">private</span> <span class="class"><span class="keyword">class</span> <span class="title">JoinGroupResponseHandler</span> <span class="keyword">extends</span> <span class="title">CoordinatorResponseHandler</span>&lt;<span class="title">JoinGroupResponse</span>, <span class="title">ByteBuffer</span>&gt; </span>&#123;</span><br><span class="line">    </span><br><span class="line">    <span class="meta">@Override</span></span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">handle</span><span class="params">(JoinGroupResponse joinResponse, RequestFuture&lt;ByteBuffer&gt; future)</span> </span>&#123;</span><br><span class="line">        Errors error = joinResponse.error();</span><br><span class="line">        <span class="keyword">if</span> (error == Errors.NONE) &#123;</span><br><span class="line">            <span class="keyword">synchronized</span> (AbstractCoordinator.<span class="keyword">this</span>) &#123;</span><br><span class="line">                <span class="keyword">if</span> (state != MemberState.REBALANCING) &#123;</span><br><span class="line">                    <span class="comment">// 检查是否为REBALANCING状态，那么说明需要重新加入group，所以这次请求响应需要退出</span></span><br><span class="line">                    future.raise(<span class="keyword">new</span> UnjoinedGroupException());</span><br><span class="line">                &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">                    <span class="comment">// 更新generation数据，从响应中获取generationId，memberId和groupProtocol</span></span><br><span class="line">                    AbstractCoordinator.<span class="keyword">this</span>.generation = <span class="keyword">new</span> Generation(joinResponse.generationId(),</span><br><span class="line">                            joinResponse.memberId(), joinResponse.groupProtocol());</span><br><span class="line">                    <span class="comment">// 如果这个consumer被认为是leader角色，那么调用onJoinLeader执行分区分配</span></span><br><span class="line">                    <span class="keyword">if</span> (joinResponse.isLeader()) &#123;</span><br><span class="line">                        <span class="comment">// 注意到这里使用了chain，当onJoinLeader的结果完成后，才会调用future完成</span></span><br><span class="line">                        onJoinLeader(joinResponse).chain(future);</span><br><span class="line">                    &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">                        <span class="comment">// 如果这个consumer被认为是follower角色，那么调用onJoinFollower获取分配结果</span></span><br><span class="line">                        <span class="comment">// 注意到这里使用了chain，当onJoinFollower的结果完成后，才会调用future完成</span></span><br><span class="line">                        onJoinFollower().chain(future);</span><br><span class="line">                    &#125;</span><br><span class="line">                &#125;</span><br><span class="line">            &#125;</span><br><span class="line">        &#125; <span class="keyword">else</span> <span class="keyword">if</span> (error ) &#123;</span><br><span class="line">            <span class="comment">// 处理各种错误</span></span><br><span class="line">            ......</span><br><span class="line">            future.raise(error);</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h2 id="leader执行分配"><a href="#leader执行分配" class="headerlink" title="leader执行分配"></a>leader执行分配</h2><p>Coordinator会为组里的每个consumer分配 id 号，并且从组里选择出leader角色。Coordinator返回给leader角色的响应中，包含了分配算法和组里所有consumer的订阅信息。leader角色收到响应后，会执行分区的分配算法，然后将结果保存到group_assignment字段里，发送给Coordinator。</p>
+<h3 id="协议格式-2"><a href="#协议格式-2" class="headerlink" title="协议格式"></a>协议格式</h3><p>请求格式的主要字段：</p>
+<table>
+<thead>
+<tr>
+<th>字段名</th>
+<th>字段类型</th>
+<th>字段含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>group_id</td>
+<td>字符串</td>
+<td>consumer 所在的 group id</td>
+</tr>
+<tr>
+<td>generation_id</td>
+<td>整数</td>
+<td>coordinator的版本号</td>
+</tr>
+<tr>
+<td>member_id</td>
+<td>整数</td>
+<td>consumer的 id</td>
+</tr>
+<tr>
+<td>group_assignment</td>
+<td>assignment 类型列表</td>
+<td>所有consumer的分配结果</td>
+</tr>
+</tbody>
+</table>
+<p>assignment 类型格式</p>
+<table>
+<thead>
+<tr>
+<th>字段名</th>
+<th>字段类型</th>
+<th>字段含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>member_id</td>
+<td>整数</td>
+<td>consumer的 id</td>
+</tr>
+<tr>
+<td>member_assignment</td>
+<td>字节数组</td>
+<td>consumer的分配结果</td>
+</tr>
+</tbody>
+</table>
+<p>响应格式的主要字段：</p>
+<table>
+<thead>
+<tr>
+<th>字段名</th>
+<th>字段类型</th>
+<th>字段含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>error_code</td>
+<td>整数</td>
+<td>错误码</td>
+</tr>
+<tr>
+<td>member_assignment</td>
+<td>字节数组</td>
+<td>consumer的分配结果</td>
+</tr>
+</tbody>
+</table>
+<h3 id="源码分析-2"><a href="#源码分析-2" class="headerlink" title="源码分析"></a>源码分析</h3><p>onJoinLeader方法负责执行分配算法，关于分配算法的原理可以参考后续博客</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">private</span> RequestFuture&lt;ByteBuffer&gt; <span class="title">onJoinLeader</span><span class="params">(JoinGroupResponse joinResponse)</span> </span>&#123;</span><br><span class="line">    <span class="keyword">try</span> &#123;</span><br><span class="line">        <span class="comment">// 子类负责实现performAssignment方法，分区分配</span></span><br><span class="line">        <span class="comment">// 返回结果的格式，key为consumer id，value为对应consumer的分配结果，这里已经将结果序列化了</span></span><br><span class="line">        Map&lt;String, ByteBuffer&gt; groupAssignment = performAssignment(joinResponse.leaderId(), joinResponse.groupProtocol(),</span><br><span class="line">                joinResponse.members());</span><br><span class="line">        <span class="comment">// 构建SyncGroupRequest请求</span></span><br><span class="line">        SyncGroupRequest.Builder requestBuilder =</span><br><span class="line">                <span class="keyword">new</span> SyncGroupRequest.Builder(groupId, generation.generationId, generation.memberId, groupAssignment);</span><br><span class="line">        <span class="comment">// 发送SyncGroupRequest请求</span></span><br><span class="line">        <span class="keyword">return</span> sendSyncGroupRequest(requestBuilder);</span><br><span class="line">    &#125; <span class="keyword">catch</span> (RuntimeException e) &#123;</span><br><span class="line">        <span class="keyword">return</span> RequestFuture.failure(e);</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">private</span> RequestFuture&lt;ByteBuffer&gt; <span class="title">sendSyncGroupRequest</span><span class="params">(SyncGroupRequest.Builder requestBuilder)</span> </span>&#123;</span><br><span class="line">    <span class="keyword">if</span> (coordinatorUnknown())</span><br><span class="line">        <span class="keyword">return</span> RequestFuture.coordinatorNotAvailable();</span><br><span class="line">    <span class="comment">// 发送响应，这里涉及到SyncGroupResponseHandler回调</span></span><br><span class="line">    <span class="keyword">return</span> client.send(coordinator, requestBuilder)</span><br><span class="line">            .compose(<span class="keyword">new</span> SyncGroupResponseHandler());</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>SyncGroupResponseHandler将分配的结果保存到RequestFuture里</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">private</span> <span class="class"><span class="keyword">class</span> <span class="title">SyncGroupResponseHandler</span> <span class="keyword">extends</span> <span class="title">CoordinatorResponseHandler</span>&lt;<span class="title">SyncGroupResponse</span>, <span class="title">ByteBuffer</span>&gt; </span>&#123;</span><br><span class="line">    </span><br><span class="line">    <span class="meta">@Override</span></span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">handle</span><span class="params">(SyncGroupResponse syncResponse,</span></span></span><br><span class="line"><span class="function"><span class="params">                       RequestFuture&lt;ByteBuffer&gt; future)</span> </span>&#123;</span><br><span class="line">        Errors error = syncResponse.error();</span><br><span class="line">        <span class="keyword">if</span> (error == Errors.NONE) &#123;</span><br><span class="line">            <span class="comment">// 将分配的结果保存到future里</span></span><br><span class="line">            future.complete(syncResponse.memberAssignment());</span><br><span class="line">        &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">            <span class="comment">// 处理各种异常</span></span><br><span class="line">            ........</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h2 id="follower请求分配结果"><a href="#follower请求分配结果" class="headerlink" title="follower请求分配结果"></a>follower请求分配结果</h2><p>follower角色同样发送了sendSyncGroupRequest请求，不过它的groupAssignments字段是空的。剩下的处理响应过程，和leader角色一样。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">private</span> RequestFuture&lt;ByteBuffer&gt; <span class="title">onJoinFollower</span><span class="params">()</span> </span>&#123;</span><br><span class="line">    <span class="comment">// 因为是follower角色，并不负责分区分配，所以groupAssignments字段为空</span></span><br><span class="line">    SyncGroupRequest.Builder requestBuilder =</span><br><span class="line">            <span class="keyword">new</span> SyncGroupRequest.Builder(groupId, generation.generationId, generation.memberId,</span><br><span class="line">                    Collections.&lt;String, ByteBuffer&gt;emptyMap());</span><br><span class="line">    <span class="comment">// 调用sendSyncGroupRequest方法，发送请求，原理同leader一样</span></span><br><span class="line">    <span class="keyword">return</span> sendSyncGroupRequest(requestBuilder);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h2 id="心跳线程"><a href="#心跳线程" class="headerlink" title="心跳线程"></a>心跳线程</h2><p>consumer会启动一个线程，这个线程会定时的向Coordinator发送心跳请求，来通知Coordinator自己还活着。如果Coordinator没有收到心跳信息，那么它就会认为该consumer已经挂了。</p>
+<h3 id="协议格式-3"><a href="#协议格式-3" class="headerlink" title="协议格式"></a>协议格式</h3><p>请求格式的主要字段：</p>
+<table>
+<thead>
+<tr>
+<th>字段名</th>
+<th>字段类型</th>
+<th>字段含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>group_id</td>
+<td>字符串</td>
+<td>consumer 所在的 group id</td>
+</tr>
+<tr>
+<td>generation_id</td>
+<td>整数</td>
+<td>coordinator的版本号</td>
+</tr>
+<tr>
+<td>member_id</td>
+<td>整数</td>
+<td>consumer的 id</td>
+</tr>
+</tbody>
+</table>
+<p>响应格式的主要字段：</p>
+<table>
+<thead>
+<tr>
+<th>字段名</th>
+<th>字段类型</th>
+<th>字段含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>error_code</td>
+<td>整数</td>
+<td>错误码</td>
+</tr>
+</tbody>
+</table>
+<h3 id="源码分析-3"><a href="#源码分析-3" class="headerlink" title="源码分析"></a>源码分析</h3><p>心跳线程有三种状态，运行，暂停和关闭。它将每次心跳时间信息，都会保存到Heartbeat类。线程一直循环检测，现在是否到了需要发送心跳的时间。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="keyword">abstract</span> <span class="class"><span class="keyword">class</span> <span class="title">AbstractCoordinator</span> <span class="keyword">implements</span> <span class="title">Closeable</span> </span>&#123;</span><br><span class="line">    <span class="comment">// 与coordinator之间的状态</span></span><br><span class="line">    <span class="keyword">private</span> MemberState state = MemberState.UNJOINED;</span><br><span class="line">    </span><br><span class="line">    <span class="keyword">private</span> <span class="class"><span class="keyword">class</span> <span class="title">HeartbeatThread</span> <span class="keyword">extends</span> <span class="title">KafkaThread</span> </span>&#123;</span><br><span class="line">        <span class="comment">// 如果为false，表示暂停状态</span></span><br><span class="line">        <span class="comment">// 如果为true，表示运行状态</span></span><br><span class="line">        <span class="keyword">private</span> <span class="keyword">boolean</span> enabled = <span class="keyword">false</span>;</span><br><span class="line">        <span class="comment">// 是否为关闭状态</span></span><br><span class="line">        <span class="keyword">private</span> <span class="keyword">boolean</span> closed = <span class="keyword">false</span>;</span><br><span class="line">        <span class="keyword">private</span> AtomicReference&lt;RuntimeException&gt; failed = <span class="keyword">new</span> AtomicReference&lt;&gt;(<span class="keyword">null</span>);</span><br><span class="line">        </span><br><span class="line">        <span class="meta">@Override</span></span><br><span class="line">        <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">run</span><span class="params">()</span> </span>&#123;</span><br><span class="line">            <span class="keyword">try</span> &#123;</span><br><span class="line">                <span class="keyword">while</span> (<span class="keyword">true</span>) &#123;</span><br><span class="line">                    <span class="keyword">synchronized</span> (AbstractCoordinator.<span class="keyword">this</span>) &#123;</span><br><span class="line">                        <span class="comment">// 如果是关闭状态，则退出</span></span><br><span class="line">                        <span class="keyword">if</span> (closed)</span><br><span class="line">                            <span class="keyword">return</span>;</span><br><span class="line">                        <span class="comment">// 如果是暂停状态，则等待</span></span><br><span class="line">                        <span class="keyword">if</span> (!enabled) &#123;</span><br><span class="line">                            AbstractCoordinator.<span class="keyword">this</span>.wait();</span><br><span class="line">                            <span class="keyword">continue</span>;</span><br><span class="line">                        &#125;</span><br><span class="line"></span><br><span class="line">                        <span class="keyword">if</span> (state != MemberState.STABLE) &#123;</span><br><span class="line">                            <span class="comment">// 如果与coordinator的连接状态有问题，则进入暂停状态</span></span><br><span class="line">                            disable();</span><br><span class="line">                            <span class="keyword">continue</span>;</span><br><span class="line">                        &#125;</span><br><span class="line">                        <span class="comment">// 通知ConsumerNetworkClient，防止它阻塞</span></span><br><span class="line">                        client.pollNoWakeup();</span><br><span class="line">                        <span class="keyword">long</span> now = time.milliseconds();</span><br><span class="line"></span><br><span class="line">                        <span class="keyword">if</span> (coordinatorUnknown()) &#123;</span><br><span class="line">                            <span class="keyword">if</span> (findCoordinatorFuture != <span class="keyword">null</span> || lookupCoordinator().failed())</span><br><span class="line">                                <span class="comment">// 检查是否找到</span></span><br><span class="line">                                AbstractCoordinator.<span class="keyword">this</span>.wait(retryBackoffMs);</span><br><span class="line">                        &#125; <span class="keyword">else</span> <span class="keyword">if</span> (heartbeat.sessionTimeoutExpired(now)) &#123;</span><br><span class="line">                            <span class="comment">// 如果第一次心跳超时，则认为与coordinator的连接失败</span></span><br><span class="line">                            markCoordinatorUnknown();</span><br><span class="line">                        &#125; <span class="keyword">else</span> <span class="keyword">if</span> (heartbeat.pollTimeoutExpired(now)) &#123;</span><br><span class="line">                            <span class="comment">// 如果心跳超时，则认为与coordinator的连接失败，需要退出组</span></span><br><span class="line">                            maybeLeaveGroup();</span><br><span class="line">                        &#125; <span class="keyword">else</span> <span class="keyword">if</span> (!heartbeat.shouldHeartbeat(now)) &#123;</span><br><span class="line">                            <span class="comment">// 心跳发送必须保持一定的间隔，这里检查是否能发送</span></span><br><span class="line">                            AbstractCoordinator.<span class="keyword">this</span>.wait(retryBackoffMs);</span><br><span class="line">                        &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">                            <span class="comment">// 设置最新发送心跳的时间</span></span><br><span class="line">                            heartbeat.sentHeartbeat(now);</span><br><span class="line">                            <span class="comment">// 发送心跳</span></span><br><span class="line">                            sendHeartbeatRequest().addListener(<span class="keyword">new</span> RequestFutureListener&lt;Void&gt;() &#123;</span><br><span class="line">                                <span class="meta">@Override</span></span><br><span class="line">                                <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">onSuccess</span><span class="params">(Void value)</span> </span>&#123;</span><br><span class="line">                                    <span class="keyword">synchronized</span> (AbstractCoordinator.<span class="keyword">this</span>) &#123;</span><br><span class="line">                                        <span class="comment">// 设置最新接收心跳的时间</span></span><br><span class="line">                                        heartbeat.receiveHeartbeat(time.milliseconds());</span><br><span class="line">                                    &#125;</span><br><span class="line">                                &#125;</span><br><span class="line"></span><br><span class="line">                                <span class="meta">@Override</span></span><br><span class="line">                                <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">onFailure</span><span class="params">(RuntimeException e)</span> </span>&#123;</span><br><span class="line">                                    <span class="keyword">synchronized</span> (AbstractCoordinator.<span class="keyword">this</span>) &#123;</span><br><span class="line">                                        <span class="keyword">if</span> (e <span class="keyword">instanceof</span> RebalanceInProgressException) &#123;</span><br><span class="line">                                            <span class="comment">// 接收到Rebalance异常，这个coordinator正在处在reblance状态</span></span><br><span class="line">                                            heartbeat.receiveHeartbeat(time.milliseconds());</span><br><span class="line">                                        &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">                                            heartbeat.failHeartbeat();</span><br><span class="line">                                            AbstractCoordinator.<span class="keyword">this</span>.notify();</span><br><span class="line">                                        &#125;</span><br><span class="line">                                    &#125;</span><br><span class="line">                                &#125;</span><br><span class="line">                            &#125;);</span><br><span class="line">                        &#125;</span><br><span class="line">                    &#125;</span><br><span class="line">                &#125;</span><br><span class="line">            &#125; <span class="keyword">catch</span> (...) &#123;</span><br><span class="line">                <span class="comment">// 处理各种异常</span></span><br><span class="line">                ....</span><br><span class="line">                <span class="keyword">this</span>.failed.set(e);</span><br><span class="line">            &#125; </span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">    &#125;        </span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h2 id="ConsumerCoordinator-原理"><a href="#ConsumerCoordinator-原理" class="headerlink" title="ConsumerCoordinator 原理"></a>ConsumerCoordinator 原理</h2><p>ConsumerCoordinator类继承AbstractCoordinator类，实现了几个关键的回调函数。</p>
+<ul>
+<li><p>onJoinPrepare，在发送加入请求之前</p>
+</li>
+<li><p>onJoinComplete，在获得分配结果之后</p>
+</li>
+</ul>
+<p>在介绍源码之前，需要提下SubscriptionState类，它包含了订阅信息和订阅结果。当consumer是leader角色时，它还包含了这个消费组订阅的所有topic。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="keyword">final</span> <span class="class"><span class="keyword">class</span> <span class="title">ConsumerCoordinator</span> <span class="keyword">extends</span> <span class="title">AbstractCoordinator</span> </span>&#123;</span><br><span class="line">    <span class="comment">// 保存了上次分配结果中，所有分区涉及到的topic</span></span><br><span class="line">    <span class="keyword">private</span> Set&lt;String&gt; joinedSubscription;</span><br><span class="line">    <span class="comment">// 保存了分配结果</span></span><br><span class="line">    <span class="keyword">private</span> <span class="keyword">final</span> SubscriptionState subscriptions;</span><br><span class="line">    </span><br><span class="line">    <span class="meta">@Override</span></span><br><span class="line">    <span class="function"><span class="keyword">protected</span> <span class="keyword">void</span> <span class="title">onJoinPrepare</span><span class="params">(<span class="keyword">int</span> generation, String memberId)</span> </span>&#123;</span><br><span class="line">        <span class="comment">// 及时提交offset</span></span><br><span class="line">        maybeAutoCommitOffsetsSync(rebalanceTimeoutMs);</span><br><span class="line"></span><br><span class="line">        <span class="comment">// 如果有关于重平衡的监听器，需要执行它的回调</span></span><br><span class="line">        ConsumerRebalanceListener listener = subscriptions.rebalanceListener();</span><br><span class="line">        <span class="keyword">try</span> &#123;</span><br><span class="line">            Set&lt;TopicPartition&gt; revoked = <span class="keyword">new</span> HashSet&lt;&gt;(subscriptions.assignedPartitions());</span><br><span class="line">            listener.onPartitionsRevoked(revoked);</span><br><span class="line">        &#125; <span class="keyword">catch</span> (WakeupException | InterruptException e) &#123;</span><br><span class="line">            <span class="keyword">throw</span> e;</span><br><span class="line">        &#125; <span class="keyword">catch</span> (Exception e) &#123;</span><br><span class="line">            ...</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="comment">// 因为每次加入组，都是由Coordinator负责选出leader角色的</span></span><br><span class="line">        isLeader = <span class="keyword">false</span>;</span><br><span class="line">        <span class="comment">// 重置消费组订阅的topic列表，为当前consumer的订阅列表</span></span><br><span class="line">        subscriptions.resetGroupSubscription();</span><br><span class="line">    &#125;</span><br><span class="line">    </span><br><span class="line">    </span><br><span class="line">    <span class="meta">@Override</span></span><br><span class="line">    <span class="function"><span class="keyword">protected</span> <span class="keyword">void</span> <span class="title">onJoinComplete</span><span class="params">(<span class="keyword">int</span> generation,</span></span></span><br><span class="line"><span class="function"><span class="params">                                  String memberId,</span></span></span><br><span class="line"><span class="function"><span class="params">                                  String assignmentStrategy,</span></span></span><br><span class="line"><span class="function"><span class="params">                                  ByteBuffer assignmentBuffer)</span> </span>&#123;</span><br><span class="line">        <span class="comment">// 只有leader角色，才会监听分配结果的变化</span></span><br><span class="line">        <span class="keyword">if</span> (!isLeader)</span><br><span class="line">            assignmentSnapshot = <span class="keyword">null</span>;</span><br><span class="line"></span><br><span class="line">        PartitionAssignor assignor = lookupAssignor(assignmentStrategy);</span><br><span class="line">        <span class="keyword">if</span> (assignor == <span class="keyword">null</span>)</span><br><span class="line">            <span class="keyword">throw</span> <span class="keyword">new</span> IllegalStateException(<span class="string">"Coordinator selected invalid assignment protocol: "</span> + assignmentStrategy);</span><br><span class="line">        <span class="comment">// 解析响应数据，生成Assignment</span></span><br><span class="line">        Assignment assignment = ConsumerProtocol.deserializeAssignment(assignmentBuffer);</span><br><span class="line">        <span class="comment">// 保存分区分配的结果，到subscriptions里</span></span><br><span class="line">        subscriptions.assignFromSubscribed(assignment.partitions());</span><br><span class="line"></span><br><span class="line">        <span class="comment">// 检查有哪些新topic</span></span><br><span class="line">        Set&lt;String&gt; addedTopics = <span class="keyword">new</span> HashSet&lt;&gt;();</span><br><span class="line">        <span class="keyword">for</span> (TopicPartition tp : subscriptions.assignedPartitions()) &#123;</span><br><span class="line">            <span class="keyword">if</span> (!joinedSubscription.contains(tp.topic()))</span><br><span class="line">                addedTopics.add(tp.topic());</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="comment">// 当有新的topic时，说明只有订阅的模式是正则匹配，才会有新的topic</span></span><br><span class="line">        <span class="keyword">if</span> (!addedTopics.isEmpty()) &#123;</span><br><span class="line">            Set&lt;String&gt; newSubscription = <span class="keyword">new</span> HashSet&lt;&gt;(subscriptions.subscription());</span><br><span class="line">            Set&lt;String&gt; newJoinedSubscription = <span class="keyword">new</span> HashSet&lt;&gt;(joinedSubscription);</span><br><span class="line">            newSubscription.addAll(addedTopics);</span><br><span class="line">            newJoinedSubscription.addAll(addedTopics);</span><br><span class="line">            <span class="comment">// 更新订阅信息</span></span><br><span class="line">            <span class="keyword">this</span>.subscriptions.subscribeFromPattern(newSubscription);</span><br><span class="line">            <span class="keyword">this</span>.joinedSubscription = newJoinedSubscription;</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="comment">// 添加这些topic到元数据里</span></span><br><span class="line">        <span class="keyword">this</span>.metadata.setTopics(subscriptions.groupSubscription());</span><br><span class="line"></span><br><span class="line">        <span class="comment">// 执行assignor的回调函数</span></span><br><span class="line">        assignor.onAssignment(assignment);</span><br><span class="line"></span><br><span class="line">        <span class="comment">// 设置自动提交offset的下次时间</span></span><br><span class="line">        <span class="keyword">this</span>.nextAutoCommitDeadline = time.milliseconds() + autoCommitIntervalMs;</span><br><span class="line"></span><br><span class="line">        <span class="comment">// 执行相应的监听回调函数</span></span><br><span class="line">        ConsumerRebalanceListener listener = subscriptions.rebalanceListener();</span><br><span class="line">        <span class="keyword">try</span> &#123;</span><br><span class="line">            Set&lt;TopicPartition&gt; assigned = <span class="keyword">new</span> HashSet&lt;&gt;(subscriptions.assignedPartitions());</span><br><span class="line">            listener.onPartitionsAssigned(assigned);</span><br><span class="line">        &#125; <span class="keyword">catch</span> (WakeupException | InterruptException e) &#123;</span><br><span class="line">            <span class="keyword">throw</span> e;</span><br><span class="line">        &#125; <span class="keyword">catch</span> (Exception e) &#123;</span><br><span class="line">            ...</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;    </span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+      
+    </div>
+    
+    
+    
+
+    
+
+    
+
+    
+
+    <footer class="post-footer">
+      
+        <div class="post-tags">
+          
+            <a href="/tags/kafka/" rel="tag"># kafka</a>
+          
+        </div>
+      
+
+      
+      
+      
+
+      
+        <div class="post-nav">
+          <div class="post-nav-next post-nav-item">
+            
+              <a href="/2019/03/12/kafka-consumer-network-client/" rel="next" title="Kafka ConsumerNetworkClient 原理">
+                <i class="fa fa-chevron-left"></i> Kafka ConsumerNetworkClient 原理
+              </a>
+            
+          </div>
+
+          <span class="post-nav-divider"></span>
+
+          <div class="post-nav-prev post-nav-item">
+            
+          </div>
+        </div>
+      
+
+      
+      
+    </footer>
+  </div>
+  
+  
+  
+  </article>
+
+
+
+    <div class="post-spread">
+      
+    </div>
+  </div>
+
+
+          </div>
+          
+
+
+          
+
+  
+    <div class="comments" id="comments">
+    </div>
+  
+
+
+
+        </div>
+        
+          
+  
+  <div class="sidebar-toggle">
+    <div class="sidebar-toggle-line-wrap">
+      <span class="sidebar-toggle-line sidebar-toggle-line-first"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-middle"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-last"></span>
+    </div>
+  </div>
+
+  <aside id="sidebar" class="sidebar">
+    
+    <div class="sidebar-inner">
+
+      
+
+      
+        <ul class="sidebar-nav motion-element">
+          <li class="sidebar-nav-toc sidebar-nav-active" data-target="post-toc-wrap">
+            Table of Contents
+          </li>
+          <li class="sidebar-nav-overview" data-target="site-overview-wrap">
+            Overview
+          </li>
+        </ul>
+      
+
+      <section class="site-overview-wrap sidebar-panel">
+        <div class="site-overview">
+          <div class="site-author motion-element" itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+            
+              <p class="site-author-name" itemprop="name">zhmin</p>
+              <p class="site-description motion-element" itemprop="description"></p>
+          </div>
+
+          <nav class="site-state motion-element">
+
+            
+              <div class="site-state-item site-state-posts">
+              
+                <a href="/archives/">
+              
+                  <span class="site-state-item-count">30</span>
+                  <span class="site-state-item-name">posts</span>
+                </a>
+              </div>
+            
+
+            
+              
+              
+              <div class="site-state-item site-state-categories">
+                <a href="/categories/index.html">
+                  <span class="site-state-item-count">5</span>
+                  <span class="site-state-item-name">categories</span>
+                </a>
+              </div>
+            
+
+            
+              
+              
+              <div class="site-state-item site-state-tags">
+                
+                  <span class="site-state-item-count">27</span>
+                  <span class="site-state-item-name">tags</span>
+                
+              </div>
+            
+
+          </nav>
+
+          
+
+          
+            <div class="links-of-author motion-element">
+                
+                  <span class="links-of-author-item">
+                    <a href="https://github.com/zhmin" target="_blank" title="GitHub">
+                      
+                        <i class="fa fa-fw fa-github"></i>GitHub</a>
+                  </span>
+                
+            </div>
+          
+
+          
+          
+
+          
+          
+
+          
+
+        </div>
+      </section>
+
+      
+      <!--noindex-->
+        <section class="post-toc-wrap motion-element sidebar-panel sidebar-panel-active">
+          <div class="post-toc">
+
+            
+              
+            
+
+            
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#KafkaConsumer-Coordinator-原理"><span class="nav-number">1.</span> <span class="nav-text">KafkaConsumer  Coordinator 原理</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#寻找Coordinator地址"><span class="nav-number">1.1.</span> <span class="nav-text">寻找Coordinator地址</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#协议格式"><span class="nav-number">1.1.1.</span> <span class="nav-text">协议格式</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#源码分析"><span class="nav-number">1.1.2.</span> <span class="nav-text">源码分析</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#请求加入组"><span class="nav-number">1.2.</span> <span class="nav-text">请求加入组</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#协议格式-1"><span class="nav-number">1.2.1.</span> <span class="nav-text">协议格式</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#源码分析-1"><span class="nav-number">1.2.2.</span> <span class="nav-text">源码分析</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#leader执行分配"><span class="nav-number">1.3.</span> <span class="nav-text">leader执行分配</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#协议格式-2"><span class="nav-number">1.3.1.</span> <span class="nav-text">协议格式</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#源码分析-2"><span class="nav-number">1.3.2.</span> <span class="nav-text">源码分析</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#follower请求分配结果"><span class="nav-number">1.4.</span> <span class="nav-text">follower请求分配结果</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#心跳线程"><span class="nav-number">1.5.</span> <span class="nav-text">心跳线程</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#协议格式-3"><span class="nav-number">1.5.1.</span> <span class="nav-text">协议格式</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#源码分析-3"><span class="nav-number">1.5.2.</span> <span class="nav-text">源码分析</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#ConsumerCoordinator-原理"><span class="nav-number">1.6.</span> <span class="nav-text">ConsumerCoordinator 原理</span></a></li></ol></li></ol></div>
+            
+
+          </div>
+        </section>
+      <!--/noindex-->
+      
+
+      
+
+    </div>
+  </aside>
+
+
+        
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="footer-inner">
+        <div class="copyright">&copy; <span itemprop="copyrightYear">2019</span>
+  <span class="with-love">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">zhmin</span>
+
+  
+</div>
+
+
+
+
+
+
+
+
+
+
+
+  <script src="https://unpkg.com/mermaid@7.1.2/dist/mermaid.min.js"></script>
+  <script>
+    if (window.mermaid) {
+      mermaid.initialize({"startOnload":true,"theme":"forest"});
+    }
+  </script>
+
+
+
+<script async src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+<span id="busuanzi_container_site_pv">
+    访问量<span id="busuanzi_value_site_pv"></span>
+</span>
+<span class="post-meta-divider">|</span>
+<span id="busuanzi_container_site_uv">
+  访客数<span id="busuanzi_value_site_uv"></span>
+</span>
+
+        
+
+
+
+
+
+
+
+        
+      </div>
+    </footer>
+
+    
+      <div class="back-to-top">
+        <i class="fa fa-arrow-up"></i>
+        
+      </div>
+    
+
+    
+
+  </div>
+
+  
+
+<script type="text/javascript">
+  if (Object.prototype.toString.call(window.Promise) !== '[object Function]') {
+    window.Promise = null;
+  }
+</script>
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery/index.js?v=2.1.3"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fastclick/lib/fastclick.min.js?v=1.0.6"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery_lazyload/jquery.lazyload.js?v=1.9.7"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.ui.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fancybox/source/jquery.fancybox.pack.js?v=2.1.5"></script>
+  
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/utils.js?v=5.1.4"></script>
+
+  <script type="text/javascript" src="/js/src/motion.js?v=5.1.4"></script>
+
+
+
+  
+  
+
+  
+  <script type="text/javascript" src="/js/src/scrollspy.js?v=5.1.4"></script>
+<script type="text/javascript" src="/js/src/post-details.js?v=5.1.4"></script>
+
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/bootstrap.js?v=5.1.4"></script>
+
+
+
+  
+
+
+  
+
+
+
+
+	
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+  <script src="//cdn1.lncld.net/static/js/3.0.4/av-min.js"></script>
+  <script src="//unpkg.com/valine/dist/Valine.min.js"></script>
+  
+  <script type="text/javascript">
+    var GUEST = ['nick','mail','link'];
+    var guest = 'nick';
+    guest = guest.split(',').filter(item=>{
+      return GUEST.indexOf(item)>-1;
+    });
+    new Valine({
+        el: '#comments' ,
+        verify: false,
+        notify: false,
+        appId: 'iYiPQlDR2X2zg2QIql2UEe2o-gzGzoHsz',
+        appKey: 'EW8G4sftwX1pef1zS9EsOeKE',
+        placeholder: 'comment here',
+        avatar:'mm',
+        guest_info:guest,
+        pageSize:'10' || 10,
+    });
+  </script>
+
+
+
+  
+
+
+
+
+
+  
+
+  
+  <script src="https://cdn1.lncld.net/static/js/av-core-mini-0.6.4.js"></script>
+  <script>AV.initialize("iYiPQlDR2X2zg2QIql2UEe2o-gzGzoHsz", "EW8G4sftwX1pef1zS9EsOeKE");</script>
+  <script>
+    function showTime(Counter) {
+      var query = new AV.Query(Counter);
+      var entries = [];
+      var $visitors = $(".leancloud_visitors");
+
+      $visitors.each(function () {
+        entries.push( $(this).attr("id").trim() );
+      });
+
+      query.containedIn('url', entries);
+      query.find()
+        .done(function (results) {
+          var COUNT_CONTAINER_REF = '.leancloud-visitors-count';
+
+          if (results.length === 0) {
+            $visitors.find(COUNT_CONTAINER_REF).text(0);
+            return;
+          }
+
+          for (var i = 0; i < results.length; i++) {
+            var item = results[i];
+            var url = item.get('url');
+            var time = item.get('time');
+            var element = document.getElementById(url);
+
+            $(element).find(COUNT_CONTAINER_REF).text(time);
+          }
+          for(var i = 0; i < entries.length; i++) {
+            var url = entries[i];
+            var element = document.getElementById(url);
+            var countSpan = $(element).find(COUNT_CONTAINER_REF);
+            if( countSpan.text() == '') {
+              countSpan.text(0);
+            }
+          }
+        })
+        .fail(function (object, error) {
+          console.log("Error: " + error.code + " " + error.message);
+        });
+    }
+
+    function addCount(Counter) {
+      var $visitors = $(".leancloud_visitors");
+      var url = $visitors.attr('id').trim();
+      var title = $visitors.attr('data-flag-title').trim();
+      var query = new AV.Query(Counter);
+
+      query.equalTo("url", url);
+      query.find({
+        success: function(results) {
+          if (results.length > 0) {
+            var counter = results[0];
+            counter.fetchWhenSave(true);
+            counter.increment("time");
+            counter.save(null, {
+              success: function(counter) {
+                var $element = $(document.getElementById(url));
+                $element.find('.leancloud-visitors-count').text(counter.get('time'));
+              },
+              error: function(counter, error) {
+                console.log('Failed to save Visitor num, with error message: ' + error.message);
+              }
+            });
+          } else {
+            var newcounter = new Counter();
+            /* Set ACL */
+            var acl = new AV.ACL();
+            acl.setPublicReadAccess(true);
+            acl.setPublicWriteAccess(true);
+            newcounter.setACL(acl);
+            /* End Set ACL */
+            newcounter.set("title", title);
+            newcounter.set("url", url);
+            newcounter.set("time", 1);
+            newcounter.save(null, {
+              success: function(newcounter) {
+                var $element = $(document.getElementById(url));
+                $element.find('.leancloud-visitors-count').text(newcounter.get('time'));
+              },
+              error: function(newcounter, error) {
+                console.log('Failed to create');
+              }
+            });
+          }
+        },
+        error: function(error) {
+          console.log('Error:' + error.code + " " + error.message);
+        }
+      });
+    }
+
+    $(function() {
+      var Counter = AV.Object.extend("Counter");
+      if ($('.leancloud_visitors').length == 1) {
+        addCount(Counter);
+      } else if ($('.post-title-link').length > 1) {
+        showTime(Counter);
+      }
+    });
+  </script>
+
+
+
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+</body>
+</html>
