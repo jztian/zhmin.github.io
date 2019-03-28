@@ -356,7 +356,7 @@
 
       
         <h1 id="Kafka-Producer-原理"><a href="#Kafka-Producer-原理" class="headerlink" title="Kafka Producer 原理"></a>Kafka Producer 原理</h1><p>Kafka为使用者提供了客户端，负责向Kafka中写入消息，由KafkaProducer实现。KafkaProducer为了提高系统的吞吐量，它会先将消息缓存起来，然后以批次为单位的发送。具体原理如下：</p>
-<p><img src="kafka-producer.svg" alt="kafka-producer"></p>
+<p><img src="/2019/03/11/kafka-producer/kafka-producer.svg" alt="kafka-producer"></p>
 <p>KafkaProducer将消息发送给RecordAccumulator缓存。</p>
 <p>RecordAccumulator会将消息，以ProducerBatch的格式存储起来。它为每一个分区都生成了一个ProducerBatch的队列。</p>
 <p>Sender会从RecordAccumulator拉取消息批次ProducerBatch，然后生成请求，通过NetworkClient发送出去。</p>
@@ -528,7 +528,7 @@
               
                 <a href="/archives/">
               
-                  <span class="site-state-item-count">30</span>
+                  <span class="site-state-item-count">31</span>
                   <span class="site-state-item-name">posts</span>
                 </a>
               </div>
@@ -550,7 +550,7 @@
               
               <div class="site-state-item site-state-tags">
                 
-                  <span class="site-state-item-count">27</span>
+                  <span class="site-state-item-count">28</span>
                   <span class="site-state-item-name">tags</span>
                 
               </div>

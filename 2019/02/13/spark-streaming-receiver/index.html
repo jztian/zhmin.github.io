@@ -356,7 +356,7 @@
 
       
         <h1 id="Spark-Streaming-数据源读取"><a href="#Spark-Streaming-数据源读取" class="headerlink" title="Spark Streaming 数据源读取"></a>Spark Streaming 数据源读取</h1><p>Spark Streaming 支持多种数据源，数据源的读取涉及到多个组件，流程如下图所示</p>
-<p><img src="spark-streaming-receiver.svg" alt="spark-streaming-receiver"></p>
+<p><img src="/2019/02/13/spark-streaming-receiver/spark-streaming-receiver.svg" alt="spark-streaming-receiver"></p>
 <p>数据源的读取都是由Receiver负责。Receiver会启动后台线程，持续的拉取数据，发送给ReceiverSupervisorImpl处理。</p>
 <p>ReceiverSupervisorImpl是运行在executor端的服务，它会将接收的数转发给BlockGenerator。</p>
 <p>BlockGenerator 接收数据后，会先缓存起来。然后每隔一段时间，就会将缓存的数据封装成Block保存起来，然后将Block的信息发送到driver端。</p>
@@ -525,7 +525,7 @@
               
                 <a href="/archives/">
               
-                  <span class="site-state-item-count">30</span>
+                  <span class="site-state-item-count">31</span>
                   <span class="site-state-item-name">posts</span>
                 </a>
               </div>
@@ -547,7 +547,7 @@
               
               <div class="site-state-item site-state-tags">
                 
-                  <span class="site-state-item-count">27</span>
+                  <span class="site-state-item-count">28</span>
                   <span class="site-state-item-name">tags</span>
                 
               </div>

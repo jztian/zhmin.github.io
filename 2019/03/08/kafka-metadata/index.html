@@ -358,15 +358,15 @@
 
       
         <h1 id="Kafka-客户端-元数据"><a href="#Kafka-客户端-元数据" class="headerlink" title="Kafka 客户端 元数据"></a>Kafka 客户端 元数据</h1><h2 id="元数据结构"><a href="#元数据结构" class="headerlink" title="元数据结构"></a>元数据结构</h2><p>元数据主要描述了topic在Kafka的集群分布情况，比如以下图为例，</p>
-<p><img src="kafka-cluster-metadata.svg" alt="kafka cluster metadata"></p>
+<p><img src="/2019/03/08/kafka-metadata/kafka-cluster-metadata.svg" alt="kafka cluster metadata"></p>
 <p>当我们需要发送信息给 topic_A ，首先我们回去Kafka集群获取这个 topic 的分布情况。我们知道 topic 由多个 partition 组成， 每个partition 存储在不同的主机上。因为消息是存在其中一个分区里，我们需要知道分区的分布情况，才能确定发往哪个分区。每个分区可能会有多个副本，我们同样需要这些副本的分布情况，因为只有leader副本才接受消息的读写。</p>
 <p>以topic_A为例，它有三个分区，分别分布在集群的三台机器上，并且每个分区都有两个副本。注意到副本也是有状态的，因为follower副本的数据都是从leader副本同步过来的，如果同步的数据量相差很多，那么kafka就认为此follower副本为异常状态。</p>
 <h2 id="元数据的请求和响应协议"><a href="#元数据的请求和响应协议" class="headerlink" title="元数据的请求和响应协议"></a>元数据的请求和响应协议</h2><h3 id="请求协议"><a href="#请求协议" class="headerlink" title="请求协议"></a>请求协议</h3><p>请求协议由MetadataRequest类定义</p>
-<p><img src="kafka-metada-request.svg" alt="kafka request metadata"></p>
+<p><img src="/2019/03/08/kafka-metadata/kafka-metada-request.svg" alt="kafka request metadata"></p>
 <p>topics字段，表示要请求获取topic的列表</p>
 <p>allow_auto_topic_creation字段，表示如果要请求的topic不存在时，是否需要自动创建它</p>
 <h3 id="响应协议"><a href="#响应协议" class="headerlink" title="响应协议"></a>响应协议</h3><p>响应协议由MetadataResponse定义</p>
-<p><img src="kafka-metadata-response.svg" alt="kafka response metadata"></p>
+<p><img src="/2019/03/08/kafka-metadata/kafka-metadata-response.svg" alt="kafka response metadata"></p>
 <p>throttle_time_ms字段，表示限速时间，防止请求过快</p>
 <p>brokers字段，表示节点信息列表</p>
 <p>node_id字段，表示节点的 id 号，Kafka为集群的每台主机，都生成一个唯一的 id 号</p>
@@ -522,7 +522,7 @@
               
                 <a href="/archives/">
               
-                  <span class="site-state-item-count">30</span>
+                  <span class="site-state-item-count">31</span>
                   <span class="site-state-item-name">posts</span>
                 </a>
               </div>
@@ -544,7 +544,7 @@
               
               <div class="site-state-item site-state-tags">
                 
-                  <span class="site-state-item-count">27</span>
+                  <span class="site-state-item-count">28</span>
                   <span class="site-state-item-name">tags</span>
                 
               </div>

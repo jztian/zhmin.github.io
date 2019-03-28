@@ -1,0 +1,933 @@
+<!DOCTYPE html>
+
+
+
+  
+
+
+<html class="theme-next mist use-motion" lang="">
+<head><meta name="generator" content="Hexo 3.8.0">
+  <meta charset="UTF-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="theme-color" content="#222">
+
+
+
+
+
+
+
+
+
+<meta http-equiv="Cache-Control" content="no-transform">
+<meta http-equiv="Cache-Control" content="no-siteapp">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+  <link href="/lib/fancybox/source/jquery.fancybox.css?v=2.1.5" rel="stylesheet" type="text/css">
+
+
+
+
+
+
+
+<link href="/lib/font-awesome/css/font-awesome.min.css?v=4.6.2" rel="stylesheet" type="text/css">
+
+<link href="/css/main.css?v=5.1.4" rel="stylesheet" type="text/css">
+
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png?v=5.1.4">
+
+
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png?v=5.1.4">
+
+
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png?v=5.1.4">
+
+
+  <link rel="mask-icon" href="/images/logo.svg?v=5.1.4" color="#222">
+
+
+
+
+
+  <meta name="keywords" content="kafka, timer, delay,">
+
+
+
+
+
+
+
+
+
+
+<meta name="description" content="Kafka 延迟任务时间轮概念Kafka在处理请求时，使用了多种延迟任务来处理，比如心跳请求。Kafka自己实现了时间轮，提供任务的延迟定时。关于时间轮的概念，我们把常见的钟表想象成一个时间轮。 时间轮都有着自己的定时范围，以时钟的时针为例，指针每前进一格，代表着时间过去一个小时。它最多有12格，能表示最大延迟时间不超过12个小时的任务。 时间轮可以分等级的，子时间轮的最大延迟时间，刚好为父时间轮">
+<meta name="keywords" content="kafka, timer, delay">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Kafka 延迟任务">
+<meta property="og:url" content="https://zhmin.github.io/2019/03/28/kafka-timer/index.html">
+<meta property="og:site_name" content="blog">
+<meta property="og:description" content="Kafka 延迟任务时间轮概念Kafka在处理请求时，使用了多种延迟任务来处理，比如心跳请求。Kafka自己实现了时间轮，提供任务的延迟定时。关于时间轮的概念，我们把常见的钟表想象成一个时间轮。 时间轮都有着自己的定时范围，以时钟的时针为例，指针每前进一格，代表着时间过去一个小时。它最多有12格，能表示最大延迟时间不超过12个小时的任务。 时间轮可以分等级的，子时间轮的最大延迟时间，刚好为父时间轮">
+<meta property="og:locale" content="default">
+<meta property="og:updated_time" content="2019-03-28T13:44:59.002Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Kafka 延迟任务">
+<meta name="twitter:description" content="Kafka 延迟任务时间轮概念Kafka在处理请求时，使用了多种延迟任务来处理，比如心跳请求。Kafka自己实现了时间轮，提供任务的延迟定时。关于时间轮的概念，我们把常见的钟表想象成一个时间轮。 时间轮都有着自己的定时范围，以时钟的时针为例，指针每前进一格，代表着时间过去一个小时。它最多有12格，能表示最大延迟时间不超过12个小时的任务。 时间轮可以分等级的，子时间轮的最大延迟时间，刚好为父时间轮">
+
+
+
+<script type="text/javascript" id="hexo.configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '/',
+    scheme: 'Mist',
+    version: '5.1.4',
+    sidebar: {"position":"left","display":"hide","offset":12,"b2t":false,"scrollpercent":false,"onmobile":false},
+    fancybox: true,
+    tabs: true,
+    motion: {"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},
+    duoshuo: {
+      userId: '0',
+      author: 'Author'
+    },
+    algolia: {
+      applicationID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    }
+  };
+</script>
+
+
+
+  <link rel="canonical" href="https://zhmin.github.io/2019/03/28/kafka-timer/">
+
+
+
+
+
+  <title>Kafka 延迟任务 | blog</title>
+  
+
+
+
+
+
+
+
+
+</head>
+
+<body itemscope="" itemtype="http://schema.org/WebPage" lang="default">
+
+  
+  
+    
+  
+
+  <div class="container sidebar-position-left page-post-detail">
+    <div class="headband"></div>
+
+    <header id="header" class="header" itemscope="" itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-wrapper">
+  <div class="site-meta ">
+    
+
+    <div class="custom-logo-site-title">
+      <a href="/" class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">blog</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+      
+        <h1 class="site-subtitle" itemprop="description"></h1>
+      
+  </div>
+
+  <div class="site-nav-toggle">
+    <button>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+    </button>
+  </div>
+</div>
+
+<nav class="site-nav">
+  
+
+  
+    <ul id="menu" class="menu">
+      
+        
+        <li class="menu-item menu-item-home">
+          <a href="/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-home"></i> <br>
+            
+            Home
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-categories">
+          <a href="/categories/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-th"></i> <br>
+            
+            Categories
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-archives">
+          <a href="/archives/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-archive"></i> <br>
+            
+            Archives
+          </a>
+        </li>
+      
+
+      
+    </ul>
+  
+
+  
+</nav>
+
+
+
+ </div>
+    </header>
+
+    <main id="main" class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          <div id="content" class="content">
+            
+
+  <div id="posts" class="posts-expand">
+    
+
+  
+
+  
+  
+  
+
+  <article class="post post-type-normal" itemscope="" itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block">
+    <link itemprop="mainEntityOfPage" href="https://zhmin.github.io/2019/03/28/kafka-timer/">
+
+    <span hidden itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="zhmin">
+      <meta itemprop="description" content="">
+      <meta itemprop="image" content="/images/avatar.gif">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope="" itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="blog">
+    </span>
+
+    
+      <header class="post-header">
+
+        
+        
+          <h2 class="post-title" itemprop="name headline">Kafka 延迟任务</h2>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">Posted on</span>
+              
+              <time title="Post created" itemprop="dateCreated datePublished" datetime="2019-03-28T21:43:38+08:00">
+                2019-03-28
+              </time>
+            
+
+            
+
+            
+          </span>
+
+          
+            <span class="post-category">
+            
+              <span class="post-meta-divider">|</span>
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">In</span>
+              
+              
+                <span itemprop="about" itemscope="" itemtype="http://schema.org/Thing">
+                  <a href="/categories/kafka/" itemprop="url" rel="index">
+                    <span itemprop="name">kafka</span>
+                  </a>
+                </span>
+
+                
+                
+              
+            </span>
+          
+
+          
+            
+              <span class="post-comments-count">
+                <span class="post-meta-divider">|</span>
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-comment-o"></i>
+                </span>
+                <a href="/2019/03/28/kafka-timer/#comments" itemprop="discussionUrl">
+                  <span class="post-comments-count valine-comment-count" data-xid="/2019/03/28/kafka-timer/" itemprop="commentCount"></span>
+                </a>
+              </span>
+            
+          
+
+          
+          
+             <span id="/2019/03/28/kafka-timer/" class="leancloud_visitors" data-flag-title="Kafka 延迟任务">
+               <span class="post-meta-divider">|</span>
+               <span class="post-meta-item-icon">
+                 <i class="fa fa-eye"></i>
+               </span>
+               
+                 <span class="post-meta-item-text">Visitors&#58;</span>
+               
+                 <span class="leancloud-visitors-count"></span>
+             </span>
+          
+
+          
+
+          
+
+          
+
+        </div>
+      </header>
+    
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+      
+
+      
+        <h1 id="Kafka-延迟任务"><a href="#Kafka-延迟任务" class="headerlink" title="Kafka 延迟任务"></a>Kafka 延迟任务</h1><h2 id="时间轮概念"><a href="#时间轮概念" class="headerlink" title="时间轮概念"></a>时间轮概念</h2><p>Kafka在处理请求时，使用了多种延迟任务来处理，比如心跳请求。Kafka自己实现了时间轮，提供任务的延迟定时。关于时间轮的概念，我们把常见的钟表想象成一个时间轮。</p>
+<p>时间轮都有着自己的定时范围，以时钟的时针为例，指针每前进一格，代表着时间过去一个小时。它最多有12格，能表示最大延迟时间不超过12个小时的任务。</p>
+<p>时间轮可以分等级的，子时间轮的最大延迟时间，刚好为父时间轮的一格。类似于钟表一样。钟表有三个指针，时针，分针，秒针。分钟时间轮能表示的最大延迟时间为60分钟，刚好为小时时间轮的一格。</p>
+<p>多级时间轮的精确时间是取决于最下层的时间轮。以钟表为例，它最下层的时间轮为秒针时间轮，精确的时间单位是秒。</p>
+<h2 id="任务列表"><a href="#任务列表" class="headerlink" title="任务列表"></a>任务列表</h2><p>时间轮的每一格，都保存了对应时间的延迟任务列表。当向时间轮添加任务时，会根据任务的延迟时间，放到不同的时间轮里。比如当前时间是1点钟，现在添加一个延迟任务，它需要延迟1分钟1秒，添加的步骤如下：</p>
+<ol>
+<li>首先试图添加到秒时间轮里，但是秒时间轮最大的延迟时间是60秒，超过了最大延迟范围，所以会将任务尝试添加到分钟时间轮</li>
+<li>因为分钟时间轮的最大范围是60分钟，没有超过分钟时间轮的范围，所以任务添加到分钟时间轮的第二格。</li>
+</ol>
+<p>当分针前进一格，到达1点1分，它会检测下一格的任务，会将该时间块的任务列表，取出来添加到秒时间轮。比如刚刚的延迟1分钟1秒的任务，会将它添加秒时间轮的二格。</p>
+<p>当时间到达1点1分1秒，秒时间轮会执行该时间块的任务。</p>
+<h2 id="相关类介绍"><a href="#相关类介绍" class="headerlink" title="相关类介绍"></a>相关类介绍</h2><p>TimerTask类表示延迟任务，继承Runnable，子类需要实现run方法。</p>
+<p>TimerTaskEntry类表示链表项，它封装了TimerTask。</p>
+<p>TimerTaskList表示延迟任务链表，它支持链表的添加和删除操作。它还提供了flush方法，支持执行延迟任务。</p>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">private</span>[timer] <span class="class"><span class="keyword">class</span> <span class="title">TimerTaskList</span>(<span class="params">taskCounter: <span class="type">AtomicInteger</span></span>) <span class="keyword">extends</span> <span class="title">Delayed</span> </span>&#123;</span><br><span class="line">    </span><br><span class="line">  <span class="keyword">private</span>[<span class="keyword">this</span>] <span class="keyword">val</span> root = <span class="keyword">new</span> <span class="type">TimerTaskEntry</span>(<span class="literal">null</span>, <span class="number">-1</span>)</span><br><span class="line"></span><br><span class="line">  <span class="comment">// 传递的函数，用来执行任务</span></span><br><span class="line">  <span class="function"><span class="keyword">def</span> <span class="title">flush</span></span>(f: (<span class="type">TimerTaskEntry</span>)=&gt;<span class="type">Unit</span>): <span class="type">Unit</span> = &#123;</span><br><span class="line">    synchronized &#123;</span><br><span class="line">      <span class="comment">// 遍历链表，执行延迟任务</span></span><br><span class="line">      <span class="keyword">var</span> head = root.next</span><br><span class="line">      <span class="keyword">while</span> (head ne root) &#123;</span><br><span class="line">        remove(head)</span><br><span class="line">        f(head)</span><br><span class="line">        head = root.next</span><br><span class="line">      &#125;</span><br><span class="line">      expiration.set(<span class="number">-1</span>L)</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>TimingWheel表示时间轮，它有wheelSize格时间块，每块的时间长度为tickMs。每块时间保存了TimerTaskList。</p>
+<p>当添加任务时，任务超过了当前时间轮的范围，TimingWheel会自动创建父时间轮，直到父时间轮的范围可以包含此任务。</p>
+<p>我们可以看到TimingWheel仍然使用了Java的DelayQueue类，实现定时作用。既然使用了DelayQueue，那为什么还会用到时间轮。根本原因就是性能，DelayQueue添加任务的复杂度是复杂度是O( n log(n) )，如果任务量太多，那么DelayQueue的性能会不好。Kafka引用了时间轮，使得添加任务的复杂度降低到了O（1），不过它将时间相差不大的任务，都添加到了一个队列里，这样就降低了时间精确性。</p>
+<p>TimingWheel提供add方法添加任务，还提供了advanceClock方法更新时间。</p>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// tickMs表示时间轮的时间单位，比如分钟时间轮的时间单位为1分钟</span></span><br><span class="line"><span class="comment">// wheelSize表示有多少格时间，比如分钟时间轮有60格</span></span><br><span class="line"><span class="comment">// startMs表示时间轮的开始时间</span></span><br><span class="line"><span class="comment">// queue是Java自带类DelayQueue类型，它只保存了任务队列</span></span><br><span class="line"><span class="keyword">private</span>[timer] <span class="class"><span class="keyword">class</span> <span class="title">TimingWheel</span>(<span class="params">tickMs: <span class="type">Long</span>, wheelSize: <span class="type">Int</span>, startMs: <span class="type">Long</span>, taskCounter: <span class="type">AtomicInteger</span>, queue: <span class="type">DelayQueue</span>[<span class="type">TimerTaskList</span>]</span>) </span>&#123;</span><br><span class="line">  <span class="comment">// interval表示延迟的最大时间，比如分钟时间轮为60分钟</span></span><br><span class="line">  <span class="keyword">private</span>[<span class="keyword">this</span>] <span class="keyword">val</span> interval = tickMs * wheelSize</span><br><span class="line">  <span class="comment">// 每格时间都对应着一个任务队列</span></span><br><span class="line">  <span class="keyword">private</span>[<span class="keyword">this</span>] <span class="keyword">val</span> buckets = <span class="type">Array</span>.tabulate[<span class="type">TimerTaskList</span>](wheelSize) &#123; _ =&gt; <span class="keyword">new</span> <span class="type">TimerTaskList</span>(taskCounter) &#125;</span><br><span class="line">  <span class="comment">// 当前时间，它的时间单位为tickMs，这里采用向下取整</span></span><br><span class="line">  <span class="keyword">private</span>[<span class="keyword">this</span>] <span class="keyword">var</span> currentTime = startMs - (startMs % tickMs)</span><br><span class="line">  <span class="comment">// 父时间轮</span></span><br><span class="line">  <span class="meta">@volatile</span> <span class="keyword">private</span>[<span class="keyword">this</span>] <span class="keyword">var</span> overflowWheel: <span class="type">TimingWheel</span> = <span class="literal">null</span></span><br><span class="line"></span><br><span class="line">  <span class="keyword">private</span>[<span class="keyword">this</span>] <span class="function"><span class="keyword">def</span> <span class="title">addOverflowWheel</span></span>(): <span class="type">Unit</span> = &#123;</span><br><span class="line">    synchronized &#123;</span><br><span class="line">      <span class="keyword">if</span> (overflowWheel == <span class="literal">null</span>) &#123;</span><br><span class="line">        overflowWheel = <span class="keyword">new</span> <span class="type">TimingWheel</span>(</span><br><span class="line">          tickMs = interval,          <span class="comment">// 父时间轮的时间单位，为当前时间轮的最大时间</span></span><br><span class="line">          wheelSize = wheelSize,      <span class="comment">// 父时间轮的格数相同</span></span><br><span class="line">          startMs = currentTime,</span><br><span class="line">          taskCounter = taskCounter,</span><br><span class="line">          queue</span><br><span class="line">        )</span><br><span class="line">      &#125;</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br><span class="line">    </span><br><span class="line">  <span class="comment">// 更新当前时间</span></span><br><span class="line">  <span class="function"><span class="keyword">def</span> <span class="title">advanceClock</span></span>(timeMs: <span class="type">Long</span>): <span class="type">Unit</span> = &#123;</span><br><span class="line">    <span class="comment">// 只有过了单位时间，才会更新当前时间</span></span><br><span class="line">    <span class="keyword">if</span> (timeMs &gt;= currentTime + tickMs) &#123;</span><br><span class="line">      currentTime = timeMs - (timeMs % tickMs)</span><br><span class="line">      <span class="comment">// 更新父时间轮</span></span><br><span class="line">      <span class="keyword">if</span> (overflowWheel != <span class="literal">null</span>) overflowWheel.advanceClock(currentTime)</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br><span class="line">    </span><br><span class="line">  <span class="comment">// 添加任务，返回是否成功</span></span><br><span class="line">  <span class="function"><span class="keyword">def</span> <span class="title">add</span></span>(timerTaskEntry: <span class="type">TimerTaskEntry</span>): <span class="type">Boolean</span> = &#123;</span><br><span class="line">    <span class="keyword">val</span> expiration = timerTaskEntry.expirationMs</span><br><span class="line">    <span class="keyword">if</span> (timerTaskEntry.cancelled) &#123;</span><br><span class="line">      <span class="comment">// 如果任务在添加之前，已经被取消掉了</span></span><br><span class="line">      <span class="literal">false</span></span><br><span class="line">    &#125; <span class="keyword">else</span> <span class="keyword">if</span> (expiration &lt; currentTime + tickMs) &#123;</span><br><span class="line">      <span class="comment">// 如果任务已经过期了</span></span><br><span class="line">      <span class="literal">false</span></span><br><span class="line">    &#125; <span class="keyword">else</span> <span class="keyword">if</span> (expiration &lt; currentTime + interval) &#123;</span><br><span class="line">      <span class="comment">// 计算添加到哪个时间格</span></span><br><span class="line">      <span class="keyword">val</span> virtualId = expiration / tickMs</span><br><span class="line">      <span class="keyword">val</span> bucket = buckets((virtualId % wheelSize.toLong).toInt)</span><br><span class="line">      <span class="comment">// 添加任务到对应的任务列表</span></span><br><span class="line">      bucket.add(timerTaskEntry)</span><br><span class="line"></span><br><span class="line">      <span class="comment">// 设置任务列表的过期时间</span></span><br><span class="line">      <span class="keyword">if</span> (bucket.setExpiration(virtualId * tickMs)) &#123;</span><br><span class="line">        <span class="comment">// 将列表添加到DepalyQueue</span></span><br><span class="line">        queue.offer(bucket)</span><br><span class="line">      &#125;</span><br><span class="line">      <span class="literal">true</span></span><br><span class="line">    &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">      <span class="comment">// 超出了最大延迟时间，需要添加到父时间轮</span></span><br><span class="line">      <span class="keyword">if</span> (overflowWheel == <span class="literal">null</span>) addOverflowWheel()</span><br><span class="line">      overflowWheel.add(timerTaskEntry)</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;    </span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h2 id="定时器"><a href="#定时器" class="headerlink" title="定时器"></a>定时器</h2><p>时间轮只是保存了任务，而定时器负责管理时间轮和执行过期的任务。 定时器的接口由Timer表示</p>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">trait</span> <span class="title">Timer</span> </span>&#123;</span><br><span class="line">  <span class="comment">// 添加任务</span></span><br><span class="line">  <span class="function"><span class="keyword">def</span> <span class="title">add</span></span>(timerTask: <span class="type">TimerTask</span>): <span class="type">Unit</span></span><br><span class="line"></span><br><span class="line">  <span class="comment">// 更新时间，并且提交延迟任务给线程池执行</span></span><br><span class="line">  <span class="function"><span class="keyword">def</span> <span class="title">advanceClock</span></span>(timeoutMs: <span class="type">Long</span>): <span class="type">Boolean</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>SystemTimer实现了Timer接口，它使用DelayQueue查找过期的任务列表，然后提交线程池执行。</p>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">class</span> <span class="title">SystemTimer</span>(<span class="params">executorName: <span class="type">String</span>,</span></span></span><br><span class="line"><span class="class"><span class="params">                  tickMs: <span class="type">Long</span> = 1,</span></span></span><br><span class="line"><span class="class"><span class="params">                  wheelSize: <span class="type">Int</span> = 20,</span></span></span><br><span class="line"><span class="class"><span class="params">                  startMs: <span class="type">Long</span> = <span class="type">Time</span>.<span class="type">SYSTEM</span>.hiResClockMs</span>) <span class="keyword">extends</span> <span class="title">Timer</span> </span>&#123;</span><br><span class="line"></span><br><span class="line">  <span class="comment">// 执行任务的线程池</span></span><br><span class="line">  <span class="keyword">private</span>[<span class="keyword">this</span>] <span class="keyword">val</span> taskExecutor = <span class="type">Executors</span>.newFixedThreadPool(<span class="number">1</span>, <span class="keyword">new</span> <span class="type">ThreadFactory</span>() &#123;</span><br><span class="line">    <span class="function"><span class="keyword">def</span> <span class="title">newThread</span></span>(runnable: <span class="type">Runnable</span>): <span class="type">Thread</span> =</span><br><span class="line">      <span class="type">KafkaThread</span>.nonDaemon(<span class="string">"executor-"</span>+executorName, runnable)</span><br><span class="line">  &#125;)</span><br><span class="line">  <span class="comment">// Java自带的延迟队列</span></span><br><span class="line">  <span class="keyword">private</span>[<span class="keyword">this</span>] <span class="keyword">val</span> delayQueue = <span class="keyword">new</span> <span class="type">DelayQueue</span>[<span class="type">TimerTaskList</span>]()</span><br><span class="line">  <span class="comment">// 时间轮</span></span><br><span class="line">  <span class="keyword">private</span>[<span class="keyword">this</span>] <span class="keyword">val</span> timingWheel = <span class="keyword">new</span> <span class="type">TimingWheel</span>(</span><br><span class="line">    tickMs = tickMs,</span><br><span class="line">    wheelSize = wheelSize,</span><br><span class="line">    startMs = startMs,</span><br><span class="line">    taskCounter = taskCounter,</span><br><span class="line">    delayQueue</span><br><span class="line">  )</span><br><span class="line">  </span><br><span class="line">  <span class="comment">// 添加任务</span></span><br><span class="line">  <span class="function"><span class="keyword">def</span> <span class="title">add</span></span>(timerTask: <span class="type">TimerTask</span>): <span class="type">Unit</span> = &#123;</span><br><span class="line">    readLock.lock()</span><br><span class="line">    <span class="keyword">try</span> &#123;</span><br><span class="line">      addTimerTaskEntry(<span class="keyword">new</span> <span class="type">TimerTaskEntry</span>(timerTask, timerTask.delayMs + <span class="type">Time</span>.<span class="type">SYSTEM</span>.hiResClockMs))</span><br><span class="line">    &#125; <span class="keyword">finally</span> &#123;</span><br><span class="line">      readLock.unlock()</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br><span class="line">  </span><br><span class="line">    </span><br><span class="line">  <span class="function"><span class="keyword">def</span> <span class="title">advanceClock</span></span>(timeoutMs: <span class="type">Long</span>): <span class="type">Boolean</span> = &#123;</span><br><span class="line">    <span class="comment">// delayQueue查找过期的任务队列</span></span><br><span class="line">    <span class="keyword">var</span> bucket = delayQueue.poll(timeoutMs, <span class="type">TimeUnit</span>.<span class="type">MILLISECONDS</span>)</span><br><span class="line">    <span class="keyword">if</span> (bucket != <span class="literal">null</span>) &#123;</span><br><span class="line">      writeLock.lock()</span><br><span class="line">      <span class="keyword">try</span> &#123;</span><br><span class="line">        <span class="keyword">while</span> (bucket != <span class="literal">null</span>) &#123;</span><br><span class="line">          <span class="comment">// 调用时间轮的advanceClock方法，更新该时间轮的时间</span></span><br><span class="line">          timingWheel.advanceClock(bucket.getExpiration())</span><br><span class="line">          <span class="comment">// 对任务列表依次执行reinsert操作</span></span><br><span class="line">          bucket.flush(reinsert)</span><br><span class="line">          <span class="comment">// 继续查看是否还有超时的任务列表</span></span><br><span class="line">          bucket = delayQueue.poll()</span><br><span class="line">        &#125;</span><br><span class="line">      &#125; <span class="keyword">finally</span> &#123;</span><br><span class="line">        writeLock.unlock()</span><br><span class="line">      &#125;</span><br><span class="line">      <span class="literal">true</span></span><br><span class="line">    &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">      <span class="literal">false</span></span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br><span class="line">  </span><br><span class="line">  <span class="keyword">private</span>[<span class="keyword">this</span>] <span class="keyword">val</span> reinsert = (timerTaskEntry: <span class="type">TimerTaskEntry</span>) =&gt; addTimerTaskEntry(timerTaskEntry)</span><br><span class="line">  </span><br><span class="line">  <span class="keyword">private</span> <span class="function"><span class="keyword">def</span> <span class="title">addTimerTaskEntry</span></span>(timerTaskEntry: <span class="type">TimerTaskEntry</span>): <span class="type">Unit</span> = &#123;</span><br><span class="line">    </span><br><span class="line">    <span class="keyword">if</span> (!timingWheel.add(timerTaskEntry)) &#123;</span><br><span class="line">      <span class="comment">// 如果是因为任务过期，导致添加失败，那么将任务丢到线程池执行</span></span><br><span class="line">      <span class="keyword">if</span> (!timerTaskEntry.cancelled)</span><br><span class="line">        taskExecutor.submit(timerTaskEntry.timerTask)</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br></pre></td></tr></table></figure>
+<h2 id="延迟任务"><a href="#延迟任务" class="headerlink" title="延迟任务"></a>延迟任务</h2><p>DelayedOperation表示延迟任务，它在TimerTask的基础上，提供了支持提前完成的功能。</p>
+<p>子类需要实现DelayedOperation的两个重要回调，onComplete 和 onExpire，对应着不同情形的回调</p>
+<ul>
+<li>当任务提前完成时，只会调用onComplete方法。</li>
+<li>当任务因为到期才执行，会调用onComplete方法和onExpire方法</li>
+</ul>
+<p>DelayedOperation提供了tryComplete方法，供使用者调用，来尝试提前完成任务。子类需要实现这个方法，判断是否满足提前完成条件，如果满足则执行forceComplete方法执行任务。</p>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">abstract</span> <span class="class"><span class="keyword">class</span> <span class="title">DelayedOperation</span> </span>&#123;</span><br><span class="line">  </span><br><span class="line">  <span class="comment">// 这里使用了AtomicBoolean，用来控制并发</span></span><br><span class="line">  <span class="keyword">private</span> <span class="keyword">val</span> completed = <span class="keyword">new</span> <span class="type">AtomicBoolean</span>(<span class="literal">false</span>)</span><br><span class="line">    </span><br><span class="line">  <span class="comment">// 执行任务</span></span><br><span class="line">  <span class="function"><span class="keyword">def</span> <span class="title">forceComplete</span></span>(): <span class="type">Boolean</span> = &#123;</span><br><span class="line">    <span class="keyword">if</span> (completed.compareAndSet(<span class="literal">false</span>, <span class="literal">true</span>)) &#123;</span><br><span class="line">      <span class="comment">// 尝试设置completed的值</span></span><br><span class="line">      <span class="comment">// 从定时器中取消任务</span></span><br><span class="line">      cancel()</span><br><span class="line">      <span class="comment">// 调用onComplete方法，执行回调</span></span><br><span class="line">      onComplete()</span><br><span class="line">      <span class="literal">true</span></span><br><span class="line">    &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">      <span class="literal">false</span></span><br><span class="line">    &#125;</span><br><span class="line">  &#125;    </span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>DelayedOperation还提供了maybeTryComplete方法，在tryComplete方法的基础之上，提供了多线程的优化。maybeTryComplete方法实现得很精巧，它能保证尽量及时的检测任务是否可以完成。</p>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 是否需要再次尝试</span></span><br><span class="line"><span class="keyword">private</span> <span class="keyword">val</span> tryCompletePending = <span class="keyword">new</span> <span class="type">AtomicBoolean</span>(<span class="literal">false</span>)</span><br><span class="line"></span><br><span class="line"><span class="keyword">private</span>[server] <span class="function"><span class="keyword">def</span> <span class="title">maybeTryComplete</span></span>(): <span class="type">Boolean</span> = &#123;</span><br><span class="line">  <span class="keyword">var</span> retry = <span class="literal">false</span></span><br><span class="line">  <span class="keyword">var</span> done = <span class="literal">false</span></span><br><span class="line">  do &#123;</span><br><span class="line">    <span class="keyword">if</span> (lock.tryLock()) &#123;</span><br><span class="line">      <span class="comment">// 成功获取锁</span></span><br><span class="line">      <span class="keyword">try</span> &#123;</span><br><span class="line">        <span class="comment">// 设置tryCompletePending为false，表示不再尝试</span></span><br><span class="line">        tryCompletePending.set(<span class="literal">false</span>)</span><br><span class="line">        </span><br><span class="line">        done = tryComplete()</span><br><span class="line">      &#125; <span class="keyword">finally</span> &#123;</span><br><span class="line">        lock.unlock()</span><br><span class="line">      &#125;</span><br><span class="line">      <span class="comment">// 获取tryCompletePending的值，有可能此时外部线程修改了值</span></span><br><span class="line">      retry = tryCompletePending.get()</span><br><span class="line">    &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">      <span class="comment">// 如果获取锁失败，设置tryCompletePending为true，通知获取锁的线程再次尝试。</span></span><br><span class="line">      <span class="comment">// 如果tryCompletePending之前为false，表示获取所的线程尝试操作已完成，不能保证。获取所失败的线程，需要自己尝试</span></span><br><span class="line">      <span class="comment">// 如果tryCompletePending之前为true，表示现在已有一个获取锁失败的线程在运行，所以当前线程不用再尝试</span></span><br><span class="line">      retry = !tryCompletePending.getAndSet(<span class="literal">true</span>)</span><br><span class="line">      </span><br><span class="line">    &#125;</span><br><span class="line">  &#125; <span class="keyword">while</span> (!isCompleted &amp;&amp; retry)</span><br><span class="line">  done</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>maybeTryComplete方法实现得很精巧，它能保证尽量及时的检测任务是否可以完成。如果线程A首先获取锁，但是这时没有满足条件。之后线程B获取锁失败，但是此时说不定满足条件，所以这里需要再次检查条件，至于是哪个线程执行都可以。</p>
+<h2 id="延迟任务管理"><a href="#延迟任务管理" class="headerlink" title="延迟任务管理"></a>延迟任务管理</h2><p>DelayedOperationPurgatory负责管理延迟任务，支持任务分组。分组信息由Watchers类表示，它包含了延迟任务列表和任务类型。Watchers提供了tryCompleteWatched方法，会尝试完成列表中的任务。</p>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// key为任务类型</span></span><br><span class="line"><span class="keyword">private</span> <span class="class"><span class="keyword">class</span> <span class="title">Watchers</span>(<span class="params">val key: <span class="type">Any</span></span>) </span>&#123;</span><br><span class="line">    <span class="comment">// 延迟任务列表</span></span><br><span class="line">    <span class="keyword">private</span>[<span class="keyword">this</span>] <span class="keyword">val</span> operations = <span class="keyword">new</span> <span class="type">ConcurrentLinkedQueue</span>[<span class="type">T</span>]()</span><br><span class="line">    </span><br><span class="line">    <span class="function"><span class="keyword">def</span> <span class="title">tryCompleteWatched</span></span>(): <span class="type">Int</span> = &#123;</span><br><span class="line">      <span class="keyword">var</span> completed = <span class="number">0</span></span><br><span class="line">      <span class="comment">// 遍历任务列表</span></span><br><span class="line">      <span class="keyword">val</span> iter = operations.iterator()</span><br><span class="line">      <span class="keyword">while</span> (iter.hasNext) &#123;</span><br><span class="line">        <span class="keyword">val</span> curr = iter.next()</span><br><span class="line">        <span class="keyword">if</span> (curr.isCompleted) &#123;</span><br><span class="line">          <span class="comment">// another thread has completed this operation, just remove it</span></span><br><span class="line">          iter.remove()</span><br><span class="line">        &#125; <span class="keyword">else</span> <span class="keyword">if</span> (curr.maybeTryComplete()) &#123;</span><br><span class="line">          <span class="comment">// 调用DelayedOperation的maybeTryComplete方法，尝试完成任务</span></span><br><span class="line">          iter.remove()</span><br><span class="line">          completed += <span class="number">1</span></span><br><span class="line">        &#125;</span><br><span class="line">      &#125;</span><br><span class="line"></span><br><span class="line">      <span class="keyword">if</span> (operations.isEmpty)</span><br><span class="line">        <span class="comment">// Watchers是DelayedOperationPurgatory的内部类，这里的removeKeyIfEmpty是属于DelayedOperationPurgatory类的方法</span></span><br><span class="line">        <span class="comment">// 如果当前列表的任务都已经完成，那么将这个分组删除掉</span></span><br><span class="line">        removeKeyIfEmpty(key, <span class="keyword">this</span>)</span><br><span class="line">      completed</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>DelayedOperationPurgatory里包含了一个线程，用来更新时间轮的时间，并且执行过期任务。</p>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">final</span> <span class="class"><span class="keyword">class</span> <span class="title">DelayedOperationPurgatory</span>[<span class="type">T</span> &lt;: <span class="type">DelayedOperation</span>](<span class="params">...</span>) </span>&#123;</span><br><span class="line">  <span class="comment">// 更新时间的线程</span></span><br><span class="line">  <span class="keyword">private</span> <span class="keyword">val</span> expirationReaper = <span class="keyword">new</span> <span class="type">ExpiredOperationReaper</span>()</span><br><span class="line">  </span><br><span class="line">  <span class="keyword">private</span> <span class="class"><span class="keyword">class</span> <span class="title">ExpiredOperationReaper</span> <span class="keyword">extends</span> <span class="title">ShutdownableThread</span>(<span class="params"></span></span></span><br><span class="line"><span class="class"><span class="params">    "<span class="type">ExpirationReaper</span>-%d-%s".format(brokerId, purgatoryName</span>),</span></span><br><span class="line"><span class="class">    <span class="title">false</span>) </span>&#123;</span><br><span class="line">      </span><br><span class="line">    <span class="comment">// 该线程调用DelayedOperationPurgatory的advanceClock方法，更新时间轮</span></span><br><span class="line">    <span class="keyword">override</span> <span class="function"><span class="keyword">def</span> <span class="title">doWork</span></span>() &#123;</span><br><span class="line">      advanceClock(<span class="number">200</span>L)</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br><span class="line">  </span><br><span class="line">  <span class="comment">// timeoutMs参数，表示此次操作的超时时间</span></span><br><span class="line">  <span class="function"><span class="keyword">def</span> <span class="title">advanceClock</span></span>(timeoutMs: <span class="type">Long</span>) &#123;</span><br><span class="line">    <span class="comment">// 调用SystemTimer的advanceClock方法，执行过期的任务</span></span><br><span class="line">    timeoutTimer.advanceClock(timeoutMs)</span><br><span class="line">    <span class="comment">// estimatedTotalOperations表示 DelayedOperationPurgatory的任务数，包含已经完成的任务</span></span><br><span class="line">    <span class="comment">// delayed表示时间轮还未完成的任务数</span></span><br><span class="line">    <span class="keyword">if</span> (estimatedTotalOperations.get - delayed &gt; purgeInterval) &#123;</span><br><span class="line">      estimatedTotalOperations.getAndSet(delayed)</span><br><span class="line">      <span class="comment">// 遍历Watchers列表，清除已经完成的任务</span></span><br><span class="line">      <span class="keyword">val</span> purged = allWatchers.map(_.purgeCompleted()).sum</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;  </span><br><span class="line">  </span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>DelayedOperationPurgatory提供了两个重要方法，供外部使用。使用者首先调用tryCompleteElseWatch方法，添加延迟任务。添加完后，不定时的调用checkAndComplete方法，尝试提前完成任务。</p>
+<ul>
+<li>tryCompleteElseWatch方法，提供添加延迟任务</li>
+<li>checkAndComplete方法，负责尝试提前完成任务</li>
+</ul>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">final</span> <span class="class"><span class="keyword">class</span> <span class="title">DelayedOperationPurgatory</span>[<span class="type">T</span> &lt;: <span class="type">DelayedOperation</span>] (<span class="params">...</span>) </span>&#123;</span><br><span class="line"></span><br><span class="line">  <span class="keyword">private</span> <span class="keyword">val</span> watchersForKey = <span class="keyword">new</span> <span class="type">Pool</span>[<span class="type">Any</span>, <span class="type">Watchers</span>](<span class="type">Some</span>((key: <span class="type">Any</span>) =&gt; <span class="keyword">new</span> <span class="type">Watchers</span>(key)))</span><br><span class="line"></span><br><span class="line">  <span class="comment">// 注意到watchKeys是一个列表，延迟任务与事件类型是多对多的关系</span></span><br><span class="line">  <span class="function"><span class="keyword">def</span> <span class="title">tryCompleteElseWatch</span></span>(operation: <span class="type">T</span>, watchKeys: <span class="type">Seq</span>[<span class="type">Any</span>]): <span class="type">Boolean</span> = &#123;</span><br><span class="line">    <span class="comment">// 尝试提前完成任务</span></span><br><span class="line">    <span class="keyword">var</span> isCompletedByMe = operation.tryComplete()</span><br><span class="line">    <span class="keyword">if</span> (isCompletedByMe)</span><br><span class="line">      <span class="keyword">return</span> <span class="literal">true</span></span><br><span class="line"></span><br><span class="line">    <span class="keyword">var</span> watchCreated = <span class="literal">false</span></span><br><span class="line">    <span class="keyword">for</span>(key &lt;- watchKeys) &#123;</span><br><span class="line">      <span class="comment">// 有可能别的线程，提前完成了任务</span></span><br><span class="line">      <span class="keyword">if</span> (operation.isCompleted)</span><br><span class="line">        <span class="keyword">return</span> <span class="literal">false</span></span><br><span class="line">      <span class="comment">// 将任务添加到key对应的列表</span></span><br><span class="line">      watchForOperation(key, operation)</span><br><span class="line"></span><br><span class="line">      <span class="keyword">if</span> (!watchCreated) &#123;</span><br><span class="line">        watchCreated = <span class="literal">true</span></span><br><span class="line">        estimatedTotalOperations.incrementAndGet()</span><br><span class="line">      &#125;</span><br><span class="line">    &#125;</span><br><span class="line">      </span><br><span class="line">    <span class="comment">// 再次尝试完成任务</span></span><br><span class="line">    isCompletedByMe = operation.maybeTryComplete()</span><br><span class="line">    <span class="keyword">if</span> (isCompletedByMe)</span><br><span class="line">      <span class="keyword">return</span> <span class="literal">true</span></span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span> (!operation.isCompleted) &#123;</span><br><span class="line">      <span class="keyword">if</span> (timerEnabled)</span><br><span class="line">        <span class="comment">// 添加到定时器中</span></span><br><span class="line">        timeoutTimer.add(operation)</span><br><span class="line">      <span class="keyword">if</span> (operation.isCompleted) &#123;</span><br><span class="line">        <span class="comment">// 如果这时候任务已经完成，那么就取消任务</span></span><br><span class="line">        operation.cancel()</span><br><span class="line">      &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="literal">false</span></span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  <span class="function"><span class="keyword">def</span> <span class="title">checkAndComplete</span></span>(key: <span class="type">Any</span>): <span class="type">Int</span> = &#123;</span><br><span class="line">    <span class="comment">// 获取该事件类型的任务列表</span></span><br><span class="line">    <span class="keyword">val</span> watchers = inReadLock(removeWatchersLock) &#123; watchersForKey.get(key) &#125;</span><br><span class="line">    <span class="keyword">if</span>(watchers == <span class="literal">null</span>)</span><br><span class="line">      <span class="number">0</span></span><br><span class="line">    <span class="keyword">else</span></span><br><span class="line">      <span class="comment">// 调用Watchers的tryCompleteWatched方法，尝试提前完成任务</span></span><br><span class="line">      watchers.tryCompleteWatched()</span><br><span class="line">  &#125;  </span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+      
+    </div>
+    
+    
+    
+
+    
+
+    
+
+    
+
+    <footer class="post-footer">
+      
+        <div class="post-tags">
+          
+            <a href="/tags/kafka-timer-delay/" rel="tag"># kafka, timer, delay</a>
+          
+        </div>
+      
+
+      
+      
+      
+
+      
+        <div class="post-nav">
+          <div class="post-nav-next post-nav-item">
+            
+              <a href="/2019/03/18/kafka-consumer-coordinator/" rel="next" title="KafkaConsumer Coordinator 原理">
+                <i class="fa fa-chevron-left"></i> KafkaConsumer Coordinator 原理
+              </a>
+            
+          </div>
+
+          <span class="post-nav-divider"></span>
+
+          <div class="post-nav-prev post-nav-item">
+            
+          </div>
+        </div>
+      
+
+      
+      
+    </footer>
+  </div>
+  
+  
+  
+  </article>
+
+
+
+    <div class="post-spread">
+      
+    </div>
+  </div>
+
+
+          </div>
+          
+
+
+          
+
+  
+    <div class="comments" id="comments">
+    </div>
+  
+
+
+
+        </div>
+        
+          
+  
+  <div class="sidebar-toggle">
+    <div class="sidebar-toggle-line-wrap">
+      <span class="sidebar-toggle-line sidebar-toggle-line-first"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-middle"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-last"></span>
+    </div>
+  </div>
+
+  <aside id="sidebar" class="sidebar">
+    
+    <div class="sidebar-inner">
+
+      
+
+      
+        <ul class="sidebar-nav motion-element">
+          <li class="sidebar-nav-toc sidebar-nav-active" data-target="post-toc-wrap">
+            Table of Contents
+          </li>
+          <li class="sidebar-nav-overview" data-target="site-overview-wrap">
+            Overview
+          </li>
+        </ul>
+      
+
+      <section class="site-overview-wrap sidebar-panel">
+        <div class="site-overview">
+          <div class="site-author motion-element" itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+            
+              <p class="site-author-name" itemprop="name">zhmin</p>
+              <p class="site-description motion-element" itemprop="description"></p>
+          </div>
+
+          <nav class="site-state motion-element">
+
+            
+              <div class="site-state-item site-state-posts">
+              
+                <a href="/archives/">
+              
+                  <span class="site-state-item-count">31</span>
+                  <span class="site-state-item-name">posts</span>
+                </a>
+              </div>
+            
+
+            
+              
+              
+              <div class="site-state-item site-state-categories">
+                <a href="/categories/index.html">
+                  <span class="site-state-item-count">5</span>
+                  <span class="site-state-item-name">categories</span>
+                </a>
+              </div>
+            
+
+            
+              
+              
+              <div class="site-state-item site-state-tags">
+                
+                  <span class="site-state-item-count">28</span>
+                  <span class="site-state-item-name">tags</span>
+                
+              </div>
+            
+
+          </nav>
+
+          
+
+          
+            <div class="links-of-author motion-element">
+                
+                  <span class="links-of-author-item">
+                    <a href="https://github.com/zhmin" target="_blank" title="GitHub">
+                      
+                        <i class="fa fa-fw fa-github"></i>GitHub</a>
+                  </span>
+                
+            </div>
+          
+
+          
+          
+
+          
+          
+
+          
+
+        </div>
+      </section>
+
+      
+      <!--noindex-->
+        <section class="post-toc-wrap motion-element sidebar-panel sidebar-panel-active">
+          <div class="post-toc">
+
+            
+              
+            
+
+            
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#Kafka-延迟任务"><span class="nav-number">1.</span> <span class="nav-text">Kafka 延迟任务</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#时间轮概念"><span class="nav-number">1.1.</span> <span class="nav-text">时间轮概念</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#任务列表"><span class="nav-number">1.2.</span> <span class="nav-text">任务列表</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#相关类介绍"><span class="nav-number">1.3.</span> <span class="nav-text">相关类介绍</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#定时器"><span class="nav-number">1.4.</span> <span class="nav-text">定时器</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#延迟任务"><span class="nav-number">1.5.</span> <span class="nav-text">延迟任务</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#延迟任务管理"><span class="nav-number">1.6.</span> <span class="nav-text">延迟任务管理</span></a></li></ol></li></ol></div>
+            
+
+          </div>
+        </section>
+      <!--/noindex-->
+      
+
+      
+
+    </div>
+  </aside>
+
+
+        
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="footer-inner">
+        <div class="copyright">&copy; <span itemprop="copyrightYear">2019</span>
+  <span class="with-love">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">zhmin</span>
+
+  
+</div>
+
+
+
+
+
+
+
+
+
+
+
+  <script src="https://unpkg.com/mermaid@7.1.2/dist/mermaid.min.js"></script>
+  <script>
+    if (window.mermaid) {
+      mermaid.initialize({"startOnload":true,"theme":"forest"});
+    }
+  </script>
+
+
+
+<script async src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+<span id="busuanzi_container_site_pv">
+    访问量<span id="busuanzi_value_site_pv"></span>
+</span>
+<span class="post-meta-divider">|</span>
+<span id="busuanzi_container_site_uv">
+  访客数<span id="busuanzi_value_site_uv"></span>
+</span>
+
+        
+
+
+
+
+
+
+
+        
+      </div>
+    </footer>
+
+    
+      <div class="back-to-top">
+        <i class="fa fa-arrow-up"></i>
+        
+      </div>
+    
+
+    
+
+  </div>
+
+  
+
+<script type="text/javascript">
+  if (Object.prototype.toString.call(window.Promise) !== '[object Function]') {
+    window.Promise = null;
+  }
+</script>
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery/index.js?v=2.1.3"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fastclick/lib/fastclick.min.js?v=1.0.6"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery_lazyload/jquery.lazyload.js?v=1.9.7"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.ui.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fancybox/source/jquery.fancybox.pack.js?v=2.1.5"></script>
+  
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/utils.js?v=5.1.4"></script>
+
+  <script type="text/javascript" src="/js/src/motion.js?v=5.1.4"></script>
+
+
+
+  
+  
+
+  
+  <script type="text/javascript" src="/js/src/scrollspy.js?v=5.1.4"></script>
+<script type="text/javascript" src="/js/src/post-details.js?v=5.1.4"></script>
+
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/bootstrap.js?v=5.1.4"></script>
+
+
+
+  
+
+
+  
+
+
+
+
+	
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+  <script src="//cdn1.lncld.net/static/js/3.0.4/av-min.js"></script>
+  <script src="//unpkg.com/valine/dist/Valine.min.js"></script>
+  
+  <script type="text/javascript">
+    var GUEST = ['nick','mail','link'];
+    var guest = 'nick';
+    guest = guest.split(',').filter(item=>{
+      return GUEST.indexOf(item)>-1;
+    });
+    new Valine({
+        el: '#comments' ,
+        verify: false,
+        notify: false,
+        appId: 'iYiPQlDR2X2zg2QIql2UEe2o-gzGzoHsz',
+        appKey: 'EW8G4sftwX1pef1zS9EsOeKE',
+        placeholder: 'comment here',
+        avatar:'mm',
+        guest_info:guest,
+        pageSize:'10' || 10,
+    });
+  </script>
+
+
+
+  
+
+
+
+
+
+  
+
+  
+  <script src="https://cdn1.lncld.net/static/js/av-core-mini-0.6.4.js"></script>
+  <script>AV.initialize("iYiPQlDR2X2zg2QIql2UEe2o-gzGzoHsz", "EW8G4sftwX1pef1zS9EsOeKE");</script>
+  <script>
+    function showTime(Counter) {
+      var query = new AV.Query(Counter);
+      var entries = [];
+      var $visitors = $(".leancloud_visitors");
+
+      $visitors.each(function () {
+        entries.push( $(this).attr("id").trim() );
+      });
+
+      query.containedIn('url', entries);
+      query.find()
+        .done(function (results) {
+          var COUNT_CONTAINER_REF = '.leancloud-visitors-count';
+
+          if (results.length === 0) {
+            $visitors.find(COUNT_CONTAINER_REF).text(0);
+            return;
+          }
+
+          for (var i = 0; i < results.length; i++) {
+            var item = results[i];
+            var url = item.get('url');
+            var time = item.get('time');
+            var element = document.getElementById(url);
+
+            $(element).find(COUNT_CONTAINER_REF).text(time);
+          }
+          for(var i = 0; i < entries.length; i++) {
+            var url = entries[i];
+            var element = document.getElementById(url);
+            var countSpan = $(element).find(COUNT_CONTAINER_REF);
+            if( countSpan.text() == '') {
+              countSpan.text(0);
+            }
+          }
+        })
+        .fail(function (object, error) {
+          console.log("Error: " + error.code + " " + error.message);
+        });
+    }
+
+    function addCount(Counter) {
+      var $visitors = $(".leancloud_visitors");
+      var url = $visitors.attr('id').trim();
+      var title = $visitors.attr('data-flag-title').trim();
+      var query = new AV.Query(Counter);
+
+      query.equalTo("url", url);
+      query.find({
+        success: function(results) {
+          if (results.length > 0) {
+            var counter = results[0];
+            counter.fetchWhenSave(true);
+            counter.increment("time");
+            counter.save(null, {
+              success: function(counter) {
+                var $element = $(document.getElementById(url));
+                $element.find('.leancloud-visitors-count').text(counter.get('time'));
+              },
+              error: function(counter, error) {
+                console.log('Failed to save Visitor num, with error message: ' + error.message);
+              }
+            });
+          } else {
+            var newcounter = new Counter();
+            /* Set ACL */
+            var acl = new AV.ACL();
+            acl.setPublicReadAccess(true);
+            acl.setPublicWriteAccess(true);
+            newcounter.setACL(acl);
+            /* End Set ACL */
+            newcounter.set("title", title);
+            newcounter.set("url", url);
+            newcounter.set("time", 1);
+            newcounter.save(null, {
+              success: function(newcounter) {
+                var $element = $(document.getElementById(url));
+                $element.find('.leancloud-visitors-count').text(newcounter.get('time'));
+              },
+              error: function(newcounter, error) {
+                console.log('Failed to create');
+              }
+            });
+          }
+        },
+        error: function(error) {
+          console.log('Error:' + error.code + " " + error.message);
+        }
+      });
+    }
+
+    $(function() {
+      var Counter = AV.Object.extend("Counter");
+      if ($('.leancloud_visitors').length == 1) {
+        addCount(Counter);
+      } else if ($('.post-title-link').length > 1) {
+        showTime(Counter);
+      }
+    });
+  </script>
+
+
+
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+</body>
+</html>

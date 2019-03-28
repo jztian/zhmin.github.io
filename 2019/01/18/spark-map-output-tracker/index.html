@@ -360,7 +360,7 @@
 <p>shuffle writer会将中间数据保存到Block里面，然后将数据的位置发送给MapOutputTracker。</p>
 <p>shuffle reader通过向 MapOutputTracker获取中间数据的位置之后，才能读取到数据。</p>
 <p>以下图为例，</p>
-<p><img src="map-output-tracker.svg" alt="shuffle"></p>
+<p><img src="/2019/01/18/spark-map-output-tracker/map-output-tracker.svg" alt="shuffle"></p>
 <p>rdd1 经过shuffle 生成 rdd2。rdd1有三个分区，对应着三个ShuffleMapTask。每一个ShuffleMapTask执行的结果，对应着一个MapStatus。以rdd1 的 parition 0 分区为例，可以看到它把该分区的数据，根据分区器分成三部分，对应着rdd2 的分区。</p>
 <p>shuffle reader 需要读取rdd1 shuffle的中间数据，才能生成 rdd2。 以rdd2的partition 0 分区为例，它需要 rdd1 计算出的数据，找到所有reduce0 的数据。这些数据的位置，需要从MapOutputTracker获取。</p>
 <p>shuffle reader 需要提供 shuffleId， mapId, reduceId才能确定一个中间数据。shuffleId表示此次shuffle的唯一id。mapId表示map端 rdd的分区索引，表示由哪个父分区产生的数据。reduceId表示reduce端的分区索引，表示属于子分区的那部分数据。</p>
@@ -520,7 +520,7 @@
               
                 <a href="/archives/">
               
-                  <span class="site-state-item-count">30</span>
+                  <span class="site-state-item-count">31</span>
                   <span class="site-state-item-name">posts</span>
                 </a>
               </div>
@@ -542,7 +542,7 @@
               
               <div class="site-state-item site-state-tags">
                 
-                  <span class="site-state-item-count">27</span>
+                  <span class="site-state-item-count">28</span>
                   <span class="site-state-item-name">tags</span>
                 
               </div>
