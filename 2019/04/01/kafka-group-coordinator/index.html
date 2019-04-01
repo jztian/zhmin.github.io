@@ -1,0 +1,1017 @@
+<!DOCTYPE html>
+
+
+
+  
+
+
+<html class="theme-next mist use-motion" lang="">
+<head><meta name="generator" content="Hexo 3.8.0">
+  <meta charset="UTF-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="theme-color" content="#222">
+
+
+
+
+
+
+
+
+
+<meta http-equiv="Cache-Control" content="no-transform">
+<meta http-equiv="Cache-Control" content="no-siteapp">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+  <link href="/lib/fancybox/source/jquery.fancybox.css?v=2.1.5" rel="stylesheet" type="text/css">
+
+
+
+
+
+
+
+<link href="/lib/font-awesome/css/font-awesome.min.css?v=4.6.2" rel="stylesheet" type="text/css">
+
+<link href="/css/main.css?v=5.1.4" rel="stylesheet" type="text/css">
+
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png?v=5.1.4">
+
+
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png?v=5.1.4">
+
+
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png?v=5.1.4">
+
+
+  <link rel="mask-icon" href="/images/logo.svg?v=5.1.4" color="#222">
+
+
+
+
+
+  <meta name="keywords" content="kafka, coordinator,">
+
+
+
+
+
+
+
+
+
+
+<meta name="description" content="Kafka Group Coordinator 原理从这篇博客，我们知道客户端与服务端的交互，分为三种请求。  第一种，寻找GroupCoordinator地址请求。consumer客户端首先需要知道GroupCoordinator的地址。 第二种，加入组请求。consumer客户端向GroupCoordinator发起加入指定组。 第三种，获取分配结果请求。consumer客户端向GroupCo">
+<meta name="keywords" content="kafka, coordinator">
+<meta property="og:type" content="article">
+<meta property="og:title" content="kafka-group-coordinator">
+<meta property="og:url" content="https://zhmin.github.io/2019/04/01/kafka-group-coordinator/index.html">
+<meta property="og:site_name" content="blog">
+<meta property="og:description" content="Kafka Group Coordinator 原理从这篇博客，我们知道客户端与服务端的交互，分为三种请求。  第一种，寻找GroupCoordinator地址请求。consumer客户端首先需要知道GroupCoordinator的地址。 第二种，加入组请求。consumer客户端向GroupCoordinator发起加入指定组。 第三种，获取分配结果请求。consumer客户端向GroupCo">
+<meta property="og:locale" content="default">
+<meta property="og:image" content="https://zhmin.github.io/2019/04/01/kafka-group-coordinator/kafka-group-coordinator-state.svg">
+<meta property="og:updated_time" content="2019-04-01T14:58:21.809Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="kafka-group-coordinator">
+<meta name="twitter:description" content="Kafka Group Coordinator 原理从这篇博客，我们知道客户端与服务端的交互，分为三种请求。  第一种，寻找GroupCoordinator地址请求。consumer客户端首先需要知道GroupCoordinator的地址。 第二种，加入组请求。consumer客户端向GroupCoordinator发起加入指定组。 第三种，获取分配结果请求。consumer客户端向GroupCo">
+<meta name="twitter:image" content="https://zhmin.github.io/2019/04/01/kafka-group-coordinator/kafka-group-coordinator-state.svg">
+
+
+
+<script type="text/javascript" id="hexo.configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '/',
+    scheme: 'Mist',
+    version: '5.1.4',
+    sidebar: {"position":"left","display":"hide","offset":12,"b2t":false,"scrollpercent":false,"onmobile":false},
+    fancybox: true,
+    tabs: true,
+    motion: {"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},
+    duoshuo: {
+      userId: '0',
+      author: 'Author'
+    },
+    algolia: {
+      applicationID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    }
+  };
+</script>
+
+
+
+  <link rel="canonical" href="https://zhmin.github.io/2019/04/01/kafka-group-coordinator/">
+
+
+
+
+
+  <title>kafka-group-coordinator | blog</title>
+  
+
+
+
+
+
+
+
+
+</head>
+
+<body itemscope="" itemtype="http://schema.org/WebPage" lang="default">
+
+  
+  
+    
+  
+
+  <div class="container sidebar-position-left page-post-detail">
+    <div class="headband"></div>
+
+    <header id="header" class="header" itemscope="" itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-wrapper">
+  <div class="site-meta ">
+    
+
+    <div class="custom-logo-site-title">
+      <a href="/" class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">blog</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+      
+        <h1 class="site-subtitle" itemprop="description"></h1>
+      
+  </div>
+
+  <div class="site-nav-toggle">
+    <button>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+    </button>
+  </div>
+</div>
+
+<nav class="site-nav">
+  
+
+  
+    <ul id="menu" class="menu">
+      
+        
+        <li class="menu-item menu-item-home">
+          <a href="/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-home"></i> <br>
+            
+            Home
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-categories">
+          <a href="/categories/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-th"></i> <br>
+            
+            Categories
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-archives">
+          <a href="/archives/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-archive"></i> <br>
+            
+            Archives
+          </a>
+        </li>
+      
+
+      
+    </ul>
+  
+
+  
+</nav>
+
+
+
+ </div>
+    </header>
+
+    <main id="main" class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          <div id="content" class="content">
+            
+
+  <div id="posts" class="posts-expand">
+    
+
+  
+
+  
+  
+  
+
+  <article class="post post-type-normal" itemscope="" itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block">
+    <link itemprop="mainEntityOfPage" href="https://zhmin.github.io/2019/04/01/kafka-group-coordinator/">
+
+    <span hidden itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="zhmin">
+      <meta itemprop="description" content="">
+      <meta itemprop="image" content="/images/avatar.gif">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope="" itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="blog">
+    </span>
+
+    
+      <header class="post-header">
+
+        
+        
+          <h2 class="post-title" itemprop="name headline">kafka-group-coordinator</h2>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">Posted on</span>
+              
+              <time title="Post created" itemprop="dateCreated datePublished" datetime="2019-04-01T22:45:12+08:00">
+                2019-04-01
+              </time>
+            
+
+            
+
+            
+          </span>
+
+          
+            <span class="post-category">
+            
+              <span class="post-meta-divider">|</span>
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">In</span>
+              
+              
+                <span itemprop="about" itemscope="" itemtype="http://schema.org/Thing">
+                  <a href="/categories/kafka/" itemprop="url" rel="index">
+                    <span itemprop="name">kafka</span>
+                  </a>
+                </span>
+
+                
+                
+              
+            </span>
+          
+
+          
+            
+              <span class="post-comments-count">
+                <span class="post-meta-divider">|</span>
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-comment-o"></i>
+                </span>
+                <a href="/2019/04/01/kafka-group-coordinator/#comments" itemprop="discussionUrl">
+                  <span class="post-comments-count valine-comment-count" data-xid="/2019/04/01/kafka-group-coordinator/" itemprop="commentCount"></span>
+                </a>
+              </span>
+            
+          
+
+          
+          
+             <span id="/2019/04/01/kafka-group-coordinator/" class="leancloud_visitors" data-flag-title="kafka-group-coordinator">
+               <span class="post-meta-divider">|</span>
+               <span class="post-meta-item-icon">
+                 <i class="fa fa-eye"></i>
+               </span>
+               
+                 <span class="post-meta-item-text">Visitors&#58;</span>
+               
+                 <span class="leancloud-visitors-count"></span>
+             </span>
+          
+
+          
+
+          
+
+          
+
+        </div>
+      </header>
+    
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+      
+
+      
+        <h1 id="Kafka-Group-Coordinator-原理"><a href="#Kafka-Group-Coordinator-原理" class="headerlink" title="Kafka Group Coordinator 原理"></a>Kafka Group Coordinator 原理</h1><p>从这篇博客，我们知道客户端与服务端的交互，分为三种请求。</p>
+<ol>
+<li>第一种，寻找GroupCoordinator地址请求。consumer客户端首先需要知道GroupCoordinator的地址。</li>
+<li>第二种，加入组请求。consumer客户端向GroupCoordinator发起加入指定组。</li>
+<li>第三种，获取分配结果请求。consumer客户端向GroupCoordinator，申请获取分配结果</li>
+<li>第四种，心跳请求。consumer客户端获取到分配结果后，需要和GroupCoordinator保持线条。</li>
+</ol>
+<p>下面依次介绍GroupCoordinator是如何处理这几种请求的</p>
+<h2 id="处理寻找GroupCoordinator地址请求"><a href="#处理寻找GroupCoordinator地址请求" class="headerlink" title="处理寻找GroupCoordinator地址请求"></a>处理寻找GroupCoordinator地址请求</h2><p>在介绍这之前，需要先了解下Kafka是如何存储consumer group的消费位置。Kafka内部保存了一个名称为_consumer_offsets 的 topic，这个 topic 是按照 consumer group 来分区的。一个 consumer group 订阅的所有 topic 的消费位置，只存在 一个分区里。而这个分区的 leader 副本所在的主机，就是负责该consumer group的GroupCoordinator的地址。</p>
+<p>当GroupCoordinator收到此请求后，会主动创建_consumer_offsets 的 topic，分区数目由 offsets.topic.num.partitions 配置项指定。</p>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">class</span> <span class="title">KafkaApis</span>(<span class="params">...</span>) </span>&#123;</span><br><span class="line"></span><br><span class="line">  <span class="function"><span class="keyword">def</span> <span class="title">handleFindCoordinatorRequest</span></span>(request: <span class="type">RequestChannel</span>.<span class="type">Request</span>) &#123;</span><br><span class="line">      <span class="keyword">val</span> findCoordinatorRequest = request.body[<span class="type">FindCoordinatorRequest</span>]</span><br><span class="line">      </span><br><span class="line">      .... <span class="comment">// 认证和校检</span></span><br><span class="line">      </span><br><span class="line">      <span class="keyword">val</span> (partition, topicMetadata) = findCoordinatorRequest.coordinatorType <span class="keyword">match</span> &#123;</span><br><span class="line">        <span class="keyword">case</span> <span class="type">FindCoordinatorRequest</span>.<span class="type">CoordinatorType</span>.<span class="type">GROUP</span> =&gt;</span><br><span class="line">          <span class="comment">// 计算该consumer group被分配到哪个partition</span></span><br><span class="line">          <span class="keyword">val</span> partition = groupCoordinator.partitionFor(findCoordinatorRequest.coordinatorKey)</span><br><span class="line">          <span class="comment">// 创建内部topic(即保存消费位置的topic)，并且返回该topic的元数据</span></span><br><span class="line">          <span class="keyword">val</span> metadata = getOrCreateInternalTopic(<span class="type">GROUP_METADATA_TOPIC_NAME</span>, request.context.listenerName)</span><br><span class="line">          (partition, metadata)</span><br><span class="line">        <span class="keyword">case</span> <span class="type">FindCoordinatorRequest</span>.<span class="type">CoordinatorType</span>.<span class="type">TRANSACTION</span> =&gt;</span><br><span class="line">          ... <span class="comment">// 处理事务</span></span><br><span class="line">        <span class="keyword">case</span> _ =&gt;</span><br><span class="line">          <span class="keyword">throw</span> <span class="keyword">new</span> <span class="type">InvalidRequestException</span>(<span class="string">"Unknown coordinator type in FindCoordinator request"</span>)</span><br><span class="line">      &#125;</span><br><span class="line"></span><br><span class="line">      <span class="comment">// createResponse函数负责生成响应</span></span><br><span class="line">      <span class="function"><span class="keyword">def</span> <span class="title">createResponse</span></span>(requestThrottleMs: <span class="type">Int</span>): <span class="type">AbstractResponse</span> = &#123;</span><br><span class="line">        <span class="keyword">val</span> responseBody = <span class="keyword">if</span> (topicMetadata.error != <span class="type">Errors</span>.<span class="type">NONE</span>) &#123;</span><br><span class="line">          <span class="keyword">new</span> <span class="type">FindCoordinatorResponse</span>(requestThrottleMs, <span class="type">Errors</span>.<span class="type">COORDINATOR_NOT_AVAILABLE</span>, <span class="type">Node</span>.noNode)</span><br><span class="line">        &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">          <span class="comment">// 遍历该topic的partition，找到那个partition的leader副本 </span></span><br><span class="line">          <span class="keyword">val</span> coordinatorEndpoint = topicMetadata.partitionMetadata.asScala</span><br><span class="line">            .find(_.partition == partition)</span><br><span class="line">            .map(_.leader)</span><br><span class="line">            .flatMap(p =&gt; <span class="type">Option</span>(p))</span><br><span class="line">          <span class="comment">// 返回结果</span></span><br><span class="line">          coordinatorEndpoint <span class="keyword">match</span> &#123;</span><br><span class="line">            <span class="keyword">case</span> <span class="type">Some</span>(endpoint) <span class="keyword">if</span> !endpoint.isEmpty =&gt;</span><br><span class="line">              <span class="keyword">new</span> <span class="type">FindCoordinatorResponse</span>(requestThrottleMs, <span class="type">Errors</span>.<span class="type">NONE</span>, endpoint)</span><br><span class="line">            <span class="keyword">case</span> _ =&gt;</span><br><span class="line">              <span class="keyword">new</span> <span class="type">FindCoordinatorResponse</span>(requestThrottleMs, <span class="type">Errors</span>.<span class="type">COORDINATOR_NOT_AVAILABLE</span>, <span class="type">Node</span>.noNode)</span><br><span class="line">          &#125;</span><br><span class="line">        &#125;</span><br><span class="line">        responseBody</span><br><span class="line">      &#125;</span><br><span class="line">      </span><br><span class="line">      <span class="comment">// 发送响应</span></span><br><span class="line">      sendResponseMaybeThrottle(request, createResponse)</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br><span class="line">    </span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>Kafka是计算consumer group名称的哈希值，来确定它被分配到哪个partition。算法如下：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">class</span> <span class="title">GroupMetadataManager</span>(...) </span>&#123;</span><br><span class="line">  <span class="comment">// 获取该topic的分区数</span></span><br><span class="line">  <span class="keyword">private</span> val groupMetadataTopicPartitionCount = getGroupMetadataTopicPartitionCount</span><br><span class="line">  <span class="comment">// 调用zkClient获取分区数</span></span><br><span class="line">  <span class="keyword">private</span> def getGroupMetadataTopicPartitionCount: Int = &#123;</span><br><span class="line">    zkClient.getTopicPartitionCount(Topic.GROUP_METADATA_TOPIC_NAME).getOrElse(config.offsetsTopicNumPartitions)</span><br><span class="line">  &#125;</span><br><span class="line">  <span class="comment">// 计算该groupId的哈希值，取余</span></span><br><span class="line">  <span class="function">def <span class="title">partitionFor</span><span class="params">(groupId: String)</span>: Int </span>= Utils.abs(groupId.hashCode) % groupMetadataTopicPartitionCount</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h2 id="GroupCoordinator-相关元数据"><a href="#GroupCoordinator-相关元数据" class="headerlink" title="GroupCoordinator 相关元数据"></a>GroupCoordinator 相关元数据</h2><p>在介绍GroupCoordinator的原理之前，首先看看它维护了哪些数据。GroupCoordinator为每个consumer group保存元数据，由GroupMetadata类表示。GroupMetadata类保存了组里每个成员的元数据，由MemberMetadata类表示。</p>
+<p>MemberMetadata描述一个consumer的信息，它主要包含以下字段：</p>
+<table>
+<thead>
+<tr>
+<th>字段名</th>
+<th>字段类型</th>
+<th>字段含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>memberId</td>
+<td>字符串</td>
+<td>成员 id</td>
+</tr>
+<tr>
+<td>groupId</td>
+<td>字符串</td>
+<td>组名称</td>
+</tr>
+<tr>
+<td>rebalanceTimeoutMs</td>
+<td>整数</td>
+<td>等待rebalance的最大时间</td>
+</tr>
+<tr>
+<td>sessionTimeoutMs</td>
+<td>整数</td>
+<td>心跳超时的最大时间</td>
+</tr>
+<tr>
+<td>supportedProtocols</td>
+<td>列表</td>
+<td>该consumer支持的分配算法列表</td>
+</tr>
+<tr>
+<td>assignment</td>
+<td>字节数组</td>
+<td>分配结果</td>
+</tr>
+</tbody>
+</table>
+<p>GroupMetadata描述了一个consumer group的信息，它主要包含以下字段：</p>
+<table>
+<thead>
+<tr>
+<th>字段名</th>
+<th>字段类型</th>
+<th>字段含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>generationId</td>
+<td>整数</td>
+<td>版本号</td>
+</tr>
+<tr>
+<td>members</td>
+<td>MemberMetadata 列表</td>
+<td>组成员的元数据列表</td>
+</tr>
+<tr>
+<td>leaderId</td>
+<td>整数</td>
+<td>leader角色的成员 id</td>
+</tr>
+</tbody>
+</table>
+<p>GroupMetadata本身也是一个状态机，如下图所示：</p>
+<p><img src="/2019/04/01/kafka-group-coordinator/kafka-group-coordinator-state.svg"></p>
+<h2 id="处理加入请求"><a href="#处理加入请求" class="headerlink" title="处理加入请求"></a>处理加入请求</h2><p>处理加入请求的过程比较复杂。我们下面沿着简单的流程依次介绍。按照GroupMetadata的状态，Empty –&gt; PrepareRebalance –&gt; CompletingRebalance –&gt; Stable的方向。</p>
+<h3 id="处理请求"><a href="#处理请求" class="headerlink" title="处理请求"></a>处理请求</h3><p>对于加入请求的处理，最终是由 GroupCoordinator 的 handleJoinGroup 方法负责。它会首先检测请求参数和 group 状态，然后调用doJoinGroup方法处理请求。</p>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">class</span> <span class="title">GroupCoordinator</span>(<span class="params">） &#123;</span></span></span><br><span class="line"><span class="class"><span class="params">    </span></span></span><br><span class="line"><span class="class"><span class="params">  def handleJoinGroup(groupId: <span class="type">String</span>,</span></span></span><br><span class="line"><span class="class"><span class="params">                      memberId: <span class="type">String</span>,</span></span></span><br><span class="line"><span class="class"><span class="params">                      clientId: <span class="type">String</span>,</span></span></span><br><span class="line"><span class="class"><span class="params">                      clientHost: <span class="type">String</span>,</span></span></span><br><span class="line"><span class="class"><span class="params">                      rebalanceTimeoutMs: <span class="type">Int</span>,</span></span></span><br><span class="line"><span class="class"><span class="params">                      sessionTimeoutMs: <span class="type">Int</span>,</span></span></span><br><span class="line"><span class="class"><span class="params">                      protocolType: <span class="type">String</span>,</span></span></span><br><span class="line"><span class="class"><span class="params">                      protocols: <span class="type">List</span>[(<span class="type">String</span>, <span class="type">Array</span>[<span class="type">Byte</span>]</span>)],</span></span><br><span class="line"><span class="class">                      <span class="title">responseCallback</span></span>: <span class="type">JoinCallback</span>): <span class="type">Unit</span> = &#123;</span><br><span class="line">    <span class="comment">// 检查group的状态</span></span><br><span class="line">    validateGroupStatus(groupId, <span class="type">ApiKeys</span>.<span class="type">JOIN_GROUP</span>).foreach &#123; error =&gt;</span><br><span class="line">      responseCallback(joinError(memberId, error))</span><br><span class="line">      <span class="keyword">return</span></span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">// consumer的sessionTimeoutMs时间设置，必须在group组的设定范围内</span></span><br><span class="line">    <span class="keyword">if</span> (sessionTimeoutMs &lt; groupConfig.groupMinSessionTimeoutMs ||</span><br><span class="line">      sessionTimeoutMs &gt; groupConfig.groupMaxSessionTimeoutMs) &#123;</span><br><span class="line">      responseCallback(joinError(memberId, <span class="type">Errors</span>.<span class="type">INVALID_SESSION_TIMEOUT</span>))</span><br><span class="line">    &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">      <span class="comment">// 查看该group是否以前存在</span></span><br><span class="line">      groupManager.getGroup(groupId) <span class="keyword">match</span> &#123;</span><br><span class="line">        <span class="keyword">case</span> <span class="type">None</span> =&gt;</span><br><span class="line">          <span class="comment">// 如果是新的group，那么所有请求中的memberId必须为UNKNOWN_MEMBER_ID</span></span><br><span class="line">          <span class="keyword">if</span> (memberId != <span class="type">JoinGroupRequest</span>.<span class="type">UNKNOWN_MEMBER_ID</span>) &#123;</span><br><span class="line">            responseCallback(joinError(memberId, <span class="type">Errors</span>.<span class="type">UNKNOWN_MEMBER_ID</span>))</span><br><span class="line">          &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">            <span class="comment">// 添加group，并且新建group的元数据</span></span><br><span class="line">            <span class="keyword">val</span> group = groupManager.addGroup(<span class="keyword">new</span> <span class="type">GroupMetadata</span>(groupId, initialState = <span class="type">Empty</span>))</span><br><span class="line">            <span class="comment">// 调用doJoinGroup函数，处理请求</span></span><br><span class="line">            doJoinGroup(group, memberId, clientId, clientHost, rebalanceTimeoutMs, sessionTimeoutMs, protocolType, protocols, responseCallback)</span><br><span class="line">          &#125;</span><br><span class="line">        <span class="keyword">case</span> <span class="type">Some</span>(group) =&gt;</span><br><span class="line">          <span class="comment">// 如果该group之前存在，那么直接调用doJoinGroup函数</span></span><br><span class="line">          doJoinGroup(group, memberId, clientId, clientHost, rebalanceTimeoutMs, sessionTimeoutMs, protocolType, protocols, responseCallback)</span><br><span class="line">      &#125;</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;  </span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>doJoinGroup方法会依据GroupMetadata的状态，做不同的处理。</p>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br><span class="line">89</span><br><span class="line">90</span><br><span class="line">91</span><br><span class="line">92</span><br><span class="line">93</span><br><span class="line">94</span><br><span class="line">95</span><br><span class="line">96</span><br><span class="line">97</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">private</span> <span class="function"><span class="keyword">def</span> <span class="title">doJoinGroup</span></span>(group: <span class="type">GroupMetadata</span>,</span><br><span class="line">                        memberId: <span class="type">String</span>,</span><br><span class="line">                        clientId: <span class="type">String</span>,</span><br><span class="line">                        clientHost: <span class="type">String</span>,</span><br><span class="line">                        rebalanceTimeoutMs: <span class="type">Int</span>,</span><br><span class="line">                        sessionTimeoutMs: <span class="type">Int</span>,</span><br><span class="line">                        protocolType: <span class="type">String</span>,   <span class="comment">// 这里协议类型是 consumer</span></span><br><span class="line">                        protocols: <span class="type">List</span>[(<span class="type">String</span>, <span class="type">Array</span>[<span class="type">Byte</span>])],  <span class="comment">// 支持的分配算法列表</span></span><br><span class="line">                        responseCallback: <span class="type">JoinCallback</span>) &#123;</span><br><span class="line">  group.inLock &#123;</span><br><span class="line">    <span class="keyword">if</span> (!group.is(<span class="type">Empty</span>) &amp;&amp; (!group.protocolType.contains(protocolType) || !group.supportsProtocols(protocols.map(_._1).toSet))) &#123;</span><br><span class="line">      <span class="comment">// 检查是否支持协议类型和分配算法</span></span><br><span class="line">      responseCallback(joinError(memberId, <span class="type">Errors</span>.<span class="type">INCONSISTENT_GROUP_PROTOCOL</span>))</span><br><span class="line">    &#125; <span class="keyword">else</span> <span class="keyword">if</span> (group.is(<span class="type">Empty</span>) &amp;&amp; (protocols.isEmpty || protocolType.isEmpty)) &#123;</span><br><span class="line">      <span class="comment">// 检查group是否新建并且还未指定协议或分配算法</span></span><br><span class="line">      responseCallback(joinError(memberId, <span class="type">Errors</span>.<span class="type">INCONSISTENT_GROUP_PROTOCOL</span>))</span><br><span class="line">    &#125; <span class="keyword">else</span> <span class="keyword">if</span> (memberId != <span class="type">JoinGroupRequest</span>.<span class="type">UNKNOWN_MEMBER_ID</span> &amp;&amp; !group.has(memberId)) &#123;</span><br><span class="line">      <span class="comment">// 检查该成员是否在group里</span></span><br><span class="line">      responseCallback(joinError(memberId, <span class="type">Errors</span>.<span class="type">UNKNOWN_MEMBER_ID</span>))</span><br><span class="line">    &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">      group.currentState <span class="keyword">match</span> &#123;</span><br><span class="line">        <span class="keyword">case</span> <span class="type">Dead</span> =&gt;</span><br><span class="line">          <span class="comment">// if the group is marked as dead, it means some other thread has just removed the group</span></span><br><span class="line">          <span class="comment">// from the coordinator metadata; this is likely that the group has migrated to some other</span></span><br><span class="line">          <span class="comment">// coordinator OR the group is in a transient unstable phase. Let the member retry</span></span><br><span class="line">          <span class="comment">// joining without the specified member id,</span></span><br><span class="line">          responseCallback(joinError(memberId, <span class="type">Errors</span>.<span class="type">UNKNOWN_MEMBER_ID</span>))</span><br><span class="line">          </span><br><span class="line">        <span class="keyword">case</span> <span class="type">PreparingRebalance</span> =&gt;</span><br><span class="line">          <span class="comment">// 如果是新成员加入，则调用addMemberAndRebalance方法处理</span></span><br><span class="line">          <span class="keyword">if</span> (memberId == <span class="type">JoinGroupRequest</span>.<span class="type">UNKNOWN_MEMBER_ID</span>) &#123;</span><br><span class="line">            addMemberAndRebalance(rebalanceTimeoutMs, sessionTimeoutMs, clientId, clientHost, protocolType,</span><br><span class="line">              protocols, group, responseCallback)</span><br><span class="line">          &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">            <span class="comment">// 如果是旧有成员加入，则调用updateMemberAndRebalance方法处理</span></span><br><span class="line">            <span class="keyword">val</span> member = group.get(memberId)</span><br><span class="line">            updateMemberAndRebalance(group, member, protocols, responseCallback)</span><br><span class="line">          &#125;</span><br><span class="line"></span><br><span class="line">        <span class="keyword">case</span> <span class="type">CompletingRebalance</span> =&gt;</span><br><span class="line">          <span class="comment">// 如果是新成员加入，则调用addMemberAndRebalance方法处理</span></span><br><span class="line">          <span class="keyword">if</span> (memberId == <span class="type">JoinGroupRequest</span>.<span class="type">UNKNOWN_MEMBER_ID</span>) &#123;</span><br><span class="line">            addMemberAndRebalance(rebalanceTimeoutMs, sessionTimeoutMs, clientId, clientHost, protocolType,</span><br><span class="line">              protocols, group, responseCallback)</span><br><span class="line">          &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">            <span class="keyword">val</span> member = group.get(memberId)</span><br><span class="line">            <span class="keyword">if</span> (member.matches(protocols)) &#123;</span><br><span class="line">              <span class="comment">// 成员之前已经发送了 JoinGroup请求，但是因为超时等原因，没有收到响应。</span></span><br><span class="line">              <span class="comment">// 这里直接返回响应</span></span><br><span class="line">              responseCallback(<span class="type">JoinGroupResult</span>(</span><br><span class="line">                members = <span class="keyword">if</span> (group.isLeader(memberId)) &#123;</span><br><span class="line">                  group.currentMemberMetadata</span><br><span class="line">                &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">                  <span class="type">Map</span>.empty</span><br><span class="line">                &#125;,</span><br><span class="line">                memberId = memberId,</span><br><span class="line">                generationId = group.generationId,</span><br><span class="line">                subProtocol = group.protocolOrNull,</span><br><span class="line">                leaderId = group.leaderOrNull,</span><br><span class="line">                error = <span class="type">Errors</span>.<span class="type">NONE</span>))</span><br><span class="line">            &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">              <span class="comment">// 成员的请求与上次请求不一致，说明是新的请求，需要重新平衡</span></span><br><span class="line">              updateMemberAndRebalance(group, member, protocols, responseCallback)</span><br><span class="line">            &#125;</span><br><span class="line">          &#125;</span><br><span class="line"></span><br><span class="line">        <span class="keyword">case</span> <span class="type">Empty</span> | <span class="type">Stable</span> =&gt;</span><br><span class="line">          <span class="keyword">if</span> (memberId == <span class="type">JoinGroupRequest</span>.<span class="type">UNKNOWN_MEMBER_ID</span>) &#123;</span><br><span class="line">            <span class="comment">// 如果是新加入的成员</span></span><br><span class="line">            addMemberAndRebalance(rebalanceTimeoutMs, sessionTimeoutMs, clientId, clientHost, protocolType,</span><br><span class="line">              protocols, group, responseCallback)</span><br><span class="line">          &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">            <span class="keyword">val</span> member = group.get(memberId)</span><br><span class="line">            <span class="keyword">if</span> (group.isLeader(memberId) || !member.matches(protocols)) &#123;</span><br><span class="line">              <span class="comment">// 如果是leader角色重新加入，那么需要重新平衡</span></span><br><span class="line">              <span class="comment">// 如果该consumer的分配算法改变了，那么也需要重新平衡</span></span><br><span class="line">              updateMemberAndRebalance(group, member, protocols, responseCallback)</span><br><span class="line">            &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">              <span class="comment">// 如果是旧有成员，并且是follower角色，而且与上次请求一样，</span></span><br><span class="line">              <span class="comment">// 那么则直接返回与上次相同的响应</span></span><br><span class="line">              responseCallback(<span class="type">JoinGroupResult</span>(</span><br><span class="line">                members = <span class="type">Map</span>.empty,</span><br><span class="line">                memberId = memberId,</span><br><span class="line">                generationId = group.generationId,</span><br><span class="line">                subProtocol = group.protocolOrNull,</span><br><span class="line">                leaderId = group.leaderOrNull,</span><br><span class="line">                error = <span class="type">Errors</span>.<span class="type">NONE</span>))</span><br><span class="line">            &#125;</span><br><span class="line">          &#125;</span><br><span class="line">      &#125;</span><br><span class="line"></span><br><span class="line">      <span class="keyword">if</span> (group.is(<span class="type">PreparingRebalance</span>))</span><br><span class="line">        <span class="comment">// 尝试提前完成，加入请求</span></span><br><span class="line">        joinPurgatory.checkAndComplete(<span class="type">GroupKey</span>(group.groupId))</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>上面的处理主要涉及到了两个方法，addMemberAndRebalance方法处理新成员加入，updateMemberAndRebalance方法处理旧有成员加入。两个方法都很简单，只是新建或修改成员的元数据，然后调用maybePrepareRebalance方法，做一些rebalance之前的准备操作。</p>
+<p>注意到当成员添加到GroupMetadata里的时候，会选择最早加入的成员为leader。</p>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">private</span> <span class="function"><span class="keyword">def</span> <span class="title">addMemberAndRebalance</span></span>(rebalanceTimeoutMs: <span class="type">Int</span>,</span><br><span class="line">                                  sessionTimeoutMs: <span class="type">Int</span>,</span><br><span class="line">                                  clientId: <span class="type">String</span>,</span><br><span class="line">                                  clientHost: <span class="type">String</span>,</span><br><span class="line">                                  protocolType: <span class="type">String</span>,</span><br><span class="line">                                  protocols: <span class="type">List</span>[(<span class="type">String</span>, <span class="type">Array</span>[<span class="type">Byte</span>])],</span><br><span class="line">                                  group: <span class="type">GroupMetadata</span>,</span><br><span class="line">                                  callback: <span class="type">JoinCallback</span>) = &#123;</span><br><span class="line">  <span class="comment">// 这里为新成员分配 id</span></span><br><span class="line">  <span class="keyword">val</span> memberId = clientId + <span class="string">"-"</span> + group.generateMemberIdSuffix</span><br><span class="line">  <span class="comment">// 新建成员的元数据</span></span><br><span class="line">  <span class="keyword">val</span> member = <span class="keyword">new</span> <span class="type">MemberMetadata</span>(memberId, group.groupId, clientId, clientHost, rebalanceTimeoutMs,</span><br><span class="line">    sessionTimeoutMs, protocolType, protocols)</span><br><span class="line">  <span class="comment">// 注意到awaitingJoinCallback这个属性，当处理JoinRequest完成时，会调用这个回调</span></span><br><span class="line">  <span class="comment">// awaitingJoinCallback会将请求结果发送给客户端</span></span><br><span class="line">  member.awaitingJoinCallback = callback</span><br><span class="line">  <span class="comment">// 如果group状态为PreparingRebalance，并且该group为新建的，</span></span><br><span class="line">  <span class="comment">// 设置newMemberAdded为true，在后面延迟rebalance有用到</span></span><br><span class="line">  <span class="keyword">if</span> (group.is(<span class="type">PreparingRebalance</span>) &amp;&amp; group.generationId == <span class="number">0</span>)</span><br><span class="line">    group.newMemberAdded = <span class="literal">true</span></span><br><span class="line">  <span class="comment">// 添加成员到组，如果此成员是第一个加入该组，那么就选择它为leader角色</span></span><br><span class="line">  group.add(member)</span><br><span class="line">  <span class="comment">// 调用maybePrepareRebalance方法，执行rebalance前的准备操作</span></span><br><span class="line">  maybePrepareRebalance(group)</span><br><span class="line">  member</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">private</span> <span class="function"><span class="keyword">def</span> <span class="title">updateMemberAndRebalance</span></span>(group: <span class="type">GroupMetadata</span>,</span><br><span class="line">                                     member: <span class="type">MemberMetadata</span>,</span><br><span class="line">                                     protocols: <span class="type">List</span>[(<span class="type">String</span>, <span class="type">Array</span>[<span class="type">Byte</span>])],</span><br><span class="line">                                     callback: <span class="type">JoinCallback</span>) &#123;</span><br><span class="line">  member.supportedProtocols = protocols</span><br><span class="line">  <span class="comment">// 设置回调</span></span><br><span class="line">  member.awaitingJoinCallback = callback</span><br><span class="line">  <span class="comment">// 调用maybePrepareRebalance方法，执行rebalance前的准备操作</span></span><br><span class="line">  maybePrepareRebalance(group)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>maybePrepareRebalance方法，会判断group的状态，检查是否可以执行准备操作。</p>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">private</span> <span class="function"><span class="keyword">def</span> <span class="title">maybePrepareRebalance</span></span>(group: <span class="type">GroupMetadata</span>) &#123;</span><br><span class="line">  <span class="comment">// 这里使用了锁，防止线程竞争</span></span><br><span class="line">  group.inLock &#123;</span><br><span class="line">    <span class="comment">// 判断group是否能执行Rebalance操作，它是根据GroupMetadata的状态图，判断是否能转到PrepareRebalance状态</span></span><br><span class="line">    <span class="comment">// 比如如果GroupMetadata现在的状态是PrepareRebalance，那么就不能执行Rebalance操作</span></span><br><span class="line">    <span class="keyword">if</span> (group.canRebalance)</span><br><span class="line">      prepareRebalance(group)</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p> prepareRebalance方法会有点复杂，它涉及到了Kafka的延迟操作。这里GroupCoordinator并不会立刻返回响应，而是延迟一段时间，尽可能的等待更多的consumer申请加入，这样就可以大大避免了，连续的consumer加入请求引起的多次重平衡。这里简单介绍下：</p>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">private</span> <span class="function"><span class="keyword">def</span> <span class="title">prepareRebalance</span></span>(group: <span class="type">GroupMetadata</span>) &#123;</span><br><span class="line">  <span class="comment">// 如果该group的状态为CompletingRebalance，表示该组的所有成员，都已经完成加入请求，正在等待分配结果</span></span><br><span class="line">  <span class="comment">// 这时如果有新的成员加入，需要等待结果分配的响应完成之后，才能重新发起加入请求</span></span><br><span class="line">  <span class="keyword">if</span> (group.is(<span class="type">CompletingRebalance</span>))</span><br><span class="line">    resetAndPropagateAssignmentError(group, <span class="type">Errors</span>.<span class="type">REBALANCE_IN_PROGRESS</span>)</span><br><span class="line">  </span><br><span class="line">  <span class="keyword">val</span> delayedRebalance = <span class="keyword">if</span> (group.is(<span class="type">Empty</span>))</span><br><span class="line">    <span class="comment">// group的状态为Empty，表示这是第一个consumer加入</span></span><br><span class="line">    <span class="comment">// InitialDelayedJoin表示第一个consumer加入，然后它会等待一会儿，这段时间内允许接收别的consumer的加入请求。InitialDelayedJoin只能等待时间过期，不能提前完成</span></span><br><span class="line">    <span class="keyword">new</span> <span class="type">InitialDelayedJoin</span>(<span class="keyword">this</span>,</span><br><span class="line">      joinPurgatory,</span><br><span class="line">      group,</span><br><span class="line">      groupConfig.groupInitialRebalanceDelayMs,</span><br><span class="line">      groupConfig.groupInitialRebalanceDelayMs,</span><br><span class="line">      max(group.rebalanceTimeoutMs - groupConfig.groupInitialRebalanceDelayMs, <span class="number">0</span>))</span><br><span class="line">  <span class="keyword">else</span></span><br><span class="line">    <span class="comment">// 如果group的状态不是Empty，那么使用DelayedJoin延迟操作。DelayedJoin允许提前完成</span></span><br><span class="line">    <span class="keyword">new</span> <span class="type">DelayedJoin</span>(<span class="keyword">this</span>, group, group.rebalanceTimeoutMs)</span><br><span class="line"></span><br><span class="line">  <span class="comment">// 设置group的状态为PreparingRebalance</span></span><br><span class="line">  group.transitionTo(<span class="type">PreparingRebalance</span>)</span><br><span class="line"></span><br><span class="line">  <span class="comment">// 提交延迟操作</span></span><br><span class="line">  <span class="keyword">val</span> groupKey = <span class="type">GroupKey</span>(group.groupId)</span><br><span class="line">  joinPurgatory.tryCompleteElseWatch(delayedRebalance, <span class="type">Seq</span>(groupKey))</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h3 id="延迟响应"><a href="#延迟响应" class="headerlink" title="延迟响应"></a>延迟响应</h3><p>上面涉及到两个延迟操作，InitialDelayedJoin和DelayedJoin。</p>
+<p>DelayedJoin继承DelayedOperation类，实现了延迟操作。当任务完成时，会调用GroupCoordinator的onCompleteJoin方法。同时它也会不断调用GroupCoordinator的tryCompleteJoin，如果旧有成员都已经加入，那么就提前完成响应。</p>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">private</span>[group] <span class="class"><span class="keyword">class</span> <span class="title">DelayedJoin</span>(<span class="params">coordinator: <span class="type">GroupCoordinator</span>,</span></span></span><br><span class="line"><span class="class"><span class="params">                                 group: <span class="type">GroupMetadata</span>,</span></span></span><br><span class="line"><span class="class"><span class="params">                                 rebalanceTimeout: <span class="type">Long</span></span>) <span class="keyword">extends</span> <span class="title">DelayedOperation</span>(<span class="params">rebalanceTimeout, <span class="type">Some</span>(group.lock</span>)) </span>&#123;</span><br><span class="line"></span><br><span class="line">  <span class="keyword">override</span> <span class="function"><span class="keyword">def</span> <span class="title">tryComplete</span></span>(): <span class="type">Boolean</span> = coordinator.tryCompleteJoin(group, forceComplete _)</span><br><span class="line">  <span class="keyword">override</span> <span class="function"><span class="keyword">def</span> <span class="title">onExpiration</span></span>() = coordinator.onExpireJoin()</span><br><span class="line">  <span class="keyword">override</span> <span class="function"><span class="keyword">def</span> <span class="title">onComplete</span></span>() = coordinator.onCompleteJoin(group)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>InitialDelayedJoin继承DelayedJoin，它们之间主要的区别是，InitialDelayedJoin只有任务过期才会执行，它不会提前完成。InitialDelayedJoin还有可能多次延迟，只要总的延迟时间不超过指定值即可。</p>
+<p>关于时间的参数，主要有下列</p>
+<ul>
+<li>delayMs 表示此次操作的延迟时间</li>
+<li>configuredRebalanceDelay 表示每次操作的最大延迟时间</li>
+<li>remainingMs 表示剩余可以延迟的剩余空间</li>
+</ul>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">private</span>[group] <span class="class"><span class="keyword">class</span> <span class="title">InitialDelayedJoin</span>(<span class="params">coordinator: <span class="type">GroupCoordinator</span>,</span></span></span><br><span class="line"><span class="class"><span class="params">                                        purgatory: <span class="type">DelayedOperationPurgatory</span>[<span class="type">DelayedJoin</span>],</span></span></span><br><span class="line"><span class="class"><span class="params">                                        group: <span class="type">GroupMetadata</span>,</span></span></span><br><span class="line"><span class="class"><span class="params">                                        configuredRebalanceDelay: <span class="type">Int</span>,</span></span></span><br><span class="line"><span class="class"><span class="params">                                        delayMs: <span class="type">Int</span>,</span></span></span><br><span class="line"><span class="class"><span class="params">                                        remainingMs: <span class="type">Int</span></span>) <span class="keyword">extends</span> <span class="title">DelayedJoin</span>(<span class="params">coordinator, group, delayMs</span>) </span>&#123;</span><br><span class="line">  <span class="comment">// 永远返回false，表示不可能提前完成</span></span><br><span class="line">  <span class="keyword">override</span> <span class="function"><span class="keyword">def</span> <span class="title">tryComplete</span></span>(): <span class="type">Boolean</span> = <span class="literal">false</span></span><br><span class="line"></span><br><span class="line">  <span class="keyword">override</span> <span class="function"><span class="keyword">def</span> <span class="title">onComplete</span></span>(): <span class="type">Unit</span> = &#123;</span><br><span class="line">    group.inLock  &#123;</span><br><span class="line">      <span class="comment">// 如果有新增用户，并且还有剩余时间，那么会推迟</span></span><br><span class="line">      <span class="keyword">if</span> (group.newMemberAdded &amp;&amp; remainingMs != <span class="number">0</span>) &#123;</span><br><span class="line">        group.newMemberAdded = <span class="literal">false</span></span><br><span class="line">        <span class="comment">// 计算新的延迟时间</span></span><br><span class="line">        <span class="keyword">val</span> delay = min(configuredRebalanceDelay, remainingMs)</span><br><span class="line">        <span class="comment">// 计算新的剩余时间</span></span><br><span class="line">        <span class="keyword">val</span> remaining = max(remainingMs - delayMs, <span class="number">0</span>)</span><br><span class="line">        <span class="comment">// 添加新的延迟任务</span></span><br><span class="line">        purgatory.tryCompleteElseWatch(<span class="keyword">new</span> <span class="type">InitialDelayedJoin</span>(coordinator,</span><br><span class="line">          purgatory,</span><br><span class="line">          group,</span><br><span class="line">          configuredRebalanceDelay,</span><br><span class="line">          delay,</span><br><span class="line">          remaining</span><br><span class="line">        ), <span class="type">Seq</span>(<span class="type">GroupKey</span>(group.groupId)))</span><br><span class="line">      &#125; <span class="keyword">else</span></span><br><span class="line">        <span class="comment">// 执行DelayedJoin的onComplete方法，完成响应</span></span><br><span class="line">        <span class="keyword">super</span>.onComplete()</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h3 id="完成响应"><a href="#完成响应" class="headerlink" title="完成响应"></a>完成响应</h3><p>接下来看看GroupCoordinator的tryCompleteJoin方法。tryCompleteJoin会判断旧有的成员是否全部重新加入，如果满足，那么就提前执行Rebalance操作。</p>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">tryCompleteJoin</span></span>(group: <span class="type">GroupMetadata</span>, forceComplete: () =&gt; <span class="type">Boolean</span>) = &#123;</span><br><span class="line">  group.inLock &#123;</span><br><span class="line">    <span class="comment">// 检测是否还有未加入的旧有成员</span></span><br><span class="line">    <span class="keyword">if</span> (group.notYetRejoinedMembers.isEmpty)</span><br><span class="line">      <span class="comment">// 如果旧有成员全部已经请求重新加入，那么调用了forceComplete，执行完成函数onComplete</span></span><br><span class="line">      forceComplete()</span><br><span class="line">    <span class="keyword">else</span> <span class="literal">false</span></span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>group判断成员是否加入，是判断成员的awaitingJoinCallback是否为空。因为awaitingJoinCallback在成员发起加入请求后，group才会设置awaitingJoinCallback属性。如果awaitingJoinCallback为空，那么表示旧有的成员还未加入。</p>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">onCompleteJoin</span></span>(group: <span class="type">GroupMetadata</span>) &#123;</span><br><span class="line">  group.inLock &#123;</span><br><span class="line">    <span class="comment">// 这里有可能是因为超时，才执行的。所以不能保证所有的旧有成员都已经重新申请加入，需要将这些迟迟没有加入的成员，删除掉</span></span><br><span class="line">    group.notYetRejoinedMembers.foreach &#123; failedMember =&gt;</span><br><span class="line">      group.remove(failedMember.memberId)</span><br><span class="line">      <span class="comment">// <span class="doctag">TODO:</span> cut the socket connection to the client</span></span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span> (!group.is(<span class="type">Dead</span>)) &#123;</span><br><span class="line">      <span class="comment">// 更新group的版本号，并且更新其状态</span></span><br><span class="line">      <span class="comment">// 如果group已经没有成员，那么更新状态为Empty</span></span><br><span class="line">      <span class="comment">// 否则更新状态为CompletingRebalance</span></span><br><span class="line">      group.initNextGeneration()</span><br><span class="line">      <span class="keyword">if</span> (group.is(<span class="type">Empty</span>)) &#123;</span><br><span class="line">        <span class="comment">// 更新group数据</span></span><br><span class="line">        groupManager.storeGroup(group, <span class="type">Map</span>.empty, error =&gt; &#123;</span><br><span class="line">          <span class="keyword">if</span> (error != <span class="type">Errors</span>.<span class="type">NONE</span>) &#123;</span><br><span class="line">            <span class="comment">// we failed to write the empty group metadata. If the broker fails before another rebalance,</span></span><br><span class="line">            <span class="comment">// the previous generation written to the log will become active again (and most likely timeout).</span></span><br><span class="line">            <span class="comment">// This should be safe since there are no active members in an empty generation, so we just warn.</span></span><br><span class="line">            warn(<span class="string">s"Failed to write empty metadata for group <span class="subst">$&#123;group.groupId&#125;</span>: <span class="subst">$&#123;error.message&#125;</span>"</span>)</span><br><span class="line">          &#125;</span><br><span class="line">        &#125;)</span><br><span class="line">      &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">        </span><br><span class="line">        <span class="comment">// 生成响应，并且调用每个成员的awaitingJoinCallback回调，发送响应</span></span><br><span class="line">        <span class="keyword">for</span> (member &lt;- group.allMemberMetadata) &#123;</span><br><span class="line">          assert(member.awaitingJoinCallback != <span class="literal">null</span>)</span><br><span class="line">          <span class="comment">// 生成响应</span></span><br><span class="line">          <span class="keyword">val</span> joinResult = <span class="type">JoinGroupResult</span>(</span><br><span class="line">            members = <span class="keyword">if</span> (group.isLeader(member.memberId)) &#123;</span><br><span class="line">              <span class="comment">// 如果是leader角色，需要将组的所有成员信息发送给它</span></span><br><span class="line">              group.currentMemberMetadata</span><br><span class="line">            &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">              <span class="type">Map</span>.empty</span><br><span class="line">            &#125;,</span><br><span class="line">            memberId = member.memberId,              <span class="comment">// 成员id</span></span><br><span class="line">            generationId = group.generationId,       <span class="comment">// group数据版本号</span></span><br><span class="line">            subProtocol = group.protocolOrNull,      <span class="comment">// group协议</span></span><br><span class="line">            leaderId = group.leaderOrNull,           <span class="comment">// leader角色的成员id</span></span><br><span class="line">            error = <span class="type">Errors</span>.<span class="type">NONE</span>)</span><br><span class="line"></span><br><span class="line">          member.awaitingJoinCallback(joinResult)    <span class="comment">// 调用awaitingJoinCallback</span></span><br><span class="line">          member.awaitingJoinCallback = <span class="literal">null</span>         <span class="comment">// 发送响应后，将awaitingJoinCallback设置为空</span></span><br><span class="line">          completeAndScheduleNextHeartbeatExpiration(group, member)   <span class="comment">// 设置心跳</span></span><br><span class="line">        &#125;</span><br><span class="line">      &#125;</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h2 id="处理获取分配结果请求"><a href="#处理获取分配结果请求" class="headerlink" title="处理获取分配结果请求"></a>处理获取分配结果请求</h2><p>当consumer收到加入请求的响应后，如果被指定为leader角色，会执行分区分配算法，然后将分配结果发送 GroupCoordinator。如果是 follower 角色，只是简单的向GroupCoordinator请求分配结果。</p>
+<p>GroupCoordinator的handleSyncGroup方法负责处理分配结果的请求，这里的逻辑比较简单，只是简单的接收leader角色传过来的分配结果，然后将分配结果发送给对应的组成员。</p>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">private</span> <span class="function"><span class="keyword">def</span> <span class="title">doSyncGroup</span></span>(group: <span class="type">GroupMetadata</span>,</span><br><span class="line">                        generationId: <span class="type">Int</span>,</span><br><span class="line">                        memberId: <span class="type">String</span>,</span><br><span class="line">                        groupAssignment: <span class="type">Map</span>[<span class="type">String</span>, <span class="type">Array</span>[<span class="type">Byte</span>]],   <span class="comment">// key为成员id，value为分配结果</span></span><br><span class="line">                        responseCallback: <span class="type">SyncCallback</span>) &#123;</span><br><span class="line">  group.inLock &#123;</span><br><span class="line">    <span class="keyword">if</span> (!group.has(memberId)) &#123;</span><br><span class="line">      <span class="comment">// 检查是否有该成员</span></span><br><span class="line">      responseCallback(<span class="type">Array</span>.empty, <span class="type">Errors</span>.<span class="type">UNKNOWN_MEMBER_ID</span>)</span><br><span class="line">    &#125; <span class="keyword">else</span> <span class="keyword">if</span> (generationId != group.generationId) &#123;</span><br><span class="line">      <span class="comment">// 检查版本号是否一致</span></span><br><span class="line">      responseCallback(<span class="type">Array</span>.empty, <span class="type">Errors</span>.<span class="type">ILLEGAL_GENERATION</span>)</span><br><span class="line">    &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">      <span class="comment">// 判断group的状态</span></span><br><span class="line">      group.currentState <span class="keyword">match</span> &#123;</span><br><span class="line">        <span class="keyword">case</span> <span class="type">Empty</span> | <span class="type">Dead</span> =&gt;</span><br><span class="line">          responseCallback(<span class="type">Array</span>.empty, <span class="type">Errors</span>.<span class="type">UNKNOWN_MEMBER_ID</span>)</span><br><span class="line"></span><br><span class="line">        <span class="keyword">case</span> <span class="type">PreparingRebalance</span> =&gt;</span><br><span class="line">          responseCallback(<span class="type">Array</span>.empty, <span class="type">Errors</span>.<span class="type">REBALANCE_IN_PROGRESS</span>)</span><br><span class="line"></span><br><span class="line">        <span class="keyword">case</span> <span class="type">CompletingRebalance</span> =&gt;</span><br><span class="line">          <span class="comment">// 设置该成员的awaitingSyncCallback函数，用来发送响应的</span></span><br><span class="line">          group.get(memberId).awaitingSyncCallback = responseCallback</span><br><span class="line"></span><br><span class="line">          <span class="comment">// 这里只处理来自leader角色的请求。这里会保存分配结果，而且为成员发送分配结果</span></span><br><span class="line">          <span class="keyword">if</span> (group.isLeader(memberId)) &#123;</span><br><span class="line">            <span class="comment">// fill any missing members with an empty assignment</span></span><br><span class="line">            <span class="keyword">val</span> missing = group.allMembers -- groupAssignment.keySet</span><br><span class="line">            <span class="keyword">val</span> assignment = groupAssignment ++ missing.map(_ -&gt; <span class="type">Array</span>.empty[<span class="type">Byte</span>]).toMap</span><br><span class="line"></span><br><span class="line">            groupManager.storeGroup(group, assignment, (error: <span class="type">Errors</span>) =&gt; &#123;</span><br><span class="line">              group.inLock &#123;</span><br><span class="line">                <span class="comment">// another member may have joined the group while we were awaiting this callback,</span></span><br><span class="line">                <span class="comment">// so we must ensure we are still in the CompletingRebalance state and the same generation</span></span><br><span class="line">                <span class="comment">// when it gets invoked. if we have transitioned to another state, then do nothing</span></span><br><span class="line">                <span class="keyword">if</span> (group.is(<span class="type">CompletingRebalance</span>) &amp;&amp; generationId == group.generationId) &#123;</span><br><span class="line">                  <span class="keyword">if</span> (error != <span class="type">Errors</span>.<span class="type">NONE</span>) &#123;</span><br><span class="line">                    resetAndPropagateAssignmentError(group, error)</span><br><span class="line">                    maybePrepareRebalance(group)</span><br><span class="line">                  &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">                    <span class="comment">// 保存分配结果，并且返回响应</span></span><br><span class="line">                    setAndPropagateAssignment(group, assignment)</span><br><span class="line">                    <span class="comment">// 更新状态为Stable</span></span><br><span class="line">                    group.transitionTo(<span class="type">Stable</span>)</span><br><span class="line">                  &#125;</span><br><span class="line">                &#125;</span><br><span class="line">              &#125;</span><br><span class="line">            &#125;)</span><br><span class="line">          &#125;</span><br><span class="line"></span><br><span class="line">        <span class="keyword">case</span> <span class="type">Stable</span> =&gt;</span><br><span class="line">          <span class="comment">// 有些follower角色成员的请求，可能在leader角色之后，这里状态已经转为Stable了。</span></span><br><span class="line">          <span class="comment">// 所以只是返回该成员的分配结果</span></span><br><span class="line">          <span class="keyword">val</span> memberMetadata = group.get(memberId)</span><br><span class="line">          responseCallback(memberMetadata.assignment, <span class="type">Errors</span>.<span class="type">NONE</span>)</span><br><span class="line">          <span class="comment">// 设置心跳时间</span></span><br><span class="line">          completeAndScheduleNextHeartbeatExpiration(group, group.get(memberId))</span><br><span class="line">      &#125;</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>注意到上面的setAndPropagateAssignment方法，它会执行每个成员的awaitingSyncCallback回调，将分配结果发送给成员。</p>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">private</span> <span class="function"><span class="keyword">def</span> <span class="title">setAndPropagateAssignment</span></span>(group: <span class="type">GroupMetadata</span>, assignment: <span class="type">Map</span>[<span class="type">String</span>, <span class="type">Array</span>[<span class="type">Byte</span>]]) &#123;</span><br><span class="line">  assert(group.is(<span class="type">CompletingRebalance</span>))</span><br><span class="line">  <span class="comment">// 为每个成员设置分配结果</span></span><br><span class="line">  group.allMemberMetadata.foreach(member =&gt; member.assignment = assignment(member.memberId))</span><br><span class="line">  <span class="comment">// 为发送SyncGroup请求的成员，发送响应</span></span><br><span class="line">  propagateAssignment(group, <span class="type">Errors</span>.<span class="type">NONE</span>)</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">private</span> <span class="function"><span class="keyword">def</span> <span class="title">propagateAssignment</span></span>(group: <span class="type">GroupMetadata</span>, error: <span class="type">Errors</span>) &#123;</span><br><span class="line">    <span class="keyword">for</span> (member &lt;- group.allMemberMetadata) &#123;</span><br><span class="line">        <span class="comment">// 只有发送SyncGroup请求的成员，它的awaitingSyncCallback才不为空</span></span><br><span class="line">        <span class="keyword">if</span> (member.awaitingSyncCallback != <span class="literal">null</span>) &#123;</span><br><span class="line">            <span class="comment">// 执行awaitingSyncCallback函数</span></span><br><span class="line">            member.awaitingSyncCallback(member.assignment, error)</span><br><span class="line">            <span class="comment">// 执行完设置awaitingSyncCallback为空</span></span><br><span class="line">            member.awaitingSyncCallback = <span class="literal">null</span></span><br><span class="line"></span><br><span class="line">            <span class="comment">// reset the session timeout for members after propagating the member's assignment.</span></span><br><span class="line">            <span class="comment">// This is because if any member's session expired while we were still awaiting either</span></span><br><span class="line">            <span class="comment">// the leader sync group or the storage callback, its expiration will be ignored and no</span></span><br><span class="line">            <span class="comment">// future heartbeat expectations will not be scheduled.</span></span><br><span class="line">            completeAndScheduleNextHeartbeatExpiration(group, member)</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h2 id="处理心跳请求"><a href="#处理心跳请求" class="headerlink" title="处理心跳请求"></a>处理心跳请求</h2><p>group的每个成员需要实时与GroupCoordinator保持心跳，这样GroupCoordinator才知道这个成员是正常运行的。</p>
+<p>GroupCoordinator接收到成员的心跳请求后，会为它生成一个心跳超时的延迟任务。如果在超时之前，接收到心跳请求，就会更新最后一次的心跳时间，并且生成新的心跳延迟任务。如果超时了，还没收到心跳请求，GroupCoordinator会将此成员从组里删除掉。</p>
+<p>处理心跳请求的程序，主要是由completeAndScheduleNextHeartbeatExpiration方法负责</p>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">private</span> <span class="function"><span class="keyword">def</span> <span class="title">completeAndScheduleNextHeartbeatExpiration</span></span>(group: <span class="type">GroupMetadata</span>, member: <span class="type">MemberMetadata</span>) &#123;</span><br><span class="line">  <span class="comment">// 更新最后一次的心跳时间</span></span><br><span class="line">  member.latestHeartbeat = time.milliseconds()</span><br><span class="line">  <span class="keyword">val</span> memberKey = <span class="type">MemberKey</span>(member.groupId, member.memberId)</span><br><span class="line">  <span class="comment">// 试图完成上次心跳的延迟任务</span></span><br><span class="line">  heartbeatPurgatory.checkAndComplete(memberKey)</span><br><span class="line"></span><br><span class="line">  <span class="comment">// 更新下次的心跳截止时间</span></span><br><span class="line">  <span class="keyword">val</span> newHeartbeatDeadline = member.latestHeartbeat + member.sessionTimeoutMs</span><br><span class="line">  <span class="comment">// 生成新的心跳延迟任务，超时时间为下次的心跳截止时间</span></span><br><span class="line">  <span class="keyword">val</span> delayedHeartbeat = <span class="keyword">new</span> <span class="type">DelayedHeartbeat</span>(<span class="keyword">this</span>, group, member, newHeartbeatDeadline, member.sessionTimeoutMs)</span><br><span class="line">  <span class="comment">// 添加延迟任务</span></span><br><span class="line">  heartbeatPurgatory.tryCompleteElseWatch(delayedHeartbeat, <span class="type">Seq</span>(memberKey))</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>接下来看看心跳延迟任务的定义</p>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">private</span>[group] <span class="class"><span class="keyword">class</span> <span class="title">DelayedHeartbeat</span>(<span class="params">coordinator: <span class="type">GroupCoordinator</span>,</span></span></span><br><span class="line"><span class="class"><span class="params">                                      group: <span class="type">GroupMetadata</span>,</span></span></span><br><span class="line"><span class="class"><span class="params">                                      member: <span class="type">MemberMetadata</span>,</span></span></span><br><span class="line"><span class="class"><span class="params">                                      heartbeatDeadline: <span class="type">Long</span>,</span></span></span><br><span class="line"><span class="class"><span class="params">                                      sessionTimeout: <span class="type">Long</span></span>)</span></span><br><span class="line"><span class="class">  <span class="keyword">extends</span> <span class="title">DelayedOperation</span>(<span class="params">sessionTimeout, <span class="type">Some</span>(group.lock</span>)) </span>&#123;</span><br><span class="line"></span><br><span class="line">  <span class="keyword">override</span> <span class="function"><span class="keyword">def</span> <span class="title">tryComplete</span></span>(): <span class="type">Boolean</span> = coordinator.tryCompleteHeartbeat(group, member, heartbeatDeadline, forceComplete _)</span><br><span class="line">  <span class="keyword">override</span> <span class="function"><span class="keyword">def</span> <span class="title">onExpiration</span></span>() = coordinator.onExpireHeartbeat(group, member, heartbeatDeadline)</span><br><span class="line">  <span class="keyword">override</span> <span class="function"><span class="keyword">def</span> <span class="title">onComplete</span></span>() = coordinator.onCompleteHeartbeat()</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>DelayedHeartbeat都是简单的调用了GroupCoordinator的方法，</p>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">tryCompleteHeartbeat</span></span>(group: <span class="type">GroupMetadata</span>, member: <span class="type">MemberMetadata</span>, heartbeatDeadline: <span class="type">Long</span>, forceComplete: () =&gt; <span class="type">Boolean</span>) = &#123;</span><br><span class="line">  group.inLock &#123;</span><br><span class="line">    <span class="comment">// 如果需要保留该成员或者该成员离开，那么提前完成该心跳任务</span></span><br><span class="line">    <span class="keyword">if</span> (shouldKeepMemberAlive(member, heartbeatDeadline) || member.isLeaving)</span><br><span class="line">      forceComplete()</span><br><span class="line">    <span class="keyword">else</span> <span class="literal">false</span></span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 如果该成员正在申请加入组，或者心跳时间还没有超时，那么返回true</span></span><br><span class="line"><span class="keyword">private</span> <span class="function"><span class="keyword">def</span> <span class="title">shouldKeepMemberAlive</span></span>(member: <span class="type">MemberMetadata</span>, heartbeatDeadline: <span class="type">Long</span>) =</span><br><span class="line">  member.awaitingJoinCallback != <span class="literal">null</span> ||</span><br><span class="line">    member.awaitingSyncCallback != <span class="literal">null</span> ||</span><br><span class="line">    member.latestHeartbeat + member.sessionTimeoutMs &gt; heartbeatDeadline</span><br></pre></td></tr></table></figure>
+<p>当心跳任务超时，会调用onExpiration回调函数，GroupCoordinator的onExpireHeartbeat方法会处理心跳超时。</p>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">onExpireHeartbeat</span></span>(group: <span class="type">GroupMetadata</span>, member: <span class="type">MemberMetadata</span>, heartbeatDeadline: <span class="type">Long</span>) &#123;</span><br><span class="line">  group.inLock &#123;</span><br><span class="line">    <span class="keyword">if</span> (!shouldKeepMemberAlive(member, heartbeatDeadline)) &#123;</span><br><span class="line">      <span class="comment">// 删除该成员</span></span><br><span class="line">      removeMemberAndUpdateGroup(group, member)</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+      
+    </div>
+    
+    
+    
+
+    
+
+    
+
+    
+
+    <footer class="post-footer">
+      
+        <div class="post-tags">
+          
+            <a href="/tags/kafka-coordinator/" rel="tag"># kafka, coordinator</a>
+          
+        </div>
+      
+
+      
+      
+      
+
+      
+        <div class="post-nav">
+          <div class="post-nav-next post-nav-item">
+            
+              <a href="/2019/03/28/kafka-timer/" rel="next" title="Kafka 延迟任务">
+                <i class="fa fa-chevron-left"></i> Kafka 延迟任务
+              </a>
+            
+          </div>
+
+          <span class="post-nav-divider"></span>
+
+          <div class="post-nav-prev post-nav-item">
+            
+          </div>
+        </div>
+      
+
+      
+      
+    </footer>
+  </div>
+  
+  
+  
+  </article>
+
+
+
+    <div class="post-spread">
+      
+    </div>
+  </div>
+
+
+          </div>
+          
+
+
+          
+
+  
+    <div class="comments" id="comments">
+    </div>
+  
+
+
+
+        </div>
+        
+          
+  
+  <div class="sidebar-toggle">
+    <div class="sidebar-toggle-line-wrap">
+      <span class="sidebar-toggle-line sidebar-toggle-line-first"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-middle"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-last"></span>
+    </div>
+  </div>
+
+  <aside id="sidebar" class="sidebar">
+    
+    <div class="sidebar-inner">
+
+      
+
+      
+        <ul class="sidebar-nav motion-element">
+          <li class="sidebar-nav-toc sidebar-nav-active" data-target="post-toc-wrap">
+            Table of Contents
+          </li>
+          <li class="sidebar-nav-overview" data-target="site-overview-wrap">
+            Overview
+          </li>
+        </ul>
+      
+
+      <section class="site-overview-wrap sidebar-panel">
+        <div class="site-overview">
+          <div class="site-author motion-element" itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+            
+              <p class="site-author-name" itemprop="name">zhmin</p>
+              <p class="site-description motion-element" itemprop="description"></p>
+          </div>
+
+          <nav class="site-state motion-element">
+
+            
+              <div class="site-state-item site-state-posts">
+              
+                <a href="/archives/">
+              
+                  <span class="site-state-item-count">32</span>
+                  <span class="site-state-item-name">posts</span>
+                </a>
+              </div>
+            
+
+            
+              
+              
+              <div class="site-state-item site-state-categories">
+                <a href="/categories/index.html">
+                  <span class="site-state-item-count">5</span>
+                  <span class="site-state-item-name">categories</span>
+                </a>
+              </div>
+            
+
+            
+              
+              
+              <div class="site-state-item site-state-tags">
+                
+                  <span class="site-state-item-count">29</span>
+                  <span class="site-state-item-name">tags</span>
+                
+              </div>
+            
+
+          </nav>
+
+          
+
+          
+            <div class="links-of-author motion-element">
+                
+                  <span class="links-of-author-item">
+                    <a href="https://github.com/zhmin" target="_blank" title="GitHub">
+                      
+                        <i class="fa fa-fw fa-github"></i>GitHub</a>
+                  </span>
+                
+            </div>
+          
+
+          
+          
+
+          
+          
+
+          
+
+        </div>
+      </section>
+
+      
+      <!--noindex-->
+        <section class="post-toc-wrap motion-element sidebar-panel sidebar-panel-active">
+          <div class="post-toc">
+
+            
+              
+            
+
+            
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#Kafka-Group-Coordinator-原理"><span class="nav-number">1.</span> <span class="nav-text">Kafka Group Coordinator 原理</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#处理寻找GroupCoordinator地址请求"><span class="nav-number">1.1.</span> <span class="nav-text">处理寻找GroupCoordinator地址请求</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#GroupCoordinator-相关元数据"><span class="nav-number">1.2.</span> <span class="nav-text">GroupCoordinator 相关元数据</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#处理加入请求"><span class="nav-number">1.3.</span> <span class="nav-text">处理加入请求</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#处理请求"><span class="nav-number">1.3.1.</span> <span class="nav-text">处理请求</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#延迟响应"><span class="nav-number">1.3.2.</span> <span class="nav-text">延迟响应</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#完成响应"><span class="nav-number">1.3.3.</span> <span class="nav-text">完成响应</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#处理获取分配结果请求"><span class="nav-number">1.4.</span> <span class="nav-text">处理获取分配结果请求</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#处理心跳请求"><span class="nav-number">1.5.</span> <span class="nav-text">处理心跳请求</span></a></li></ol></li></ol></div>
+            
+
+          </div>
+        </section>
+      <!--/noindex-->
+      
+
+      
+
+    </div>
+  </aside>
+
+
+        
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="footer-inner">
+        <div class="copyright">&copy; <span itemprop="copyrightYear">2019</span>
+  <span class="with-love">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">zhmin</span>
+
+  
+</div>
+
+
+
+
+
+
+
+
+
+
+
+  <script src="https://unpkg.com/mermaid@7.1.2/dist/mermaid.min.js"></script>
+  <script>
+    if (window.mermaid) {
+      mermaid.initialize({"startOnload":true,"theme":"forest"});
+    }
+  </script>
+
+
+
+<script async src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+<span id="busuanzi_container_site_pv">
+    访问量<span id="busuanzi_value_site_pv"></span>
+</span>
+<span class="post-meta-divider">|</span>
+<span id="busuanzi_container_site_uv">
+  访客数<span id="busuanzi_value_site_uv"></span>
+</span>
+
+        
+
+
+
+
+
+
+
+        
+      </div>
+    </footer>
+
+    
+      <div class="back-to-top">
+        <i class="fa fa-arrow-up"></i>
+        
+      </div>
+    
+
+    
+
+  </div>
+
+  
+
+<script type="text/javascript">
+  if (Object.prototype.toString.call(window.Promise) !== '[object Function]') {
+    window.Promise = null;
+  }
+</script>
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery/index.js?v=2.1.3"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fastclick/lib/fastclick.min.js?v=1.0.6"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery_lazyload/jquery.lazyload.js?v=1.9.7"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.ui.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fancybox/source/jquery.fancybox.pack.js?v=2.1.5"></script>
+  
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/utils.js?v=5.1.4"></script>
+
+  <script type="text/javascript" src="/js/src/motion.js?v=5.1.4"></script>
+
+
+
+  
+  
+
+  
+  <script type="text/javascript" src="/js/src/scrollspy.js?v=5.1.4"></script>
+<script type="text/javascript" src="/js/src/post-details.js?v=5.1.4"></script>
+
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/bootstrap.js?v=5.1.4"></script>
+
+
+
+  
+
+
+  
+
+
+
+
+	
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+  <script src="//cdn1.lncld.net/static/js/3.0.4/av-min.js"></script>
+  <script src="//unpkg.com/valine/dist/Valine.min.js"></script>
+  
+  <script type="text/javascript">
+    var GUEST = ['nick','mail','link'];
+    var guest = 'nick';
+    guest = guest.split(',').filter(item=>{
+      return GUEST.indexOf(item)>-1;
+    });
+    new Valine({
+        el: '#comments' ,
+        verify: false,
+        notify: false,
+        appId: 'iYiPQlDR2X2zg2QIql2UEe2o-gzGzoHsz',
+        appKey: 'EW8G4sftwX1pef1zS9EsOeKE',
+        placeholder: 'comment here',
+        avatar:'mm',
+        guest_info:guest,
+        pageSize:'10' || 10,
+    });
+  </script>
+
+
+
+  
+
+
+
+
+
+  
+
+  
+  <script src="https://cdn1.lncld.net/static/js/av-core-mini-0.6.4.js"></script>
+  <script>AV.initialize("iYiPQlDR2X2zg2QIql2UEe2o-gzGzoHsz", "EW8G4sftwX1pef1zS9EsOeKE");</script>
+  <script>
+    function showTime(Counter) {
+      var query = new AV.Query(Counter);
+      var entries = [];
+      var $visitors = $(".leancloud_visitors");
+
+      $visitors.each(function () {
+        entries.push( $(this).attr("id").trim() );
+      });
+
+      query.containedIn('url', entries);
+      query.find()
+        .done(function (results) {
+          var COUNT_CONTAINER_REF = '.leancloud-visitors-count';
+
+          if (results.length === 0) {
+            $visitors.find(COUNT_CONTAINER_REF).text(0);
+            return;
+          }
+
+          for (var i = 0; i < results.length; i++) {
+            var item = results[i];
+            var url = item.get('url');
+            var time = item.get('time');
+            var element = document.getElementById(url);
+
+            $(element).find(COUNT_CONTAINER_REF).text(time);
+          }
+          for(var i = 0; i < entries.length; i++) {
+            var url = entries[i];
+            var element = document.getElementById(url);
+            var countSpan = $(element).find(COUNT_CONTAINER_REF);
+            if( countSpan.text() == '') {
+              countSpan.text(0);
+            }
+          }
+        })
+        .fail(function (object, error) {
+          console.log("Error: " + error.code + " " + error.message);
+        });
+    }
+
+    function addCount(Counter) {
+      var $visitors = $(".leancloud_visitors");
+      var url = $visitors.attr('id').trim();
+      var title = $visitors.attr('data-flag-title').trim();
+      var query = new AV.Query(Counter);
+
+      query.equalTo("url", url);
+      query.find({
+        success: function(results) {
+          if (results.length > 0) {
+            var counter = results[0];
+            counter.fetchWhenSave(true);
+            counter.increment("time");
+            counter.save(null, {
+              success: function(counter) {
+                var $element = $(document.getElementById(url));
+                $element.find('.leancloud-visitors-count').text(counter.get('time'));
+              },
+              error: function(counter, error) {
+                console.log('Failed to save Visitor num, with error message: ' + error.message);
+              }
+            });
+          } else {
+            var newcounter = new Counter();
+            /* Set ACL */
+            var acl = new AV.ACL();
+            acl.setPublicReadAccess(true);
+            acl.setPublicWriteAccess(true);
+            newcounter.setACL(acl);
+            /* End Set ACL */
+            newcounter.set("title", title);
+            newcounter.set("url", url);
+            newcounter.set("time", 1);
+            newcounter.save(null, {
+              success: function(newcounter) {
+                var $element = $(document.getElementById(url));
+                $element.find('.leancloud-visitors-count').text(newcounter.get('time'));
+              },
+              error: function(newcounter, error) {
+                console.log('Failed to create');
+              }
+            });
+          }
+        },
+        error: function(error) {
+          console.log('Error:' + error.code + " " + error.message);
+        }
+      });
+    }
+
+    $(function() {
+      var Counter = AV.Object.extend("Counter");
+      if ($('.leancloud_visitors').length == 1) {
+        addCount(Counter);
+      } else if ($('.post-title-link').length > 1) {
+        showTime(Counter);
+      }
+    });
+  </script>
+
+
+
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+</body>
+</html>
