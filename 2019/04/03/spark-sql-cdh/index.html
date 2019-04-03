@@ -79,18 +79,18 @@
 
 
 
-<meta name="description" content="Cloudera 集群 添加 Spark Sql 命令行目前需要从Hive Sql 迁移到 Spark Sql，但是Cloudera版本的集群，不支持Spark Sql命令行。这篇文章详细介绍了Cloudera的Spark命令是如何启动的，然后在此基础上添加Spark Sql。 Cloudera Spark 启动原理Cloudera的版本目前是5.12，它的内置Spark版本是1.6。不过我已经添">
+<meta name="description" content="Cloudera 集群 添加 Spark Sql 命令行目前需要从Hive Sql 迁移到 Spark Sql，但是CDH版本的集群，不支持Spark Sql命令行。这篇文章详细介绍了Cloudera的Spark命令是如何启动的，然后在此基础上添加Spark Sql。 Cloudera Spark 启动原理CDH的版本目前是5.12，它的内置Spark版本是1.6。不过我已经添加了Spark2的版">
 <meta name="keywords" content="spark, cdh">
 <meta property="og:type" content="article">
-<meta property="og:title" content="Cloudera 集群添加 Spark Sql 命令行">
+<meta property="og:title" content="CDH 集群添加 Spark Sql 命令行">
 <meta property="og:url" content="https://zhmin.github.io/2019/04/03/spark-sql-cdh/index.html">
 <meta property="og:site_name" content="blog">
-<meta property="og:description" content="Cloudera 集群 添加 Spark Sql 命令行目前需要从Hive Sql 迁移到 Spark Sql，但是Cloudera版本的集群，不支持Spark Sql命令行。这篇文章详细介绍了Cloudera的Spark命令是如何启动的，然后在此基础上添加Spark Sql。 Cloudera Spark 启动原理Cloudera的版本目前是5.12，它的内置Spark版本是1.6。不过我已经添">
+<meta property="og:description" content="Cloudera 集群 添加 Spark Sql 命令行目前需要从Hive Sql 迁移到 Spark Sql，但是CDH版本的集群，不支持Spark Sql命令行。这篇文章详细介绍了Cloudera的Spark命令是如何启动的，然后在此基础上添加Spark Sql。 Cloudera Spark 启动原理CDH的版本目前是5.12，它的内置Spark版本是1.6。不过我已经添加了Spark2的版">
 <meta property="og:locale" content="default">
-<meta property="og:updated_time" content="2019-04-03T13:52:20.407Z">
+<meta property="og:updated_time" content="2019-04-03T15:21:28.794Z">
 <meta name="twitter:card" content="summary">
-<meta name="twitter:title" content="Cloudera 集群添加 Spark Sql 命令行">
-<meta name="twitter:description" content="Cloudera 集群 添加 Spark Sql 命令行目前需要从Hive Sql 迁移到 Spark Sql，但是Cloudera版本的集群，不支持Spark Sql命令行。这篇文章详细介绍了Cloudera的Spark命令是如何启动的，然后在此基础上添加Spark Sql。 Cloudera Spark 启动原理Cloudera的版本目前是5.12，它的内置Spark版本是1.6。不过我已经添">
+<meta name="twitter:title" content="CDH 集群添加 Spark Sql 命令行">
+<meta name="twitter:description" content="Cloudera 集群 添加 Spark Sql 命令行目前需要从Hive Sql 迁移到 Spark Sql，但是CDH版本的集群，不支持Spark Sql命令行。这篇文章详细介绍了Cloudera的Spark命令是如何启动的，然后在此基础上添加Spark Sql。 Cloudera Spark 启动原理CDH的版本目前是5.12，它的内置Spark版本是1.6。不过我已经添加了Spark2的版">
 
 
 
@@ -126,7 +126,7 @@
 
 
 
-  <title>Cloudera 集群添加 Spark Sql 命令行 | blog</title>
+  <title>CDH 集群添加 Spark Sql 命令行 | blog</title>
   
 
 
@@ -260,7 +260,7 @@
 
         
         
-          <h2 class="post-title" itemprop="name headline">Cloudera 集群添加 Spark Sql 命令行</h2>
+          <h2 class="post-title" itemprop="name headline">CDH 集群添加 Spark Sql 命令行</h2>
         
 
         <div class="post-meta">
@@ -322,7 +322,7 @@
 
           
           
-             <span id="/2019/04/03/spark-sql-cdh/" class="leancloud_visitors" data-flag-title="Cloudera 集群添加 Spark Sql 命令行">
+             <span id="/2019/04/03/spark-sql-cdh/" class="leancloud_visitors" data-flag-title="CDH 集群添加 Spark Sql 命令行">
                <span class="post-meta-divider">|</span>
                <span class="post-meta-item-icon">
                  <i class="fa fa-eye"></i>
@@ -353,8 +353,8 @@
       
 
       
-        <h1 id="Cloudera-集群-添加-Spark-Sql-命令行"><a href="#Cloudera-集群-添加-Spark-Sql-命令行" class="headerlink" title="Cloudera 集群 添加 Spark Sql 命令行"></a>Cloudera 集群 添加 Spark Sql 命令行</h1><p>目前需要从Hive Sql 迁移到 Spark Sql，但是Cloudera版本的集群，不支持Spark Sql命令行。这篇文章详细介绍了Cloudera的Spark命令是如何启动的，然后在此基础上添加Spark Sql。</p>
-<h2 id="Cloudera-Spark-启动原理"><a href="#Cloudera-Spark-启动原理" class="headerlink" title="Cloudera Spark 启动原理"></a>Cloudera Spark 启动原理</h2><p>Cloudera的版本目前是5.12，它的内置Spark版本是1.6。不过我已经添加了Spark2的版本，所以对于spark sql的支持，下面讲解的也只是针对spark2。如果Spark的版本号不同，对应的原理也是一样。</p>
+        <h1 id="Cloudera-集群-添加-Spark-Sql-命令行"><a href="#Cloudera-集群-添加-Spark-Sql-命令行" class="headerlink" title="Cloudera 集群 添加 Spark Sql 命令行"></a>Cloudera 集群 添加 Spark Sql 命令行</h1><p>目前需要从Hive Sql 迁移到 Spark Sql，但是CDH版本的集群，不支持Spark Sql命令行。这篇文章详细介绍了Cloudera的Spark命令是如何启动的，然后在此基础上添加Spark Sql。</p>
+<h2 id="Cloudera-Spark-启动原理"><a href="#Cloudera-Spark-启动原理" class="headerlink" title="Cloudera Spark 启动原理"></a>Cloudera Spark 启动原理</h2><p>CDH的版本目前是5.12，它的内置Spark版本是1.6。不过我已经添加了Spark2的版本，所以对于spark sql的支持，下面讲解的也只是针对spark2。如果Spark的版本号不同，对应的原理也是一样。</p>
 <p>我们通过以spark2-submit命令为例，查看它的启动过程。</p>
 <p>首先查看该命令的位置，可以看到最后链接指向了/opt/cloudera/parcels/SPARK2-2.2.0.cloudera3-1.cdh5.13.3.p0.556753/bin/spark2-submit。</p>
 <figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">[root@master01 ~]# which spark2-submit</span><br><span class="line">/bin/spark2-submit</span><br><span class="line"></span><br><span class="line">[root@master01 ~]# ll /bin/spark2-submit</span><br><span class="line">lrwxrwxrwx 1 root root 31 Feb 15 10:44 /bin/spark2-submit -&gt; /etc/alternatives/spark2-submit</span><br><span class="line"></span><br><span class="line">[root@master01 ~]# ll /etc/alternatives/spark2-submit</span><br><span class="line">lrwxrwxrwx 1 root root 84 Feb 15 10:44 /etc/alternatives/spark2-submit -&gt; /opt/cloudera/parcels/SPARK2-2.2.0.cloudera3-1.cdh5.13.3.p0.556753/bin/spark2-submit</span><br></pre></td></tr></table></figure>
