@@ -1,0 +1,910 @@
+<!DOCTYPE html>
+
+
+
+  
+
+
+<html class="theme-next mist use-motion" lang="">
+<head><meta name="generator" content="Hexo 3.8.0">
+  <meta charset="UTF-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="theme-color" content="#222">
+
+
+
+
+
+
+
+
+
+<meta http-equiv="Cache-Control" content="no-transform">
+<meta http-equiv="Cache-Control" content="no-siteapp">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+  <link href="/lib/fancybox/source/jquery.fancybox.css?v=2.1.5" rel="stylesheet" type="text/css">
+
+
+
+
+
+
+
+<link href="/lib/font-awesome/css/font-awesome.min.css?v=4.6.2" rel="stylesheet" type="text/css">
+
+<link href="/css/main.css?v=5.1.4" rel="stylesheet" type="text/css">
+
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png?v=5.1.4">
+
+
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png?v=5.1.4">
+
+
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png?v=5.1.4">
+
+
+  <link rel="mask-icon" href="/images/logo.svg?v=5.1.4" color="#222">
+
+
+
+
+
+  <meta name="keywords" content="spark, cdh,">
+
+
+
+
+
+
+
+
+
+
+<meta name="description" content="Cloudera 集群 添加 Spark Sql 命令行目前需要从Hive Sql 迁移到 Spark Sql，但是Cloudera版本的集群，不支持Spark Sql命令行。这篇文章详细介绍了Cloudera的Spark命令是如何启动的，然后在此基础上添加Spark Sql。 Cloudera Spark 启动原理Cloudera的版本目前是5.12，它的内置Spark版本是1.6。不过我已经添">
+<meta name="keywords" content="spark, cdh">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Cloudera 集群添加 Spark Sql 命令行">
+<meta property="og:url" content="https://zhmin.github.io/2019/04/03/spark-sql-cdh/index.html">
+<meta property="og:site_name" content="blog">
+<meta property="og:description" content="Cloudera 集群 添加 Spark Sql 命令行目前需要从Hive Sql 迁移到 Spark Sql，但是Cloudera版本的集群，不支持Spark Sql命令行。这篇文章详细介绍了Cloudera的Spark命令是如何启动的，然后在此基础上添加Spark Sql。 Cloudera Spark 启动原理Cloudera的版本目前是5.12，它的内置Spark版本是1.6。不过我已经添">
+<meta property="og:locale" content="default">
+<meta property="og:updated_time" content="2019-04-03T13:52:20.407Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Cloudera 集群添加 Spark Sql 命令行">
+<meta name="twitter:description" content="Cloudera 集群 添加 Spark Sql 命令行目前需要从Hive Sql 迁移到 Spark Sql，但是Cloudera版本的集群，不支持Spark Sql命令行。这篇文章详细介绍了Cloudera的Spark命令是如何启动的，然后在此基础上添加Spark Sql。 Cloudera Spark 启动原理Cloudera的版本目前是5.12，它的内置Spark版本是1.6。不过我已经添">
+
+
+
+<script type="text/javascript" id="hexo.configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '/',
+    scheme: 'Mist',
+    version: '5.1.4',
+    sidebar: {"position":"left","display":"hide","offset":12,"b2t":false,"scrollpercent":false,"onmobile":false},
+    fancybox: true,
+    tabs: true,
+    motion: {"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},
+    duoshuo: {
+      userId: '0',
+      author: 'Author'
+    },
+    algolia: {
+      applicationID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    }
+  };
+</script>
+
+
+
+  <link rel="canonical" href="https://zhmin.github.io/2019/04/03/spark-sql-cdh/">
+
+
+
+
+
+  <title>Cloudera 集群添加 Spark Sql 命令行 | blog</title>
+  
+
+
+
+
+
+
+
+
+</head>
+
+<body itemscope="" itemtype="http://schema.org/WebPage" lang="default">
+
+  
+  
+    
+  
+
+  <div class="container sidebar-position-left page-post-detail">
+    <div class="headband"></div>
+
+    <header id="header" class="header" itemscope="" itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-wrapper">
+  <div class="site-meta ">
+    
+
+    <div class="custom-logo-site-title">
+      <a href="/" class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">blog</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+      
+        <h1 class="site-subtitle" itemprop="description"></h1>
+      
+  </div>
+
+  <div class="site-nav-toggle">
+    <button>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+    </button>
+  </div>
+</div>
+
+<nav class="site-nav">
+  
+
+  
+    <ul id="menu" class="menu">
+      
+        
+        <li class="menu-item menu-item-home">
+          <a href="/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-home"></i> <br>
+            
+            Home
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-categories">
+          <a href="/categories/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-th"></i> <br>
+            
+            Categories
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-archives">
+          <a href="/archives/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-archive"></i> <br>
+            
+            Archives
+          </a>
+        </li>
+      
+
+      
+    </ul>
+  
+
+  
+</nav>
+
+
+
+ </div>
+    </header>
+
+    <main id="main" class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          <div id="content" class="content">
+            
+
+  <div id="posts" class="posts-expand">
+    
+
+  
+
+  
+  
+  
+
+  <article class="post post-type-normal" itemscope="" itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block">
+    <link itemprop="mainEntityOfPage" href="https://zhmin.github.io/2019/04/03/spark-sql-cdh/">
+
+    <span hidden itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="zhmin">
+      <meta itemprop="description" content="">
+      <meta itemprop="image" content="/images/avatar.gif">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope="" itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="blog">
+    </span>
+
+    
+      <header class="post-header">
+
+        
+        
+          <h2 class="post-title" itemprop="name headline">Cloudera 集群添加 Spark Sql 命令行</h2>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">Posted on</span>
+              
+              <time title="Post created" itemprop="dateCreated datePublished" datetime="2019-04-03T21:37:32+08:00">
+                2019-04-03
+              </time>
+            
+
+            
+
+            
+          </span>
+
+          
+            <span class="post-category">
+            
+              <span class="post-meta-divider">|</span>
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">In</span>
+              
+              
+                <span itemprop="about" itemscope="" itemtype="http://schema.org/Thing">
+                  <a href="/categories/spark-sql/" itemprop="url" rel="index">
+                    <span itemprop="name">spark sql</span>
+                  </a>
+                </span>
+
+                
+                
+              
+            </span>
+          
+
+          
+            
+              <span class="post-comments-count">
+                <span class="post-meta-divider">|</span>
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-comment-o"></i>
+                </span>
+                <a href="/2019/04/03/spark-sql-cdh/#comments" itemprop="discussionUrl">
+                  <span class="post-comments-count valine-comment-count" data-xid="/2019/04/03/spark-sql-cdh/" itemprop="commentCount"></span>
+                </a>
+              </span>
+            
+          
+
+          
+          
+             <span id="/2019/04/03/spark-sql-cdh/" class="leancloud_visitors" data-flag-title="Cloudera 集群添加 Spark Sql 命令行">
+               <span class="post-meta-divider">|</span>
+               <span class="post-meta-item-icon">
+                 <i class="fa fa-eye"></i>
+               </span>
+               
+                 <span class="post-meta-item-text">Visitors&#58;</span>
+               
+                 <span class="leancloud-visitors-count"></span>
+             </span>
+          
+
+          
+
+          
+
+          
+
+        </div>
+      </header>
+    
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+      
+
+      
+        <h1 id="Cloudera-集群-添加-Spark-Sql-命令行"><a href="#Cloudera-集群-添加-Spark-Sql-命令行" class="headerlink" title="Cloudera 集群 添加 Spark Sql 命令行"></a>Cloudera 集群 添加 Spark Sql 命令行</h1><p>目前需要从Hive Sql 迁移到 Spark Sql，但是Cloudera版本的集群，不支持Spark Sql命令行。这篇文章详细介绍了Cloudera的Spark命令是如何启动的，然后在此基础上添加Spark Sql。</p>
+<h2 id="Cloudera-Spark-启动原理"><a href="#Cloudera-Spark-启动原理" class="headerlink" title="Cloudera Spark 启动原理"></a>Cloudera Spark 启动原理</h2><p>Cloudera的版本目前是5.12，它的内置Spark版本是1.6。不过我已经添加了Spark2的版本，所以对于spark sql的支持，下面讲解的也只是针对spark2。如果Spark的版本号不同，对应的原理也是一样。</p>
+<p>我们通过以spark2-submit命令为例，查看它的启动过程。</p>
+<p>首先查看该命令的位置，可以看到最后链接指向了/opt/cloudera/parcels/SPARK2-2.2.0.cloudera3-1.cdh5.13.3.p0.556753/bin/spark2-submit。</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">[root@master01 ~]# which spark2-submit</span><br><span class="line">/bin/spark2-submit</span><br><span class="line"></span><br><span class="line">[root@master01 ~]# ll /bin/spark2-submit</span><br><span class="line">lrwxrwxrwx 1 root root 31 Feb 15 10:44 /bin/spark2-submit -&gt; /etc/alternatives/spark2-submit</span><br><span class="line"></span><br><span class="line">[root@master01 ~]# ll /etc/alternatives/spark2-submit</span><br><span class="line">lrwxrwxrwx 1 root root 84 Feb 15 10:44 /etc/alternatives/spark2-submit -&gt; /opt/cloudera/parcels/SPARK2-2.2.0.cloudera3-1.cdh5.13.3.p0.556753/bin/spark2-submit</span><br></pre></td></tr></table></figure>
+<p>接下来看看spark2-submit文件的内容</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#</span>!/bin/bash</span><br><span class="line"><span class="meta">  #</span> Reference: http://stackoverflow.com/questions/59895/can-a-bash-script-tell-what-directory-its-stored-in</span><br><span class="line">  SOURCE="$&#123;BASH_SOURCE[0]&#125;" # 获取shell文件路径</span><br><span class="line">  BIN_DIR="$( dirname "$SOURCE" )" # 获取该shell文件的所在文件夹</span><br><span class="line"><span class="meta">  #</span> 从上面的代码可以看到，这里都使用了链接的方法。 -h 选项 是测试该文件是否为链接</span><br><span class="line">  while [ -h "$SOURCE" ]</span><br><span class="line">  do</span><br><span class="line">    SOURCE="$(readlink "$SOURCE")" # 使用readlink方法，获取该文件的绝对路径</span><br><span class="line">    [[ $SOURCE != /* ]] &amp;&amp; SOURCE="$DIR/$SOURCE" # 检查文件路径是否为根目录</span><br><span class="line">    BIN_DIR="$( cd -P "$( dirname "$SOURCE"  )" &amp;&amp; pwd )"  # </span><br><span class="line">  done</span><br><span class="line">  BIN_DIR="$( cd -P "$( dirname "$SOURCE" )" &amp;&amp; pwd )" # 进入到文件的目录，这里的值为/opt/cloudera/parcels/SPARK2-2.2.0.cloudera3-1.cdh5.13.3.p0.556753/bin/</span><br><span class="line">  CDH_LIB_DIR=$BIN_DIR/../../CDH/lib # 这里的值为/opt/cloudera/parcels/CDH/lib</span><br><span class="line">  LIB_DIR=$BIN_DIR/../lib # 这里的值为/opt/cloudera/parcels/SPARK2-2.2.0.cloudera3-1.cdh5.13.3.p0.556753/lib</span><br><span class="line">export HADOOP_HOME=$CDH_LIB_DIR/hadoop # 设置HADOOP_HOME环境变量为/opt/cloudera/parcels/CDH/lib/hadoop</span><br><span class="line"></span><br><span class="line"><span class="meta">#</span> 查看JAVA_HOME环境变量</span><br><span class="line">. $CDH_LIB_DIR/bigtop-utils/bigtop-detect-javahome</span><br><span class="line"></span><br><span class="line">exec $LIB_DIR/spark2/bin/spark-submit "$@" # 执行命令</span><br></pre></td></tr></table></figure>
+<p>spark2-submit命令会设置好环境变量，并且进入到对应的执行目录里。最后执行了/opt/cloudera/parcels/SPARK2-2.2.0.cloudera3-1.cdh5.13.3.p0.556753/lib/spark2/bin/spark-submit文件，下面看看这个文件的内容</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#</span>!/usr/bin/env bash</span><br><span class="line"><span class="meta">#</span> 寻找环境变量SPARK_HOME的值</span><br><span class="line">if [ -z "$&#123;SPARK_HOME&#125;" ]; then</span><br><span class="line">  source "$(dirname "$0")"/find-spark-home</span><br><span class="line">fi</span><br><span class="line"></span><br><span class="line"><span class="meta">#</span> disable randomized hash for string in Python 3.3+</span><br><span class="line">export PYTHONHASHSEED=0</span><br><span class="line"><span class="meta">#</span> 执行java命令，main类为org.apache.spark.deploy.SparkSubmit</span><br><span class="line">exec "$&#123;SPARK_HOME&#125;"/bin/spark-class org.apache.spark.deploy.SparkSubmit "$@"</span><br></pre></td></tr></table></figure>
+<p>上面使用了find-spark-home文件，查看SPARK_HOME的值。如果存在SPARK_HOME存在，则直接返回。如果不返回， 则查看当前目录下，是否有find_spark_home.py文件。如果存在find_spark_home.py文件，则调用python执行获取结果。如果不存在，则使用当前目录为SPARK_HOME。</p>
+<p>这里Cloudera的最后使用/opt/cloudera/parcels/SPARK2/lib/spark2目录，作为SPARK_HOME的值。</p>
+<h2 id="添加-Spark-Sql-命令"><a href="#添加-Spark-Sql-命令" class="headerlink" title="添加 Spark Sql 命令"></a>添加 Spark Sql 命令</h2><p>首先我们添加 /bin 目录下添加 spark2-sql 链接文件，这样 spark2-sql 命令就可以被找到</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">ln -s  /etc/alternatives/spark2-sql /bin/spark2-sql</span><br><span class="line">ln -s  /opt/cloudera/parcels/SPARK2/bin/spark2-sql  /etc/alternatives/spark2-sql</span><br></pre></td></tr></table></figure>
+<p>创建文件 /opt/cloudera/parcels/SPARK2/bin/spark2-sql，文件内容如下</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#</span>!/bin/bash</span><br><span class="line"><span class="meta">  #</span> Reference: http://stackoverflow.com/questions/59895/can-a-bash-script-tell-what-directory-its-stored-in</span><br><span class="line">  SOURCE="$&#123;BASH_SOURCE[0]&#125;"</span><br><span class="line">  BIN_DIR="$( dirname "$SOURCE" )"</span><br><span class="line">  while [ -h "$SOURCE" ]</span><br><span class="line">  do</span><br><span class="line">    SOURCE="$(readlink "$SOURCE")"</span><br><span class="line">    [[ $SOURCE != /* ]] &amp;&amp; SOURCE="$DIR/$SOURCE"</span><br><span class="line">    BIN_DIR="$( cd -P "$( dirname "$SOURCE"  )" &amp;&amp; pwd )"</span><br><span class="line">  done</span><br><span class="line">  BIN_DIR="$( cd -P "$( dirname "$SOURCE" )" &amp;&amp; pwd )"</span><br><span class="line">  CDH_LIB_DIR=$BIN_DIR/../../CDH/lib</span><br><span class="line">  LIB_DIR=$BIN_DIR/../lib</span><br><span class="line">export HADOOP_HOME=$CDH_LIB_DIR/hadoop</span><br><span class="line"></span><br><span class="line"><span class="meta">#</span> Autodetect JAVA_HOME if not defined</span><br><span class="line">. $CDH_LIB_DIR/bigtop-utils/bigtop-detect-javahome</span><br><span class="line"></span><br><span class="line">exec $LIB_DIR/spark2/bin/spark-sql "$@"</span><br></pre></td></tr></table></figure>
+<p>然后创建 /opt/cloudera/parcels/SPARK2-2.2.0.cloudera3-1.cdh5.13.3.p0.556753/lib/spark2/bin/spark-sql 文件，内容如下</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#</span>!/usr/bin/env bash</span><br><span class="line"></span><br><span class="line"><span class="meta">#</span></span><br><span class="line"><span class="meta">#</span> Licensed to the Apache Software Foundation (ASF) under one or more</span><br><span class="line"><span class="meta">#</span> contributor license agreements.  See the NOTICE file distributed with</span><br><span class="line"><span class="meta">#</span> this work for additional information regarding copyright ownership.</span><br><span class="line"><span class="meta">#</span> The ASF licenses this file to You under the Apache License, Version 2.0</span><br><span class="line"><span class="meta">#</span> (the "License"); you may not use this file except in compliance with</span><br><span class="line"><span class="meta">#</span> the License.  You may obtain a copy of the License at</span><br><span class="line"><span class="meta">#</span></span><br><span class="line"><span class="meta">#</span>    http://www.apache.org/licenses/LICENSE-2.0</span><br><span class="line"><span class="meta">#</span></span><br><span class="line"><span class="meta">#</span> Unless required by applicable law or agreed to in writing, software</span><br><span class="line"><span class="meta">#</span> distributed under the License is distributed on an "AS IS" BASIS,</span><br><span class="line"><span class="meta">#</span> WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.</span><br><span class="line"><span class="meta">#</span> See the License for the specific language governing permissions and</span><br><span class="line"><span class="meta">#</span> limitations under the License.</span><br><span class="line"><span class="meta">#</span></span><br><span class="line"></span><br><span class="line">if [ -z "$&#123;SPARK_HOME&#125;" ]; then</span><br><span class="line">  source "$(dirname "$0")"/find-spark-home</span><br><span class="line">fi</span><br><span class="line"></span><br><span class="line">export _SPARK_CMD_USAGE="Usage: ./bin/spark-sql [options] [cli option]"</span><br><span class="line">exec "$&#123;SPARK_HOME&#125;"/bin/spark-submit --class org.apache.spark.sql.hive.thriftserver.SparkSQLCLIDriver "$@"</span><br></pre></td></tr></table></figure>
+<p>这里将相关命令的文件，都已经配置好了。但是因为Cloudera内置的Spark库不全，需要将缺少的依赖包添加进来。我们可以直接下载编译完成的Spark库，下载网址为  <a href="http://archive.apache.org/dist/spark/" target="_blank" rel="noopener">http://archive.apache.org/dist/spark/</a> 。从里面选取的版本号，需要与Cloudera上安装的Spark版本一致。</p>
+<p>下载完并且解压后，里面会有一个 jars 的目录，将Cloudera缺少的库，拷贝到cloudera对应的库文件夹里面即可。</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">cp jars/spark-hive-thriftserver_2.11-2.2.0.jar /opt/cloudera/parcels/SPARK2/lib/spark2/jars/</span><br><span class="line">cp jars/hive-* /opt/cloudera/parcels/SPARK2/lib/spark2/jars/ # 注意到这里不要覆盖原有文件</span><br></pre></td></tr></table></figure>
+<p>整个添加的过程就完成了，接下来就可以直接使用spark-sql命令行了</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">sudo -u hive spark2-sql</span><br><span class="line"><span class="meta">spark-sql&gt;</span> use test;</span><br><span class="line"><span class="meta">spark-sql&gt;</span> show tables;</span><br><span class="line">.....</span><br></pre></td></tr></table></figure>
+
+      
+    </div>
+    
+    
+    
+
+    
+
+    
+
+    
+
+    <footer class="post-footer">
+      
+        <div class="post-tags">
+          
+            <a href="/tags/spark-cdh/" rel="tag"># spark, cdh</a>
+          
+        </div>
+      
+
+      
+      
+      
+
+      
+        <div class="post-nav">
+          <div class="post-nav-next post-nav-item">
+            
+              <a href="/2019/04/01/kafka-group-coordinator/" rel="next" title="Kafka Group Coordinator 原理">
+                <i class="fa fa-chevron-left"></i> Kafka Group Coordinator 原理
+              </a>
+            
+          </div>
+
+          <span class="post-nav-divider"></span>
+
+          <div class="post-nav-prev post-nav-item">
+            
+          </div>
+        </div>
+      
+
+      
+      
+    </footer>
+  </div>
+  
+  
+  
+  </article>
+
+
+
+    <div class="post-spread">
+      
+    </div>
+  </div>
+
+
+          </div>
+          
+
+
+          
+
+  
+    <div class="comments" id="comments">
+    </div>
+  
+
+
+
+        </div>
+        
+          
+  
+  <div class="sidebar-toggle">
+    <div class="sidebar-toggle-line-wrap">
+      <span class="sidebar-toggle-line sidebar-toggle-line-first"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-middle"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-last"></span>
+    </div>
+  </div>
+
+  <aside id="sidebar" class="sidebar">
+    
+    <div class="sidebar-inner">
+
+      
+
+      
+        <ul class="sidebar-nav motion-element">
+          <li class="sidebar-nav-toc sidebar-nav-active" data-target="post-toc-wrap">
+            Table of Contents
+          </li>
+          <li class="sidebar-nav-overview" data-target="site-overview-wrap">
+            Overview
+          </li>
+        </ul>
+      
+
+      <section class="site-overview-wrap sidebar-panel">
+        <div class="site-overview">
+          <div class="site-author motion-element" itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+            
+              <p class="site-author-name" itemprop="name">zhmin</p>
+              <p class="site-description motion-element" itemprop="description"></p>
+          </div>
+
+          <nav class="site-state motion-element">
+
+            
+              <div class="site-state-item site-state-posts">
+              
+                <a href="/archives/">
+              
+                  <span class="site-state-item-count">33</span>
+                  <span class="site-state-item-name">posts</span>
+                </a>
+              </div>
+            
+
+            
+              
+              
+              <div class="site-state-item site-state-categories">
+                <a href="/categories/index.html">
+                  <span class="site-state-item-count">6</span>
+                  <span class="site-state-item-name">categories</span>
+                </a>
+              </div>
+            
+
+            
+              
+              
+              <div class="site-state-item site-state-tags">
+                
+                  <span class="site-state-item-count">30</span>
+                  <span class="site-state-item-name">tags</span>
+                
+              </div>
+            
+
+          </nav>
+
+          
+
+          
+            <div class="links-of-author motion-element">
+                
+                  <span class="links-of-author-item">
+                    <a href="https://github.com/zhmin" target="_blank" title="GitHub">
+                      
+                        <i class="fa fa-fw fa-github"></i>GitHub</a>
+                  </span>
+                
+            </div>
+          
+
+          
+          
+
+          
+          
+
+          
+
+        </div>
+      </section>
+
+      
+      <!--noindex-->
+        <section class="post-toc-wrap motion-element sidebar-panel sidebar-panel-active">
+          <div class="post-toc">
+
+            
+              
+            
+
+            
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#Cloudera-集群-添加-Spark-Sql-命令行"><span class="nav-number">1.</span> <span class="nav-text">Cloudera 集群 添加 Spark Sql 命令行</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#Cloudera-Spark-启动原理"><span class="nav-number">1.1.</span> <span class="nav-text">Cloudera Spark 启动原理</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#添加-Spark-Sql-命令"><span class="nav-number">1.2.</span> <span class="nav-text">添加 Spark Sql 命令</span></a></li></ol></li></ol></div>
+            
+
+          </div>
+        </section>
+      <!--/noindex-->
+      
+
+      
+
+    </div>
+  </aside>
+
+
+        
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="footer-inner">
+        <div class="copyright">&copy; <span itemprop="copyrightYear">2019</span>
+  <span class="with-love">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">zhmin</span>
+
+  
+</div>
+
+
+
+
+
+
+
+
+
+
+
+  <script src="https://unpkg.com/mermaid@7.1.2/dist/mermaid.min.js"></script>
+  <script>
+    if (window.mermaid) {
+      mermaid.initialize({"startOnload":true,"theme":"forest"});
+    }
+  </script>
+
+
+
+<script async src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+<span id="busuanzi_container_site_pv">
+    访问量<span id="busuanzi_value_site_pv"></span>
+</span>
+<span class="post-meta-divider">|</span>
+<span id="busuanzi_container_site_uv">
+  访客数<span id="busuanzi_value_site_uv"></span>
+</span>
+
+        
+
+
+
+
+
+
+
+        
+      </div>
+    </footer>
+
+    
+      <div class="back-to-top">
+        <i class="fa fa-arrow-up"></i>
+        
+      </div>
+    
+
+    
+
+  </div>
+
+  
+
+<script type="text/javascript">
+  if (Object.prototype.toString.call(window.Promise) !== '[object Function]') {
+    window.Promise = null;
+  }
+</script>
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery/index.js?v=2.1.3"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fastclick/lib/fastclick.min.js?v=1.0.6"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery_lazyload/jquery.lazyload.js?v=1.9.7"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.ui.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fancybox/source/jquery.fancybox.pack.js?v=2.1.5"></script>
+  
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/utils.js?v=5.1.4"></script>
+
+  <script type="text/javascript" src="/js/src/motion.js?v=5.1.4"></script>
+
+
+
+  
+  
+
+  
+  <script type="text/javascript" src="/js/src/scrollspy.js?v=5.1.4"></script>
+<script type="text/javascript" src="/js/src/post-details.js?v=5.1.4"></script>
+
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/bootstrap.js?v=5.1.4"></script>
+
+
+
+  
+
+
+  
+
+
+
+
+	
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+  <script src="//cdn1.lncld.net/static/js/3.0.4/av-min.js"></script>
+  <script src="//unpkg.com/valine/dist/Valine.min.js"></script>
+  
+  <script type="text/javascript">
+    var GUEST = ['nick','mail','link'];
+    var guest = 'nick';
+    guest = guest.split(',').filter(item=>{
+      return GUEST.indexOf(item)>-1;
+    });
+    new Valine({
+        el: '#comments' ,
+        verify: false,
+        notify: false,
+        appId: 'iYiPQlDR2X2zg2QIql2UEe2o-gzGzoHsz',
+        appKey: 'EW8G4sftwX1pef1zS9EsOeKE',
+        placeholder: 'comment here',
+        avatar:'mm',
+        guest_info:guest,
+        pageSize:'10' || 10,
+    });
+  </script>
+
+
+
+  
+
+
+
+
+
+  
+
+  
+  <script src="https://cdn1.lncld.net/static/js/av-core-mini-0.6.4.js"></script>
+  <script>AV.initialize("iYiPQlDR2X2zg2QIql2UEe2o-gzGzoHsz", "EW8G4sftwX1pef1zS9EsOeKE");</script>
+  <script>
+    function showTime(Counter) {
+      var query = new AV.Query(Counter);
+      var entries = [];
+      var $visitors = $(".leancloud_visitors");
+
+      $visitors.each(function () {
+        entries.push( $(this).attr("id").trim() );
+      });
+
+      query.containedIn('url', entries);
+      query.find()
+        .done(function (results) {
+          var COUNT_CONTAINER_REF = '.leancloud-visitors-count';
+
+          if (results.length === 0) {
+            $visitors.find(COUNT_CONTAINER_REF).text(0);
+            return;
+          }
+
+          for (var i = 0; i < results.length; i++) {
+            var item = results[i];
+            var url = item.get('url');
+            var time = item.get('time');
+            var element = document.getElementById(url);
+
+            $(element).find(COUNT_CONTAINER_REF).text(time);
+          }
+          for(var i = 0; i < entries.length; i++) {
+            var url = entries[i];
+            var element = document.getElementById(url);
+            var countSpan = $(element).find(COUNT_CONTAINER_REF);
+            if( countSpan.text() == '') {
+              countSpan.text(0);
+            }
+          }
+        })
+        .fail(function (object, error) {
+          console.log("Error: " + error.code + " " + error.message);
+        });
+    }
+
+    function addCount(Counter) {
+      var $visitors = $(".leancloud_visitors");
+      var url = $visitors.attr('id').trim();
+      var title = $visitors.attr('data-flag-title').trim();
+      var query = new AV.Query(Counter);
+
+      query.equalTo("url", url);
+      query.find({
+        success: function(results) {
+          if (results.length > 0) {
+            var counter = results[0];
+            counter.fetchWhenSave(true);
+            counter.increment("time");
+            counter.save(null, {
+              success: function(counter) {
+                var $element = $(document.getElementById(url));
+                $element.find('.leancloud-visitors-count').text(counter.get('time'));
+              },
+              error: function(counter, error) {
+                console.log('Failed to save Visitor num, with error message: ' + error.message);
+              }
+            });
+          } else {
+            var newcounter = new Counter();
+            /* Set ACL */
+            var acl = new AV.ACL();
+            acl.setPublicReadAccess(true);
+            acl.setPublicWriteAccess(true);
+            newcounter.setACL(acl);
+            /* End Set ACL */
+            newcounter.set("title", title);
+            newcounter.set("url", url);
+            newcounter.set("time", 1);
+            newcounter.save(null, {
+              success: function(newcounter) {
+                var $element = $(document.getElementById(url));
+                $element.find('.leancloud-visitors-count').text(newcounter.get('time'));
+              },
+              error: function(newcounter, error) {
+                console.log('Failed to create');
+              }
+            });
+          }
+        },
+        error: function(error) {
+          console.log('Error:' + error.code + " " + error.message);
+        }
+      });
+    }
+
+    $(function() {
+      var Counter = AV.Object.extend("Counter");
+      if ($('.leancloud_visitors').length == 1) {
+        addCount(Counter);
+      } else if ($('.post-title-link').length > 1) {
+        showTime(Counter);
+      }
+    });
+  </script>
+
+
+
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+</body>
+</html>

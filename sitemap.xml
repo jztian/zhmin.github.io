@@ -2,6 +2,13 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   
   <url>
+    <loc>https://zhmin.github.io/2019/04/03/spark-sql-cdh/</loc>
+    
+    <lastmod>2019-04-03T13:52:20.407Z</lastmod>
+    
+  </url>
+  
+  <url>
     <loc>https://zhmin.github.io/2019/04/01/kafka-group-coordinator/</loc>
     
     <lastmod>2019-04-01T15:02:11.240Z</lastmod>
