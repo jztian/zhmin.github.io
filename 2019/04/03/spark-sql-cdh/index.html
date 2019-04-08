@@ -87,7 +87,7 @@
 <meta property="og:site_name" content="blog">
 <meta property="og:description" content="Cloudera 集群 添加 Spark Sql 命令行目前需要从Hive Sql 迁移到 Spark Sql，但是CDH版本的集群，不支持Spark Sql命令行。这篇文章详细介绍了Cloudera的Spark命令是如何启动的，然后在此基础上添加Spark Sql。 Cloudera Spark 启动原理CDH的版本目前是5.12，它的内置Spark版本是1.6。不过我已经添加了Spark2的版">
 <meta property="og:locale" content="default">
-<meta property="og:updated_time" content="2019-04-03T15:21:28.794Z">
+<meta property="og:updated_time" content="2019-04-08T15:05:00.720Z">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="CDH 集群添加 Spark Sql 命令行">
 <meta name="twitter:description" content="Cloudera 集群 添加 Spark Sql 命令行目前需要从Hive Sql 迁移到 Spark Sql，但是CDH版本的集群，不支持Spark Sql命令行。这篇文章详细介绍了Cloudera的Spark命令是如何启动的，然后在此基础上添加Spark Sql。 Cloudera Spark 启动原理CDH的版本目前是5.12，它的内置Spark版本是1.6。不过我已经添加了Spark2的版">
@@ -373,8 +373,10 @@
 <p>这里将相关命令的文件，都已经配置好了。但是因为Cloudera内置的Spark库不全，需要将缺少的依赖包添加进来。我们可以直接下载编译完成的Spark库，下载网址为  <a href="http://archive.apache.org/dist/spark/" target="_blank" rel="noopener">http://archive.apache.org/dist/spark/</a> 。从里面选取的版本号，需要与Cloudera上安装的Spark版本一致。</p>
 <p>下载完并且解压后，里面会有一个 jars 的目录，将Cloudera缺少的库，拷贝到cloudera对应的库文件夹里面即可。</p>
 <figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">cp jars/spark-hive-thriftserver_2.11-2.2.0.jar /opt/cloudera/parcels/SPARK2/lib/spark2/jars/</span><br><span class="line">cp jars/hive-* /opt/cloudera/parcels/SPARK2/lib/spark2/jars/ # 注意到这里不要覆盖原有文件</span><br></pre></td></tr></table></figure>
-<p>整个添加的过程就完成了，接下来就可以直接使用spark-sql命令行了</p>
+<p>整个添加的过程就完成了，接下来就可以直接使用spark-sql命令，就可以进入客户端shell</p>
 <figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">sudo -u hive spark2-sql</span><br><span class="line"><span class="meta">spark-sql&gt;</span> use test;</span><br><span class="line"><span class="meta">spark-sql&gt;</span> show tables;</span><br><span class="line">.....</span><br></pre></td></tr></table></figure>
+<p>下面简单介绍下spark-sql常用的命令选项</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#</span> 执行 sql 命令</span><br><span class="line">sudo -u hive spark2-sql -e "select count(*) from test.my_table;"</span><br><span class="line"></span><br><span class="line"><span class="meta">#</span> 执行 sql 文件</span><br><span class="line">sudo -u hive spark2-sql -f my_sql.sql</span><br></pre></td></tr></table></figure>
 
       
     </div>
@@ -414,6 +416,10 @@
           <span class="post-nav-divider"></span>
 
           <div class="post-nav-prev post-nav-item">
+            
+              <a href="/2019/04/08/kafka-consumer-offset/" rel="prev" title="kafka-consumer-offset">
+                kafka-consumer-offset <i class="fa fa-chevron-right"></i>
+              </a>
             
           </div>
         </div>
@@ -493,7 +499,7 @@
               
                 <a href="/archives/">
               
-                  <span class="site-state-item-count">33</span>
+                  <span class="site-state-item-count">34</span>
                   <span class="site-state-item-name">posts</span>
                 </a>
               </div>
@@ -515,7 +521,7 @@
               
               <div class="site-state-item site-state-tags">
                 
-                  <span class="site-state-item-count">30</span>
+                  <span class="site-state-item-count">31</span>
                   <span class="site-state-item-name">tags</span>
                 
               </div>
