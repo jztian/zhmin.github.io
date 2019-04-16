@@ -1,0 +1,935 @@
+<!DOCTYPE html>
+
+
+
+  
+
+
+<html class="theme-next mist use-motion" lang="">
+<head><meta name="generator" content="Hexo 3.8.0">
+  <meta charset="UTF-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="theme-color" content="#222">
+
+
+
+
+
+
+
+
+
+<meta http-equiv="Cache-Control" content="no-transform">
+<meta http-equiv="Cache-Control" content="no-siteapp">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+  <link href="/lib/fancybox/source/jquery.fancybox.css?v=2.1.5" rel="stylesheet" type="text/css">
+
+
+
+
+
+
+
+<link href="/lib/font-awesome/css/font-awesome.min.css?v=4.6.2" rel="stylesheet" type="text/css">
+
+<link href="/css/main.css?v=5.1.4" rel="stylesheet" type="text/css">
+
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png?v=5.1.4">
+
+
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png?v=5.1.4">
+
+
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png?v=5.1.4">
+
+
+  <link rel="mask-icon" href="/images/logo.svg?v=5.1.4" color="#222">
+
+
+
+
+
+  <meta name="keywords" content="kafka, producer, idempotence,">
+
+
+
+
+
+
+
+
+
+
+<meta name="description" content="Kafka Producer 幂等性原理幂等性是指发送同样的请求，对系统资源的影响是一致的。结合 Kafka Producer，是指在多次发送同样的消息，Kafka做到发送消息的不丢失和不重复。实现幂等性服务，需要客户端和服务端的相互配合。客户端每次发送请求，需要得到服务端的确认，才认为此次请求成功。不然客户端只能不断的重试，来保证服务端不丢失请求。而这样服务端有可能收到重复的请求，所以需要对这些">
+<meta name="keywords" content="kafka, producer, idempotence">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Kafka Producer 幂等性原理">
+<meta property="og:url" content="https://zhmin.github.io/2019/04/16/kafka-producer-idempotence/index.html">
+<meta property="og:site_name" content="blog">
+<meta property="og:description" content="Kafka Producer 幂等性原理幂等性是指发送同样的请求，对系统资源的影响是一致的。结合 Kafka Producer，是指在多次发送同样的消息，Kafka做到发送消息的不丢失和不重复。实现幂等性服务，需要客户端和服务端的相互配合。客户端每次发送请求，需要得到服务端的确认，才认为此次请求成功。不然客户端只能不断的重试，来保证服务端不丢失请求。而这样服务端有可能收到重复的请求，所以需要对这些">
+<meta property="og:locale" content="default">
+<meta property="og:updated_time" content="2019-04-16T13:18:48.964Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Kafka Producer 幂等性原理">
+<meta name="twitter:description" content="Kafka Producer 幂等性原理幂等性是指发送同样的请求，对系统资源的影响是一致的。结合 Kafka Producer，是指在多次发送同样的消息，Kafka做到发送消息的不丢失和不重复。实现幂等性服务，需要客户端和服务端的相互配合。客户端每次发送请求，需要得到服务端的确认，才认为此次请求成功。不然客户端只能不断的重试，来保证服务端不丢失请求。而这样服务端有可能收到重复的请求，所以需要对这些">
+
+
+
+<script type="text/javascript" id="hexo.configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '/',
+    scheme: 'Mist',
+    version: '5.1.4',
+    sidebar: {"position":"left","display":"hide","offset":12,"b2t":false,"scrollpercent":false,"onmobile":false},
+    fancybox: true,
+    tabs: true,
+    motion: {"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},
+    duoshuo: {
+      userId: '0',
+      author: 'Author'
+    },
+    algolia: {
+      applicationID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    }
+  };
+</script>
+
+
+
+  <link rel="canonical" href="https://zhmin.github.io/2019/04/16/kafka-producer-idempotence/">
+
+
+
+
+
+  <title>Kafka Producer 幂等性原理 | blog</title>
+  
+
+
+
+
+
+
+
+
+</head>
+
+<body itemscope="" itemtype="http://schema.org/WebPage" lang="default">
+
+  
+  
+    
+  
+
+  <div class="container sidebar-position-left page-post-detail">
+    <div class="headband"></div>
+
+    <header id="header" class="header" itemscope="" itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-wrapper">
+  <div class="site-meta ">
+    
+
+    <div class="custom-logo-site-title">
+      <a href="/" class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">blog</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+      
+        <h1 class="site-subtitle" itemprop="description"></h1>
+      
+  </div>
+
+  <div class="site-nav-toggle">
+    <button>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+    </button>
+  </div>
+</div>
+
+<nav class="site-nav">
+  
+
+  
+    <ul id="menu" class="menu">
+      
+        
+        <li class="menu-item menu-item-home">
+          <a href="/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-home"></i> <br>
+            
+            Home
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-categories">
+          <a href="/categories/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-th"></i> <br>
+            
+            Categories
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-archives">
+          <a href="/archives/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-archive"></i> <br>
+            
+            Archives
+          </a>
+        </li>
+      
+
+      
+    </ul>
+  
+
+  
+</nav>
+
+
+
+ </div>
+    </header>
+
+    <main id="main" class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          <div id="content" class="content">
+            
+
+  <div id="posts" class="posts-expand">
+    
+
+  
+
+  
+  
+  
+
+  <article class="post post-type-normal" itemscope="" itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block">
+    <link itemprop="mainEntityOfPage" href="https://zhmin.github.io/2019/04/16/kafka-producer-idempotence/">
+
+    <span hidden itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="zhmin">
+      <meta itemprop="description" content="">
+      <meta itemprop="image" content="/images/avatar.gif">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope="" itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="blog">
+    </span>
+
+    
+      <header class="post-header">
+
+        
+        
+          <h2 class="post-title" itemprop="name headline">Kafka Producer 幂等性原理</h2>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">Posted on</span>
+              
+              <time title="Post created" itemprop="dateCreated datePublished" datetime="2019-04-16T21:17:53+08:00">
+                2019-04-16
+              </time>
+            
+
+            
+
+            
+          </span>
+
+          
+            <span class="post-category">
+            
+              <span class="post-meta-divider">|</span>
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">In</span>
+              
+              
+                <span itemprop="about" itemscope="" itemtype="http://schema.org/Thing">
+                  <a href="/categories/kafka/" itemprop="url" rel="index">
+                    <span itemprop="name">kafka</span>
+                  </a>
+                </span>
+
+                
+                
+              
+            </span>
+          
+
+          
+            
+              <span class="post-comments-count">
+                <span class="post-meta-divider">|</span>
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-comment-o"></i>
+                </span>
+                <a href="/2019/04/16/kafka-producer-idempotence/#comments" itemprop="discussionUrl">
+                  <span class="post-comments-count valine-comment-count" data-xid="/2019/04/16/kafka-producer-idempotence/" itemprop="commentCount"></span>
+                </a>
+              </span>
+            
+          
+
+          
+          
+             <span id="/2019/04/16/kafka-producer-idempotence/" class="leancloud_visitors" data-flag-title="Kafka Producer 幂等性原理">
+               <span class="post-meta-divider">|</span>
+               <span class="post-meta-item-icon">
+                 <i class="fa fa-eye"></i>
+               </span>
+               
+                 <span class="post-meta-item-text">Visitors&#58;</span>
+               
+                 <span class="leancloud-visitors-count"></span>
+             </span>
+          
+
+          
+
+          
+
+          
+
+        </div>
+      </header>
+    
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+      
+
+      
+        <h1 id="Kafka-Producer-幂等性原理"><a href="#Kafka-Producer-幂等性原理" class="headerlink" title="Kafka Producer 幂等性原理"></a>Kafka Producer 幂等性原理</h1><p>幂等性是指发送同样的请求，对系统资源的影响是一致的。结合 Kafka Producer，是指在多次发送同样的消息，Kafka做到发送消息的不丢失和不重复。实现幂等性服务，需要客户端和服务端的相互配合。客户端每次发送请求，需要得到服务端的确认，才认为此次请求成功。不然客户端只能不断的重试，来保证服务端不丢失请求。而这样服务端有可能收到重复的请求，所以需要对这些请求去重。比如Kafka Producer与服务端的网络异常：</p>
+<ul>
+<li>Producer向服务端发送消息，但是此时连接就断开了，发送的消息经过网络传输时，被丢失了。服务端没有接收到消息。</li>
+<li>服务端收到Producer发送的消息，处理完毕后，向Producer发送响应，但是此时连接断开了。发送的响应经过网络传输时，被丢失了。Producer没有收到响应。</li>
+</ul>
+<p>因为两种情况对于Producer而言，都是没有收到响应，Producer无法确定是哪种情况，所以它必须要重新发送消息，来确保服务端不会漏掉一条消息。但这样服务端有可能会收到重复的消息，所以服务端收到消息后，还要做一次去重操作。只有Producer和服务端的相互配合，才能保证消息不丢失也不重复，达到 Exactly One 的情景。</p>
+<p>Kafka的幂等性只支持单个producer向单个分区发送。它会为每个Producer生成一个唯一id号，这样Kafka服务端就可以根据 produce_id来确定是哪个生产者发送的消息。然后Kafka还为每条消息生成了一个序列号，Kafka服务端会保留最近的消息，根据序列号就可以判断该消息，是否近期已经发送过，来达到去重的效果。</p>
+<h2 id="Producer-发送消息"><a href="#Producer-发送消息" class="headerlink" title="Producer 发送消息"></a>Producer 发送消息</h2><h3 id="配置幂等性"><a href="#配置幂等性" class="headerlink" title="配置幂等性"></a>配置幂等性</h3><p>KafkaProducer 如果要使用幂等性，需要将 enable.idempotence 配置项设置为true。并且它对单个分区的发送，一次性最多发送5条。通过KafkaProducer的 configureInflightRequests 方法，可以看到对max.in.flight.requests.per.connection的限制。</p>
+<p>因为客户端的每次请求，都需要服务端的确认，所以KafkaProducer在开启幂等性后，需要设置 ack。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">KafkaProducer</span>&lt;<span class="title">K</span>, <span class="title">V</span>&gt; <span class="keyword">implements</span> <span class="title">Producer</span>&lt;<span class="title">K</span>, <span class="title">V</span>&gt; </span>&#123;</span><br><span class="line"></span><br><span class="line">    <span class="function"><span class="keyword">private</span> <span class="keyword">static</span> <span class="keyword">int</span> <span class="title">configureInflightRequests</span><span class="params">(ProducerConfig config, <span class="keyword">boolean</span> idempotenceEnabled)</span> </span>&#123;</span><br><span class="line">        <span class="keyword">if</span> (idempotenceEnabled &amp;&amp; <span class="number">5</span> &lt; config.getInt(ProducerConfig.MAX_IN_FLIGHT_REQUESTS_PER_CONNECTION)) &#123;</span><br><span class="line">            <span class="keyword">throw</span> <span class="keyword">new</span> ConfigException(<span class="string">"Must set "</span> + ProducerConfig.MAX_IN_FLIGHT_REQUESTS_PER_CONNECTION + <span class="string">" to at most 5"</span> +</span><br><span class="line">                    <span class="string">" to use the idempotent producer."</span>);</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="keyword">return</span> config.getInt(ProducerConfig.MAX_IN_FLIGHT_REQUESTS_PER_CONNECTION);</span><br><span class="line">    &#125;</span><br><span class="line">    </span><br><span class="line">    </span><br><span class="line">    <span class="function"><span class="keyword">private</span> <span class="keyword">static</span> <span class="keyword">short</span> <span class="title">configureAcks</span><span class="params">(ProducerConfig config, <span class="keyword">boolean</span> idempotenceEnabled, Logger log)</span> </span>&#123;</span><br><span class="line">        <span class="keyword">boolean</span> userConfiguredAcks = <span class="keyword">false</span>;</span><br><span class="line">        <span class="keyword">short</span> acks = (<span class="keyword">short</span>) parseAcks(config.getString(ProducerConfig.ACKS_CONFIG));</span><br><span class="line">        <span class="keyword">if</span> (config.originals().containsKey(ProducerConfig.ACKS_CONFIG)) &#123;</span><br><span class="line">            userConfiguredAcks = <span class="keyword">true</span>;</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="comment">// 如果开启了幂等性，但是用户没有指定ack，则返回 -1。-1表示包括leader和follower分区都要确认</span></span><br><span class="line">        <span class="keyword">if</span> (idempotenceEnabled &amp;&amp; !userConfiguredAcks) &#123;</span><br><span class="line">            <span class="keyword">return</span> -<span class="number">1</span>;</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="comment">// 如果开启了幂等性，但是用户指定的ack不为 -1，则会抛出异常</span></span><br><span class="line">        <span class="keyword">if</span> (idempotenceEnabled &amp;&amp; acks != -<span class="number">1</span>) &#123;</span><br><span class="line">            <span class="keyword">throw</span> <span class="keyword">new</span> ConfigException(<span class="string">"....."</span>);</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="keyword">return</span> acks;</span><br><span class="line">    &#125;    </span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h3 id="请求获取-producer-id"><a href="#请求获取-producer-id" class="headerlink" title="请求获取 producer id"></a>请求获取 producer id</h3><p>如果Producer开启了幂等性，那么Sender在发送消息之前，都会去检查是否已经获取到了 produce_id。如果没有，会向服务端发送请求，然后保存在TransactionManager类里。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">Sender</span> <span class="keyword">implements</span> <span class="title">Runnable</span> </span>&#123;</span><br><span class="line"></span><br><span class="line">    <span class="function"><span class="keyword">private</span> <span class="keyword">void</span> <span class="title">maybeWaitForProducerId</span><span class="params">()</span> </span>&#123;</span><br><span class="line">        <span class="comment">// 判断是否获取了produce_id</span></span><br><span class="line">        <span class="keyword">while</span> (!transactionManager.hasProducerId() &amp;&amp; !transactionManager.hasError()) &#123;</span><br><span class="line">            <span class="keyword">try</span> &#123;</span><br><span class="line">                <span class="comment">// 选择负载最轻的一台节点</span></span><br><span class="line">                Node node = awaitLeastLoadedNodeReady(requestTimeoutMs);</span><br><span class="line">                <span class="keyword">if</span> (node != <span class="keyword">null</span>) &#123;</span><br><span class="line">                    <span class="comment">// 发送获取请求，接收响应</span></span><br><span class="line">                    ClientResponse response = sendAndAwaitInitProducerIdRequest(node);</span><br><span class="line">                    <span class="comment">// 处理响应</span></span><br><span class="line">                    InitProducerIdResponse initProducerIdResponse = (InitProducerIdResponse) response.responseBody();</span><br><span class="line">                    <span class="comment">// 检查错误</span></span><br><span class="line">                    Errors error = initProducerIdResponse.error();</span><br><span class="line">                    <span class="keyword">if</span> (error == Errors.NONE) &#123;</span><br><span class="line">                        ProducerIdAndEpoch producerIdAndEpoch = <span class="keyword">new</span> ProducerIdAndEpoch(</span><br><span class="line">                                initProducerIdResponse.producerId(), initProducerIdResponse.epoch());</span><br><span class="line">                        <span class="comment">// 保存produce_id 和 produce_epoch结果（produce_epoch是在开启事务才会用到，这里仅仅是开启了幂等性，没有用到事务）</span></span><br><span class="line">                        transactionManager.setProducerIdAndEpoch(producerIdAndEpoch);</span><br><span class="line">                        <span class="keyword">return</span>;</span><br><span class="line">                    &#125; <span class="keyword">else</span> <span class="keyword">if</span> (error.exception() <span class="keyword">instanceof</span> RetriableException) &#123;</span><br><span class="line">                        <span class="comment">// 如果该错误是可以重试，那么就等待下次重试</span></span><br><span class="line">                        log.debug(<span class="string">"Retriable error from InitProducerId response"</span>, error.message());</span><br><span class="line">                    &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">                        <span class="comment">// 如果发生严重错误，那么保存错误信息，并且退出</span></span><br><span class="line">                        transactionManager.transitionToFatalError(error.exception());</span><br><span class="line">                        <span class="keyword">break</span>;</span><br><span class="line">                    &#125;</span><br><span class="line">                &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">                   .....</span><br><span class="line">                &#125;</span><br><span class="line">            &#125; <span class="keyword">catch</span> (UnsupportedVersionException e) &#123;</span><br><span class="line">                <span class="comment">// 发生版本不支持的错误，则退出</span></span><br><span class="line">                transactionManager.transitionToFatalError(e);</span><br><span class="line">                <span class="keyword">break</span>;</span><br><span class="line">            &#125; <span class="keyword">catch</span> (IOException e) &#123;</span><br><span class="line">                <span class="comment">// 发生网络通信问题，则等待下次重试</span></span><br><span class="line">                log.debug(<span class="string">"Broker &#123;&#125; disconnected while awaiting InitProducerId response"</span>, e);</span><br><span class="line">            &#125;</span><br><span class="line">            <span class="comment">// 等待一段时间，然后重试</span></span><br><span class="line">            time.sleep(retryBackoffMs);</span><br><span class="line">            metadata.requestUpdate();</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    </span><br><span class="line">    <span class="function"><span class="keyword">private</span> ClientResponse <span class="title">sendAndAwaitInitProducerIdRequest</span><span class="params">(Node node)</span> <span class="keyword">throws</span> IOException </span>&#123;</span><br><span class="line">        String nodeId = node.idString();</span><br><span class="line">        <span class="comment">// 构建InitProducerIdRequest请求</span></span><br><span class="line">        InitProducerIdRequest.Builder builder = <span class="keyword">new</span> InitProducerIdRequest.Builder(<span class="keyword">null</span>);</span><br><span class="line">        ClientRequest request = client.newClientRequest(nodeId, builder, time.milliseconds(), <span class="keyword">true</span>, requestTimeoutMs, <span class="keyword">null</span>);</span><br><span class="line">        <span class="comment">// 发送请求并且等待响应</span></span><br><span class="line">        <span class="keyword">return</span> NetworkClientUtils.sendAndReceive(client, request, time);</span><br><span class="line">    &#125;    </span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h3 id="配置消息"><a href="#配置消息" class="headerlink" title="配置消息"></a>配置消息</h3><p>当开启了幂等性，KafkaProducer发送消息时，会额外设置producer_id 和 序列号字段。producer_id是从Kafka服务端请求获取的，消息序列号是Producer端生成的，初始值为0，之后自增加一。这里需要说明下，Kafka发送消息都是以batch的格式发送，batch包含了多条消息。所以Producer发送消息batch的时候，只会设置该batch的第一个消息的序列号，后面消息的序列号可以根据第一个消息的序列号计算出来。</p>
+<p>当Sender从RecordAccumulator中拉取消息时，会设置produce_id 和 baseSequence两个字段。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="keyword">final</span> <span class="class"><span class="keyword">class</span> <span class="title">RecordAccumulator</span> </span>&#123;</span><br><span class="line">    </span><br><span class="line">    <span class="keyword">public</span> Map&lt;Integer, List&lt;ProducerBatch&gt;&gt; drain(Cluster cluster, Set&lt;Node&gt; nodes, <span class="keyword">int</span> maxSize, <span class="keyword">long</span> now) &#123;</span><br><span class="line">        <span class="keyword">if</span> (nodes.isEmpty())</span><br><span class="line">            <span class="keyword">return</span> Collections.emptyMap();</span><br><span class="line"></span><br><span class="line">        Map&lt;Integer, List&lt;ProducerBatch&gt;&gt; batches = <span class="keyword">new</span> HashMap&lt;&gt;();</span><br><span class="line">        <span class="keyword">for</span> (Node node : nodes) &#123;</span><br><span class="line">            <span class="keyword">int</span> size = <span class="number">0</span>;</span><br><span class="line">            List&lt;PartitionInfo&gt; parts = cluster.partitionsForNode(node.id());</span><br><span class="line">            List&lt;ProducerBatch&gt; ready = <span class="keyword">new</span> ArrayList&lt;&gt;();</span><br><span class="line">            <span class="keyword">int</span> start = drainIndex = drainIndex % parts.size();</span><br><span class="line">            <span class="keyword">do</span> &#123;</span><br><span class="line">                PartitionInfo part = parts.get(drainIndex);</span><br><span class="line">                TopicPartition tp = <span class="keyword">new</span> TopicPartition(part.topic(), part.partition());</span><br><span class="line">                <span class="comment">// 当max.in.flight.requests.per.connection配置项为 1 时，Sender发送消息的时候，会暂时关闭此分区的请求发送。当完成响应时，才会开放请求发送。</span></span><br><span class="line">                <span class="comment">// 这里的isMute方法，是用来判断次分区的请求是否被关闭</span></span><br><span class="line">                <span class="keyword">if</span> (!isMuted(tp, now)) &#123;</span><br><span class="line">                    Deque&lt;ProducerBatch&gt; deque = getDeque(tp);</span><br><span class="line">                    <span class="keyword">if</span> (deque != <span class="keyword">null</span>) &#123;</span><br><span class="line">                        <span class="keyword">synchronized</span> (deque) &#123;</span><br><span class="line">                            ProducerBatch first = deque.peekFirst();</span><br><span class="line">                            <span class="keyword">if</span> (first != <span class="keyword">null</span>) &#123;</span><br><span class="line">                                <span class="keyword">boolean</span> backoff = first.attempts() &gt; <span class="number">0</span> &amp;&amp; first.waitedTimeMs(now) &lt; retryBackoffMs;</span><br><span class="line">                                <span class="comment">// Only drain the batch if it is not during backoff period.</span></span><br><span class="line">                                <span class="keyword">if</span> (!backoff) &#123;</span><br><span class="line">                                    <span class="keyword">if</span> (size + first.estimatedSizeInBytes() &gt; maxSize &amp;&amp; !ready.isEmpty()) &#123;</span><br><span class="line">                                        <span class="keyword">break</span>;</span><br><span class="line">                                    &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">                                        ProducerIdAndEpoch producerIdAndEpoch = <span class="keyword">null</span>;</span><br><span class="line">                                        <span class="keyword">boolean</span> isTransactional = <span class="keyword">false</span>;</span><br><span class="line">                                        <span class="keyword">if</span> (transactionManager != <span class="keyword">null</span>) &#123;</span><br><span class="line">                                            <span class="comment">// 判断是否可以向这个分区发送请求</span></span><br><span class="line">                                            <span class="keyword">if</span> (!transactionManager.isSendToPartitionAllowed(tp))</span><br><span class="line">                                                <span class="keyword">break</span>;</span><br><span class="line">                                            <span class="comment">// 获取producer_id 和 epoch</span></span><br><span class="line">                                            producerIdAndEpoch = transactionManager.producerIdAndEpoch();</span><br><span class="line">                                            <span class="keyword">if</span> (!producerIdAndEpoch.isValid())</span><br><span class="line">                                                <span class="comment">// we cannot send the batch until we have refreshed the producer id</span></span><br><span class="line">                                                <span class="keyword">break</span>;</span><br><span class="line">                                            <span class="comment">// 这里判断是否开启了事务</span></span><br><span class="line">                                            isTransactional = transactionManager.isTransactional();</span><br><span class="line">                                            <span class="comment">// 如果这个消息batch，已经设置了序列号，并且此分区连接有问题， 那么需要跳过这个消息batch</span></span><br><span class="line">                                            <span class="keyword">if</span> (!first.hasSequence() &amp;&amp; transactionManager.hasUnresolvedSequence(first.topicPartition))</span><br><span class="line">                                                <span class="keyword">break</span>;</span><br><span class="line">                                            <span class="comment">// 查看消息batch是否重试，如果是，则跳过</span></span><br><span class="line">                                            <span class="keyword">int</span> firstInFlightSequence = transactionManager.firstInFlightSequence(first.topicPartition);</span><br><span class="line">                                            <span class="keyword">if</span> (firstInFlightSequence != RecordBatch.NO_SEQUENCE &amp;&amp; first.hasSequence()</span><br><span class="line">                                                    &amp;&amp; first.baseSequence() != firstInFlightSequence)</span><br><span class="line"></span><br><span class="line">                                                <span class="keyword">break</span>;</span><br><span class="line">                                        &#125;</span><br><span class="line"></span><br><span class="line">                                        ProducerBatch batch = deque.pollFirst();</span><br><span class="line">                                        <span class="comment">// 为新的消息batch，设置对应的字段值</span></span><br><span class="line">                                        <span class="keyword">if</span> (producerIdAndEpoch != <span class="keyword">null</span> &amp;&amp; !batch.hasSequence()) &#123;</span><br><span class="line">                                            <span class="comment">// 这里调用了transactionManager生成序列号</span></span><br><span class="line">                                            batch.setProducerState(producerIdAndEpoch, transactionManager.sequenceNumber(batch.topicPartition), isTransactional);</span><br><span class="line">                                            <span class="comment">// 更新序列号</span></span><br><span class="line">                                            transactionManager.incrementSequenceNumber(batch.topicPartition, batch.recordCount);</span><br><span class="line"></span><br><span class="line">                                            transactionManager.addInFlightBatch(batch);</span><br><span class="line">                                        &#125;</span><br><span class="line">                                        batch.close();</span><br><span class="line">                                        size += batch.records().sizeInBytes();</span><br><span class="line">                                        ready.add(batch);</span><br><span class="line">                                        batch.drained(now);</span><br><span class="line">                                    &#125;</span><br><span class="line">                                &#125;</span><br><span class="line">                            &#125;</span><br><span class="line">                        &#125;</span><br><span class="line">                    &#125;</span><br><span class="line">                &#125;</span><br><span class="line">                <span class="keyword">this</span>.drainIndex = (<span class="keyword">this</span>.drainIndex + <span class="number">1</span>) % parts.size();</span><br><span class="line">            &#125; <span class="keyword">while</span> (start != drainIndex);</span><br><span class="line">            batches.put(node.id(), ready);</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="keyword">return</span> batches;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>从上面可以看到，TransactionManager负责为每个发送的消息batch，都会生成序列号。每个分区都有独立的序列号。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">TransactionManager</span> </span>&#123;</span><br><span class="line">    <span class="comment">// 为每个分区，维护一个消息序列号</span></span><br><span class="line">    <span class="keyword">private</span> <span class="keyword">final</span> Map&lt;TopicPartition, Integer&gt; nextSequence;</span><br><span class="line"></span><br><span class="line">    <span class="function"><span class="keyword">synchronized</span> Integer <span class="title">sequenceNumber</span><span class="params">(TopicPartition topicPartition)</span> </span>&#123;</span><br><span class="line">        Integer currentSequenceNumber = nextSequence.get(topicPartition);</span><br><span class="line">        <span class="keyword">if</span> (currentSequenceNumber == <span class="keyword">null</span>) &#123;</span><br><span class="line">            <span class="comment">// 初始序列号为 0</span></span><br><span class="line">            currentSequenceNumber = <span class="number">0</span>;</span><br><span class="line">            nextSequence.put(topicPartition, currentSequenceNumber);</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="keyword">return</span> currentSequenceNumber;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    </span><br><span class="line">    <span class="function"><span class="keyword">synchronized</span> <span class="keyword">void</span> <span class="title">incrementSequenceNumber</span><span class="params">(TopicPartition topicPartition, <span class="keyword">int</span> increment)</span> </span>&#123;</span><br><span class="line">        Integer currentSequenceNumber = nextSequence.get(topicPartition);</span><br><span class="line">        <span class="keyword">if</span> (currentSequenceNumber == <span class="keyword">null</span>)</span><br><span class="line">            <span class="keyword">throw</span> <span class="keyword">new</span> IllegalStateException(<span class="string">"Attempt to increment sequence number for a partition with no current sequence."</span>);</span><br><span class="line">        <span class="comment">// 更新分区对应的序列号</span></span><br><span class="line">        currentSequenceNumber += increment;</span><br><span class="line">        nextSequence.put(topicPartition, currentSequenceNumber);</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h2 id="服务端处理请求"><a href="#服务端处理请求" class="headerlink" title="服务端处理请求"></a>服务端处理请求</h2><p>Kafka服务端接收到请求后，会调用ReplicaManager的方法处理。ReplicaManager最后通过Log类，检测请求的有效性，然后存储起来。Log类的 analyzeAndValidateProducerState 方法，负责检测消息的序列号是否有效。</p>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">class</span> <span class="title">Log</span>(<span class="params">...</span>) </span>&#123;</span><br><span class="line">    </span><br><span class="line">  <span class="keyword">private</span> <span class="function"><span class="keyword">def</span> <span class="title">analyzeAndValidateProducerState</span></span>(records: <span class="type">MemoryRecords</span>, isFromClient: <span class="type">Boolean</span>):</span><br><span class="line">  (mutable.<span class="type">Map</span>[<span class="type">Long</span>, <span class="type">ProducerAppendInfo</span>], <span class="type">List</span>[<span class="type">CompletedTxn</span>], <span class="type">Option</span>[<span class="type">BatchMetadata</span>]) = &#123;</span><br><span class="line">    <span class="comment">// 添加信息的表，Key值为produce_id，Value为添加信息，它包含了新添加的消息batch</span></span><br><span class="line">    <span class="keyword">val</span> updatedProducers = mutable.<span class="type">Map</span>.empty[<span class="type">Long</span>, <span class="type">ProducerAppendInfo</span>]</span><br><span class="line">    <span class="keyword">val</span> completedTxns = <span class="type">ListBuffer</span>.empty[<span class="type">CompletedTxn</span>]</span><br><span class="line">    <span class="comment">// 遍历消息 batch</span></span><br><span class="line">    <span class="keyword">for</span> (batch &lt;- records.batches.asScala <span class="keyword">if</span> batch.hasProducerId) &#123;</span><br><span class="line">      <span class="comment">// 根据producer_id找到，对应producer发送的最近请求</span></span><br><span class="line">      <span class="keyword">val</span> maybeLastEntry = producerStateManager.lastEntry(batch.producerId)</span><br><span class="line"></span><br><span class="line">      <span class="comment">// 这里的请求有可能来自客户端，也有可能是从leader分区向follower分区发来的</span></span><br><span class="line">      <span class="comment">// if this is a client produce request, there will be up to 5 batches which could have been duplicated.</span></span><br><span class="line">      <span class="comment">// If we find a duplicate, we return the metadata of the appended batch to the client.</span></span><br><span class="line">      <span class="keyword">if</span> (isFromClient) &#123;</span><br><span class="line">        <span class="comment">// 检测是否有近期重复的请求，如果有则立马返回</span></span><br><span class="line">        maybeLastEntry.flatMap(_.findDuplicateBatch(batch)).foreach &#123; duplicate =&gt;</span><br><span class="line">          <span class="keyword">return</span> (updatedProducers, completedTxns.toList, <span class="type">Some</span>(duplicate))</span><br><span class="line">        &#125;</span><br><span class="line">      &#125;</span><br><span class="line">      <span class="comment">// 将消息batch的添加信息，添加到updatedProducers表里</span></span><br><span class="line">      <span class="keyword">val</span> maybeCompletedTxn = updateProducers(batch, updatedProducers, isFromClient = isFromClient)</span><br><span class="line">      maybeCompletedTxn.foreach(completedTxns += _)</span><br><span class="line">    &#125;</span><br><span class="line">    (updatedProducers, completedTxns.toList, <span class="type">None</span>)</span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  <span class="keyword">private</span> <span class="function"><span class="keyword">def</span> <span class="title">updateProducers</span></span>(batch: <span class="type">RecordBatch</span>,</span><br><span class="line">                              producers: mutable.<span class="type">Map</span>[<span class="type">Long</span>, <span class="type">ProducerAppendInfo</span>],</span><br><span class="line">                              isFromClient: <span class="type">Boolean</span>): <span class="type">Option</span>[<span class="type">CompletedTxn</span>] = &#123;</span><br><span class="line">    <span class="keyword">val</span> producerId = batch.producerId</span><br><span class="line">    <span class="comment">// 获取该 produce 对应的AppendInfo，如果没有则新建一个</span></span><br><span class="line">    <span class="keyword">val</span> appendInfo = producers.getOrElseUpdate(producerId, producerStateManager.prepareUpdate(producerId, isFromClient))</span><br><span class="line">    <span class="comment">// 将消息batch添加appendInfo里，添加过程中包含了校检序列号</span></span><br><span class="line">    appendInfo.append(batch)</span><br><span class="line">  &#125;    </span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>ProducerStateManager保存所有producer最近添加的消息batch。一个ProducerStateManager只负责管理一个分区的producer信息。</p>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">class</span> <span class="title">ProducerStateManager</span>(<span class="params">val topicPartition: <span class="type">TopicPartition</span>,   </span></span></span><br><span class="line"><span class="class"><span class="params">                           @volatile var logDir: <span class="type">File</span>,</span></span></span><br><span class="line"><span class="class"><span class="params">                           val maxProducerIdExpirationMs: <span class="type">Int</span> = 60 * 60 * 1000</span>) <span class="keyword">extends</span> <span class="title">Logging</span> </span>&#123;</span><br><span class="line">  <span class="comment">// Key为produce_id，Value为对应的信息，由ProducerStateEntry类表示</span></span><br><span class="line">  <span class="keyword">private</span> <span class="keyword">val</span> producers = mutable.<span class="type">Map</span>.empty[<span class="type">Long</span>, <span class="type">ProducerStateEntry</span>]</span><br><span class="line">        </span><br><span class="line">  <span class="function"><span class="keyword">def</span> <span class="title">lastEntry</span></span>(producerId: <span class="type">Long</span>): <span class="type">Option</span>[<span class="type">ProducerStateEntry</span>] = producers.get(producerId)</span><br><span class="line"></span><br><span class="line">  <span class="function"><span class="keyword">def</span> <span class="title">prepareUpdate</span></span>(producerId: <span class="type">Long</span>, isFromClient: <span class="type">Boolean</span>): <span class="type">ProducerAppendInfo</span> = &#123;</span><br><span class="line">    <span class="keyword">val</span> validationToPerform =</span><br><span class="line">      <span class="keyword">if</span> (!isFromClient)</span><br><span class="line">        <span class="comment">// 如果是Kafka节点之间的请求，那么这里不做任何校检</span></span><br><span class="line">        <span class="type">ValidationType</span>.<span class="type">None</span></span><br><span class="line">      <span class="keyword">else</span> <span class="keyword">if</span> (topicPartition.topic == <span class="type">Topic</span>.<span class="type">GROUP_METADATA_TOPIC_NAME</span>)</span><br><span class="line">        <span class="comment">// 如果是向__consumer_offsets内部topic写数据，则只检验epoch</span></span><br><span class="line">        <span class="type">ValidationType</span>.<span class="type">EpochOnly</span></span><br><span class="line">      <span class="keyword">else</span></span><br><span class="line">        <span class="comment">// 检验 epoch 和 序列号</span></span><br><span class="line">        <span class="type">ValidationType</span>.<span class="type">Full</span></span><br><span class="line">    <span class="comment">// 如果有该producer的信息，则直接返回。否则调用 empty 方法新建一个</span></span><br><span class="line">    <span class="keyword">val</span> currentEntry = lastEntry(producerId).getOrElse(<span class="type">ProducerStateEntry</span>.empty(producerId))</span><br><span class="line">    <span class="comment">// 生成ProducerAppendInfo实例</span></span><br><span class="line">    <span class="keyword">new</span> <span class="type">ProducerAppendInfo</span>(producerId, currentEntry, validationToPerform)</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>ProducerStateEntry类表示了producer的所有信息，它主要包含了最近添加的消息batch。ProducerStateEntry最多只能包含5个消息batch，当有新的消息batch添加进来，会将旧的消息batch删除，来保持队列的长度始终为5。</p>
+<p>注意这里只是包含了batch的元数据。消息batch的元数据包含，第一条消息和最后一条消息的序列号。</p>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">private</span>[log] <span class="class"><span class="keyword">object</span> <span class="title">ProducerStateEntry</span> </span>&#123;</span><br><span class="line">  <span class="comment">// 最大保存batch的数目</span></span><br><span class="line">  <span class="keyword">private</span>[log] <span class="keyword">val</span> <span class="type">NumBatchesToRetain</span> = <span class="number">5</span></span><br><span class="line">  <span class="function"><span class="keyword">def</span> <span class="title">empty</span></span>(producerId: <span class="type">Long</span>) = <span class="keyword">new</span> <span class="type">ProducerStateEntry</span>(producerId, mutable.<span class="type">Queue</span>[<span class="type">BatchMetadata</span>](), <span class="type">RecordBatch</span>.<span class="type">NO_PRODUCER_EPOCH</span>, <span class="number">-1</span>, <span class="type">None</span>)</span><br><span class="line">&#125;  </span><br><span class="line"></span><br><span class="line"><span class="keyword">private</span>[log] <span class="class"><span class="keyword">class</span> <span class="title">ProducerStateEntry</span>(<span class="params">val producerId: <span class="type">Long</span>,</span></span></span><br><span class="line"><span class="class"><span class="params">                                      val batchMetadata: mutable.<span class="type">Queue</span>[<span class="type">BatchMetadata</span>],  // 消息batch的元数据列表</span></span></span><br><span class="line"><span class="class"><span class="params">                                      var producerEpoch: <span class="type">Short</span>,</span></span></span><br><span class="line"><span class="class"><span class="params">                                      var coordinatorEpoch: <span class="type">Int</span>,</span></span></span><br><span class="line"><span class="class"><span class="params">                                      var currentTxnFirstOffset: <span class="type">Option</span>[<span class="type">Long</span>]</span>) </span>&#123;</span><br><span class="line">    </span><br><span class="line">  <span class="comment">// 添加消息batch</span></span><br><span class="line">  <span class="function"><span class="keyword">def</span> <span class="title">addBatch</span></span>(producerEpoch: <span class="type">Short</span>, lastSeq: <span class="type">Int</span>, lastOffset: <span class="type">Long</span>, offsetDelta: <span class="type">Int</span>, timestamp: <span class="type">Long</span>): <span class="type">Unit</span> = &#123;</span><br><span class="line">    <span class="comment">// 如果该消息batch的epoch大，则更新producerEpoch</span></span><br><span class="line">    maybeUpdateEpoch(producerEpoch)</span><br><span class="line">    <span class="comment">// 添加消息batch的元数据</span></span><br><span class="line">    addBatchMetadata(<span class="type">BatchMetadata</span>(lastSeq, lastOffset, offsetDelta, timestamp))</span><br><span class="line">  &#125;</span><br><span class="line">    </span><br><span class="line">  <span class="keyword">private</span> <span class="function"><span class="keyword">def</span> <span class="title">addBatchMetadata</span></span>(batch: <span class="type">BatchMetadata</span>): <span class="type">Unit</span> = &#123;</span><br><span class="line">    <span class="comment">// 如果保存的batch数目，达到了5个，则将旧的剔除掉</span></span><br><span class="line">    <span class="keyword">if</span> (batchMetadata.size == <span class="type">ProducerStateEntry</span>.<span class="type">NumBatchesToRetain</span>)</span><br><span class="line">      batchMetadata.dequeue()</span><br><span class="line">    <span class="comment">// 添加到队列里</span></span><br><span class="line">    batchMetadata.enqueue(batch)</span><br><span class="line">  &#125;     </span><br><span class="line">    </span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>注意到上面实例化ProducerAppendInfo对象后，最后调用了它的 append 方法，来校检消息batch的有效性。ProducerAppendInfo最后还会生成新的ProducerStateEntry对象，存储最新一次添加batch的信息，然后替换旧的信息。</p>
+<p>ProducerStateEntry每次添加新的消息batch时，都会检查它的epoch 和 sequence，校检步骤如下：</p>
+<ol>
+<li>检查消息batch的produce epoch。如果该消息barch的epoch比上条消息小，则会报错。</li>
+<li>检查消息batch的sequence，分为两种情况<ol>
+<li>如果消息batch的epoch比上条消息大，它的序列号必须从0开始。否则就会出错。</li>
+<li>如果消息batch的epoch相等，它的起始序列号和上条消息batch的结束序列号，必须是连续递增的，否则就会出错。</li>
+</ol>
+</li>
+</ol>
+<p>ProducerAppendInfo会初始化一个新的ProducerStateEntry，新添加的消息batch，都会存到这个新的里面。</p>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">private</span>[log] <span class="class"><span class="keyword">class</span> <span class="title">ProducerAppendInfo</span>(<span class="params">val producerId: <span class="type">Long</span>,</span></span></span><br><span class="line"><span class="class"><span class="params">                                      val currentEntry: <span class="type">ProducerStateEntry</span>,  // 上次添加的消息batch的元数据</span></span></span><br><span class="line"><span class="class"><span class="params">                                      val validationType: <span class="type">ValidationType</span></span>) </span>&#123;  <span class="comment">// 校检策略</span></span><br><span class="line">  <span class="comment">// 初始化新的ProducerStateEntry，保存到updatedEntry属性                                     </span></span><br><span class="line">  <span class="keyword">private</span> <span class="keyword">val</span> updatedEntry = <span class="type">ProducerStateEntry</span>.empty(producerId)</span><br><span class="line">  updatedEntry.producerEpoch = currentEntry.producerEpoch</span><br><span class="line">  updatedEntry.coordinatorEpoch = currentEntry.coordinatorEpoch</span><br><span class="line">  updatedEntry.currentTxnFirstOffset = currentEntry.currentTxnFirstOffset    </span><br><span class="line"></span><br><span class="line">  <span class="keyword">private</span> <span class="function"><span class="keyword">def</span> <span class="title">checkProducerEpoch</span></span>(producerEpoch: <span class="type">Short</span>): <span class="type">Unit</span> = &#123;</span><br><span class="line">    <span class="comment">// 如果该消息batch的produce_epoch比之前的还要下，那么就抛出ProducerFencedException错误</span></span><br><span class="line">    <span class="keyword">if</span> (producerEpoch &lt; updatedEntry.producerEpoch) &#123;</span><br><span class="line">      <span class="keyword">throw</span> <span class="keyword">new</span> <span class="type">ProducerFencedException</span>(<span class="string">s"Producer's epoch is no longer valid. There is probably another producer "</span> +</span><br><span class="line">        <span class="string">s"with a newer epoch. <span class="subst">$producerEpoch</span> (request epoch), <span class="subst">$&#123;updatedEntry.producerEpoch&#125;</span> (server epoch)"</span>)</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;    </span><br><span class="line">    </span><br><span class="line">  <span class="keyword">private</span> <span class="function"><span class="keyword">def</span> <span class="title">checkSequence</span></span>(producerEpoch: <span class="type">Short</span>, appendFirstSeq: <span class="type">Int</span>): <span class="type">Unit</span> = &#123;</span><br><span class="line">    <span class="comment">// 因为之前已经检查过了produce_epoch，如果出现了不相等的情况，只能是该消息batch的produce_epoch大</span></span><br><span class="line">    <span class="keyword">if</span> (producerEpoch != updatedEntry.producerEpoch) &#123;</span><br><span class="line">      <span class="comment">// 如果是新的produce_epoch，那么它发送过来的第一个消息batch的序列号只能从0开始</span></span><br><span class="line">      <span class="keyword">if</span> (appendFirstSeq != <span class="number">0</span>) &#123;</span><br><span class="line">        <span class="comment">// 如果是旧的produce，那么就抛出OutOfOrderSequenceException异常，表示此消息发送的序列号有问题</span></span><br><span class="line">        <span class="comment">// 否则抛出UnknownProducerIdException异常</span></span><br><span class="line">        <span class="keyword">if</span> (updatedEntry.producerEpoch != <span class="type">RecordBatch</span>.<span class="type">NO_PRODUCER_EPOCH</span>) &#123;</span><br><span class="line">          <span class="keyword">throw</span> <span class="keyword">new</span> <span class="type">OutOfOrderSequenceException</span>(<span class="string">s"Invalid sequence number for new epoch: <span class="subst">$producerEpoch</span> "</span> +</span><br><span class="line">            <span class="string">s"(request epoch), <span class="subst">$appendFirstSeq</span> (seq. number)"</span>)</span><br><span class="line">        &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">          <span class="keyword">throw</span> <span class="keyword">new</span> <span class="type">UnknownProducerIdException</span>(<span class="string">s"Found no record of producerId=<span class="subst">$producerId</span> on the broker. It is possible "</span> +</span><br><span class="line">            <span class="string">s"that the last message with the producerId=<span class="subst">$producerId</span> has been removed due to hitting the retention limit."</span>)</span><br><span class="line">        &#125;</span><br><span class="line">      &#125;</span><br><span class="line">    &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">      <span class="comment">// 获取最后一次添加的消息batch的结束序列号</span></span><br><span class="line">      <span class="keyword">val</span> currentLastSeq = <span class="keyword">if</span> (!updatedEntry.isEmpty)</span><br><span class="line">        <span class="comment">// updatedEntry不为空，那么表示上个消息batch存在于updatedEntry</span></span><br><span class="line">        updatedEntry.lastSeq</span><br><span class="line">      <span class="keyword">else</span> <span class="keyword">if</span> (producerEpoch == currentEntry.producerEpoch)</span><br><span class="line">        <span class="comment">// updatedEntry为空，那么表示上个消息batch存在于currentEntry</span></span><br><span class="line">        currentEntry.lastSeq</span><br><span class="line">      <span class="keyword">else</span></span><br><span class="line">        <span class="comment">// 如果是新建的producer，那么它的序列号为NO_SEQUENCE</span></span><br><span class="line">        <span class="type">RecordBatch</span>.<span class="type">NO_SEQUENCE</span></span><br><span class="line">      </span><br><span class="line">      <span class="keyword">if</span> (currentLastSeq == <span class="type">RecordBatch</span>.<span class="type">NO_SEQUENCE</span> &amp;&amp; appendFirstSeq != <span class="number">0</span>) &#123;</span><br><span class="line">        <span class="comment">// 如果是新建的producer，那么它的第一条消息batch的序列号必须为0，否则抛出OutOfOrderSequenceException异常</span></span><br><span class="line">        <span class="keyword">throw</span> <span class="keyword">new</span> <span class="type">OutOfOrderSequenceException</span>(<span class="string">s"Out of order sequence number for producerId <span class="subst">$producerId</span>: found <span class="subst">$appendFirstSeq</span> "</span> +</span><br><span class="line">          <span class="string">s"(incoming seq. number), but expected 0"</span>)</span><br><span class="line">      &#125; <span class="keyword">else</span> <span class="keyword">if</span> (!inSequence(currentLastSeq, appendFirstSeq)) &#123;</span><br><span class="line">        <span class="comment">// 继续检查序列号是否连续，否则抛出OutOfOrderSequenceException异常</span></span><br><span class="line">        <span class="keyword">throw</span> <span class="keyword">new</span> <span class="type">OutOfOrderSequenceException</span>(<span class="string">s"Out of order sequence number for producerId <span class="subst">$producerId</span>: <span class="subst">$appendFirstSeq</span> "</span> +</span><br><span class="line">          <span class="string">s"(incoming seq. number), <span class="subst">$currentLastSeq</span> (current end sequence number)"</span>)</span><br><span class="line">      &#125;</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  <span class="comment">// 检查序列号的连续性</span></span><br><span class="line">  <span class="keyword">private</span> <span class="function"><span class="keyword">def</span> <span class="title">inSequence</span></span>(lastSeq: <span class="type">Int</span>, nextSeq: <span class="type">Int</span>): <span class="type">Boolean</span> = &#123;</span><br><span class="line">    <span class="comment">// 这里需要注意下，Int.MaxValue 的下个连续值等于 0</span></span><br><span class="line">    nextSeq == lastSeq + <span class="number">1</span>L || (nextSeq == <span class="number">0</span> &amp;&amp; lastSeq == <span class="type">Int</span>.<span class="type">MaxValue</span>)</span><br><span class="line">  &#125;    </span><br><span class="line">    </span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>​                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  </p>
+<p>当消息成功存储到文件中后，Kafka会根据此次的AppendInfo，生成新的ProducerStateEntry。</p>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">private</span>[log] <span class="class"><span class="keyword">class</span> <span class="title">ProducerAppendInfo</span>(<span class="params">...</span>) </span>&#123;</span><br><span class="line">  <span class="comment">// 新添加的消息batch都会保存到 updatedEntry </span></span><br><span class="line">  <span class="keyword">private</span> <span class="keyword">val</span> updatedEntry = <span class="type">ProducerStateEntry</span>.empty(producerId)    </span><br><span class="line">    </span><br><span class="line">  <span class="comment">// 这里生成新的ProducerStateEntry，是直接返回updatedEntry                                      </span></span><br><span class="line">  <span class="function"><span class="keyword">def</span> <span class="title">toEntry</span></span>: <span class="type">ProducerStateEntry</span> = updatedEntry  </span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="class"><span class="keyword">class</span> <span class="title">ProducerStateManager</span>(<span class="params">val topicPartition: <span class="type">TopicPartition</span>,</span></span></span><br><span class="line"><span class="class"><span class="params">                           @volatile var logDir: <span class="type">File</span>,</span></span></span><br><span class="line"><span class="class"><span class="params">                           val maxProducerIdExpirationMs: <span class="type">Int</span> = 60 * 60 * 1000</span>) <span class="keyword">extends</span> <span class="title">Logging</span> </span>&#123;</span><br><span class="line">  <span class="comment">// Key为produce_id，Value为最近添加的信息</span></span><br><span class="line">  <span class="keyword">private</span> <span class="keyword">val</span> producers = mutable.<span class="type">Map</span>.empty[<span class="type">Long</span>, <span class="type">ProducerStateEntry</span>]  </span><br><span class="line">    </span><br><span class="line">  <span class="comment">// 负责替换掉旧的ProducerStateEntry</span></span><br><span class="line">  <span class="function"><span class="keyword">def</span> <span class="title">update</span></span>(appendInfo: <span class="type">ProducerAppendInfo</span>): <span class="type">Unit</span> = &#123;</span><br><span class="line">    <span class="keyword">if</span> (appendInfo.producerId == <span class="type">RecordBatch</span>.<span class="type">NO_PRODUCER_ID</span>)</span><br><span class="line">      <span class="keyword">throw</span> <span class="keyword">new</span> <span class="type">IllegalArgumentException</span>(<span class="string">s"Invalid producer id <span class="subst">$&#123;appendInfo.producerId&#125;</span> passed to update "</span> +</span><br><span class="line">        <span class="string">s"for partition <span class="subst">$topicPartition</span>"</span>)</span><br><span class="line"></span><br><span class="line">    trace(<span class="string">s"Updated producer <span class="subst">$&#123;appendInfo.producerId&#125;</span> state to <span class="subst">$appendInfo</span>"</span>)</span><br><span class="line">    <span class="comment">// 根据此次添加的结果，生成新的ProducerStateEntry</span></span><br><span class="line">    <span class="keyword">val</span> updatedEntry = appendInfo.toEntry</span><br><span class="line">    <span class="comment">// 保存到producers表中</span></span><br><span class="line">    producers.get(appendInfo.producerId) <span class="keyword">match</span> &#123;</span><br><span class="line">      <span class="keyword">case</span> <span class="type">Some</span>(currentEntry) =&gt;</span><br><span class="line">        currentEntry.update(updatedEntry)</span><br><span class="line"></span><br><span class="line">      <span class="keyword">case</span> <span class="type">None</span> =&gt;</span><br><span class="line">        producers.put(appendInfo.producerId, updatedEntry)</span><br><span class="line">    &#125;</span><br><span class="line">    ......</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h2 id="错误处理"><a href="#错误处理" class="headerlink" title="错误处理"></a>错误处理</h2><p>当Producer收到出错的响应时，首先会去检测该错误是否重试。如果支持重试，会将这条失败的请求重新添加到队列里，等待再次发送。否则就会修改序列号，或者重置 produce id。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">Sender</span> <span class="keyword">implements</span> <span class="title">Runnable</span> </span>&#123;</span><br><span class="line"></span><br><span class="line">    <span class="function"><span class="keyword">private</span> <span class="keyword">void</span> <span class="title">completeBatch</span><span class="params">(ProducerBatch batch, ProduceResponse.PartitionResponse response, <span class="keyword">long</span> correlationId, <span class="keyword">long</span> now, <span class="keyword">long</span> throttleUntilTimeMs)</span> </span>&#123;</span><br><span class="line">        <span class="comment">// 检测错误</span></span><br><span class="line">        Errors error = response.error;</span><br><span class="line">        <span class="keyword">if</span> (error == Errors.MESSAGE_TOO_LARGE &amp;&amp; batch.recordCount &gt; <span class="number">1</span> &amp;&amp;</span><br><span class="line">                (batch.magic() &gt;= RecordBatch.MAGIC_VALUE_V2 || batch.isCompressed())) &#123;</span><br><span class="line">            <span class="comment">// 这里处理MESSAGE_TOO_LARGE异常，如果该消息batch有多条数据，这里会将消息batch切分成小的batch，再次发送 </span></span><br><span class="line">            ......</span><br><span class="line">        &#125; <span class="keyword">else</span> <span class="keyword">if</span> (error != Errors.NONE) &#123;</span><br><span class="line">            <span class="comment">// 检查发生这个错误，是否支持重试</span></span><br><span class="line">            <span class="keyword">if</span> (canRetry(batch, response)) &#123;</span><br><span class="line">                <span class="keyword">if</span> (transactionManager == <span class="keyword">null</span>) &#123;</span><br><span class="line">                    <span class="comment">// 重新添加到发送队列里</span></span><br><span class="line">                    reenqueueBatch(batch, now);</span><br><span class="line">                &#125; <span class="keyword">else</span> <span class="keyword">if</span> (transactionManager.hasProducerIdAndEpoch(batch.producerId(), batch.producerEpoch())) &#123;</span><br><span class="line">                    <span class="comment">// 重新添加到发送队列里</span></span><br><span class="line">                    reenqueueBatch(batch, now);</span><br><span class="line">                &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">                    <span class="comment">// 认为</span></span><br><span class="line">                    failBatch(batch, response, <span class="keyword">new</span> OutOfOrderSequenceException(<span class="string">"..."</span>), <span class="keyword">false</span>);</span><br><span class="line">                &#125;</span><br><span class="line">            &#125; <span class="keyword">else</span> <span class="keyword">if</span> (error == Errors.DUPLICATE_SEQUENCE_NUMBER) &#123;</span><br><span class="line">                <span class="comment">// 如果是重复，说明该消息batch是重复的，之前就添加到了Kafka。这里就直接认为添加成功了</span></span><br><span class="line">                completeBatch(batch, response);</span><br><span class="line">            &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">                <span class="keyword">final</span> RuntimeException exception;</span><br><span class="line">                .... <span class="comment">// 初始化错误</span></span><br><span class="line">                <span class="comment">// 处理响应的错误</span></span><br><span class="line">                failBatch(batch, response, exception, batch.attempts() &lt; <span class="keyword">this</span>.retries);</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">        </span><br><span class="line">     <span class="function"><span class="keyword">private</span> <span class="keyword">void</span> <span class="title">reenqueueBatch</span><span class="params">(ProducerBatch batch, <span class="keyword">long</span> currentTimeMs)</span> </span>&#123;</span><br><span class="line">        <span class="comment">// 重新添加到RecordAccumulator</span></span><br><span class="line">        <span class="keyword">this</span>.accumulator.reenqueue(batch, currentTimeMs);</span><br><span class="line"> &#125;</span><br></pre></td></tr></table></figure>
+<h3 id="重新添加到队列"><a href="#重新添加到队列" class="headerlink" title="重新添加到队列"></a>重新添加到队列</h3><p>错误都是可重试的，会将消息重新插入到队列里。注意插入消息，是需要保证队列的序列号的顺序。RecordAccumulator提供了reenqueue方法，支持重新插入。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="keyword">final</span> <span class="class"><span class="keyword">class</span> <span class="title">RecordAccumulator</span> </span>&#123;</span><br><span class="line"></span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">reenqueue</span><span class="params">(ProducerBatch batch, <span class="keyword">long</span> now)</span> </span>&#123;</span><br><span class="line">        batch.reenqueued(now);</span><br><span class="line">        Deque&lt;ProducerBatch&gt; deque = getOrCreateDeque(batch.topicPartition);</span><br><span class="line">        <span class="keyword">synchronized</span> (deque) &#123;</span><br><span class="line">            <span class="keyword">if</span> (transactionManager != <span class="keyword">null</span>)</span><br><span class="line">                <span class="comment">// 开启了幂等性，需要按照序列号大小，添加到队列里</span></span><br><span class="line">                insertInSequenceOrder(deque, batch);</span><br><span class="line">            <span class="keyword">else</span></span><br><span class="line">                deque.addFirst(batch);</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    </span><br><span class="line">    <span class="function"><span class="keyword">private</span> <span class="keyword">void</span> <span class="title">insertInSequenceOrder</span><span class="params">(Deque&lt;ProducerBatch&gt; deque, ProducerBatch batch)</span> </span>&#123;</span><br><span class="line">        ProducerBatch firstBatchInQueue = deque.peekFirst();</span><br><span class="line">        <span class="keyword">if</span> (firstBatchInQueue != <span class="keyword">null</span> &amp;&amp; firstBatchInQueue.hasSequence() &amp;&amp; firstBatchInQueue.baseSequence() &lt; batch.baseSequence()) &#123;</span><br><span class="line">            <span class="comment">// 注意这里会检查重新添加的消息batch的序列号，需要比最后一条消息batch要小</span></span><br><span class="line">            List&lt;ProducerBatch&gt; orderedBatches = <span class="keyword">new</span> ArrayList&lt;&gt;();</span><br><span class="line">            <span class="comment">// 将序列号小的消息batch，先提取出来，添加到新队列orderedBatches里</span></span><br><span class="line">            <span class="keyword">while</span> (deque.peekFirst() != <span class="keyword">null</span> &amp;&amp; deque.peekFirst().hasSequence() &amp;&amp; deque.peekFirst().baseSequence() &lt; batch.baseSequence())</span><br><span class="line">                orderedBatches.add(deque.pollFirst());</span><br><span class="line">            <span class="comment">// 添加该消息batch到队列中</span></span><br><span class="line">            deque.addFirst(batch);</span><br><span class="line"></span><br><span class="line">            <span class="comment">// 就序列号小的消息batch再添加到队列中</span></span><br><span class="line">            <span class="keyword">for</span> (<span class="keyword">int</span> i = orderedBatches.size() - <span class="number">1</span>; i &gt;= <span class="number">0</span>; --i) &#123;</span><br><span class="line">                deque.addFirst(orderedBatches.get(i));</span><br><span class="line">            &#125;</span><br><span class="line"></span><br><span class="line">            <span class="comment">// 添加完后，原有的队列就是有序的</span></span><br><span class="line">        &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">            deque.addFirst(batch);</span><br><span class="line">        &#125;    </span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h3 id="重置-produce-id"><a href="#重置-produce-id" class="headerlink" title="重置  produce id"></a>重置  produce id</h3><p>如果尝试多次，仍然遇到OutOfOrderSequenceException异常，Kafka会认为无法找到缺失的那条记录，而无法修复。所以Producer为了不影响之后的消息发送，它会重置 produce id，然后申请新的 produce id，继续发送请求。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">Sender</span> <span class="keyword">implements</span> <span class="title">Runnable</span> </span>&#123;</span><br><span class="line"></span><br><span class="line">    <span class="function"><span class="keyword">private</span> <span class="keyword">void</span> <span class="title">failBatch</span><span class="params">(ProducerBatch batch, <span class="keyword">long</span> baseOffset, <span class="keyword">long</span> logAppendTime, RuntimeException exception, <span class="keyword">boolean</span> adjustSequenceNumbers)</span> </span>&#123;</span><br><span class="line">        <span class="keyword">if</span> (transactionManager != <span class="keyword">null</span>) &#123;</span><br><span class="line">            <span class="keyword">if</span> (exception <span class="keyword">instanceof</span> OutOfOrderSequenceException</span><br><span class="line">                    &amp;&amp; !transactionManager.isTransactional()  <span class="comment">// isTransactional方法返回false，表示这里仅仅开启了幂等性，并没有开启事务</span></span><br><span class="line">                    &amp;&amp; transactionManager.hasProducerId(batch.producerId())) &#123;  <span class="comment">// 是否之前就已经申请了produce_id</span></span><br><span class="line">                <span class="comment">// 重置produce_id为空，等待请求新的produce_id</span></span><br><span class="line">                transactionManager.resetProducerId();</span><br><span class="line">            &#125; <span class="keyword">else</span> <span class="keyword">if</span> (exception <span class="keyword">instanceof</span> ClusterAuthorizationException</span><br><span class="line">                    || exception <span class="keyword">instanceof</span> TransactionalIdAuthorizationException</span><br><span class="line">                    || exception <span class="keyword">instanceof</span> ProducerFencedException</span><br><span class="line">                    || exception <span class="keyword">instanceof</span> UnsupportedVersionException) &#123;</span><br><span class="line">                <span class="comment">// 这些异常是不可恢复的，所以这里将transactionManager的状态设置为错误</span></span><br><span class="line">                transactionManager.transitionToFatalError(exception);</span><br><span class="line">            &#125; <span class="keyword">else</span> <span class="keyword">if</span> (transactionManager.isTransactional()) &#123;</span><br><span class="line">                transactionManager.transitionToAbortableError(exception);</span><br><span class="line">            &#125;</span><br><span class="line">            transactionManager.removeInFlightBatch(batch);</span><br><span class="line">            <span class="keyword">if</span> (adjustSequenceNumbers)</span><br><span class="line">                <span class="comment">// 如果消息batch即使切分还是因为消息长度过大，那么会跳过这个消息batch，并且将更改之后的序列号</span></span><br><span class="line">                transactionManager.adjustSequencesDueToFailedBatch(batch);</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="comment">// 执行batch的回调函数</span></span><br><span class="line">        <span class="keyword">if</span> (batch.done(baseOffset, logAppendTime, exception))</span><br><span class="line">            <span class="comment">// 释放batch</span></span><br><span class="line">            <span class="keyword">this</span>.accumulator.deallocate(batch);</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h3 id="修改序列号"><a href="#修改序列号" class="headerlink" title="修改序列号"></a>修改序列号</h3><p>当消息batch多次切分，还是因为消息长度过大，那么Kafka会认为这个batch失败，然后会跳过这个batch，更改之后的序列号。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">TransactionManager</span> </span>&#123;</span><br><span class="line">    </span><br><span class="line">    <span class="comment">// 存储着分区的下一个消息的序列号</span></span><br><span class="line">    <span class="keyword">private</span> <span class="keyword">final</span> Map&lt;TopicPartition, Integer&gt; nextSequence;   </span><br><span class="line">    </span><br><span class="line">    <span class="comment">// 存储着正在发送的消息batch</span></span><br><span class="line">    <span class="keyword">private</span> <span class="keyword">final</span> Map&lt;TopicPartition, PriorityQueue&lt;ProducerBatch&gt;&gt; inflightBatchesBySequence;    </span><br><span class="line"></span><br><span class="line">    <span class="function"><span class="keyword">synchronized</span> <span class="keyword">void</span> <span class="title">adjustSequencesDueToFailedBatch</span><span class="params">(ProducerBatch batch)</span> </span>&#123;</span><br><span class="line">        <span class="keyword">if</span> (!<span class="keyword">this</span>.nextSequence.containsKey(batch.topicPartition))</span><br><span class="line">            <span class="keyword">return</span>;</span><br><span class="line">     </span><br><span class="line">        <span class="keyword">int</span> currentSequence = sequenceNumber(batch.topicPartition);</span><br><span class="line">        currentSequence -= batch.recordCount;</span><br><span class="line">        <span class="keyword">if</span> (currentSequence &lt; <span class="number">0</span>)</span><br><span class="line">            <span class="keyword">throw</span> <span class="keyword">new</span> IllegalStateException(<span class="string">"Sequence number for partition "</span> + batch.topicPartition + <span class="string">" is going to become negative : "</span> + currentSequence);</span><br><span class="line">        <span class="comment">// 更新该分区的下个序列号，这样之后的消息就会从这个序列号开始，填补了这个序列号的缺失</span></span><br><span class="line">        setNextSequence(batch.topicPartition, currentSequence);</span><br><span class="line"></span><br><span class="line">        <span class="keyword">for</span> (ProducerBatch inFlightBatch : inflightBatchesBySequence.get(batch.topicPartition)) &#123;</span><br><span class="line">            <span class="keyword">if</span> (inFlightBatch.baseSequence() &lt; batch.baseSequence())</span><br><span class="line">                <span class="keyword">continue</span>;</span><br><span class="line">            <span class="comment">// 如果有在这条消息batch之后，发送的消息，需要更新它的序列号</span></span><br><span class="line">            <span class="comment">// 序列号变为减去batch的消息数目</span></span><br><span class="line">            <span class="keyword">int</span> newSequence = inFlightBatch.baseSequence() - batch.recordCount;</span><br><span class="line">            <span class="keyword">if</span> (newSequence &lt; <span class="number">0</span>)</span><br><span class="line">                <span class="keyword">throw</span> <span class="keyword">new</span> IllegalStateException(<span class="string">"...."</span>);</span><br><span class="line">            <span class="comment">// 更新新的序列号</span></span><br><span class="line">            inFlightBatch.resetProducerState(<span class="keyword">new</span> ProducerIdAndEpoch(inFlightBatch.producerId(), inFlightBatch.producerEpoch()), newSequence, inFlightBatch.isTransactional());</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+      
+    </div>
+    
+    
+    
+
+    
+
+    
+
+    
+
+    <footer class="post-footer">
+      
+        <div class="post-tags">
+          
+            <a href="/tags/kafka-producer-idempotence/" rel="tag"># kafka, producer, idempotence</a>
+          
+        </div>
+      
+
+      
+      
+      
+
+      
+        <div class="post-nav">
+          <div class="post-nav-next post-nav-item">
+            
+              <a href="/2019/04/08/kafka-consumer-offset/" rel="next" title="Kafka Consumer 管理 Offset 原理">
+                <i class="fa fa-chevron-left"></i> Kafka Consumer 管理 Offset 原理
+              </a>
+            
+          </div>
+
+          <span class="post-nav-divider"></span>
+
+          <div class="post-nav-prev post-nav-item">
+            
+          </div>
+        </div>
+      
+
+      
+      
+    </footer>
+  </div>
+  
+  
+  
+  </article>
+
+
+
+    <div class="post-spread">
+      
+    </div>
+  </div>
+
+
+          </div>
+          
+
+
+          
+
+  
+    <div class="comments" id="comments">
+    </div>
+  
+
+
+
+        </div>
+        
+          
+  
+  <div class="sidebar-toggle">
+    <div class="sidebar-toggle-line-wrap">
+      <span class="sidebar-toggle-line sidebar-toggle-line-first"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-middle"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-last"></span>
+    </div>
+  </div>
+
+  <aside id="sidebar" class="sidebar">
+    
+    <div class="sidebar-inner">
+
+      
+
+      
+        <ul class="sidebar-nav motion-element">
+          <li class="sidebar-nav-toc sidebar-nav-active" data-target="post-toc-wrap">
+            Table of Contents
+          </li>
+          <li class="sidebar-nav-overview" data-target="site-overview-wrap">
+            Overview
+          </li>
+        </ul>
+      
+
+      <section class="site-overview-wrap sidebar-panel">
+        <div class="site-overview">
+          <div class="site-author motion-element" itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+            
+              <p class="site-author-name" itemprop="name">zhmin</p>
+              <p class="site-description motion-element" itemprop="description"></p>
+          </div>
+
+          <nav class="site-state motion-element">
+
+            
+              <div class="site-state-item site-state-posts">
+              
+                <a href="/archives/">
+              
+                  <span class="site-state-item-count">35</span>
+                  <span class="site-state-item-name">posts</span>
+                </a>
+              </div>
+            
+
+            
+              
+              
+              <div class="site-state-item site-state-categories">
+                <a href="/categories/index.html">
+                  <span class="site-state-item-count">6</span>
+                  <span class="site-state-item-name">categories</span>
+                </a>
+              </div>
+            
+
+            
+              
+              
+              <div class="site-state-item site-state-tags">
+                
+                  <span class="site-state-item-count">32</span>
+                  <span class="site-state-item-name">tags</span>
+                
+              </div>
+            
+
+          </nav>
+
+          
+
+          
+            <div class="links-of-author motion-element">
+                
+                  <span class="links-of-author-item">
+                    <a href="https://github.com/zhmin" target="_blank" title="GitHub">
+                      
+                        <i class="fa fa-fw fa-github"></i>GitHub</a>
+                  </span>
+                
+            </div>
+          
+
+          
+          
+
+          
+          
+
+          
+
+        </div>
+      </section>
+
+      
+      <!--noindex-->
+        <section class="post-toc-wrap motion-element sidebar-panel sidebar-panel-active">
+          <div class="post-toc">
+
+            
+              
+            
+
+            
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#Kafka-Producer-幂等性原理"><span class="nav-number">1.</span> <span class="nav-text">Kafka Producer 幂等性原理</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#Producer-发送消息"><span class="nav-number">1.1.</span> <span class="nav-text">Producer 发送消息</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#配置幂等性"><span class="nav-number">1.1.1.</span> <span class="nav-text">配置幂等性</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#请求获取-producer-id"><span class="nav-number">1.1.2.</span> <span class="nav-text">请求获取 producer id</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#配置消息"><span class="nav-number">1.1.3.</span> <span class="nav-text">配置消息</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#服务端处理请求"><span class="nav-number">1.2.</span> <span class="nav-text">服务端处理请求</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#错误处理"><span class="nav-number">1.3.</span> <span class="nav-text">错误处理</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#重新添加到队列"><span class="nav-number">1.3.1.</span> <span class="nav-text">重新添加到队列</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#重置-produce-id"><span class="nav-number">1.3.2.</span> <span class="nav-text">重置  produce id</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#修改序列号"><span class="nav-number">1.3.3.</span> <span class="nav-text">修改序列号</span></a></li></ol></li></ol></li></ol></div>
+            
+
+          </div>
+        </section>
+      <!--/noindex-->
+      
+
+      
+
+    </div>
+  </aside>
+
+
+        
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="footer-inner">
+        <div class="copyright">&copy; <span itemprop="copyrightYear">2019</span>
+  <span class="with-love">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">zhmin</span>
+
+  
+</div>
+
+
+
+
+
+
+
+
+
+
+
+  <script src="https://unpkg.com/mermaid@7.1.2/dist/mermaid.min.js"></script>
+  <script>
+    if (window.mermaid) {
+      mermaid.initialize({"startOnload":true,"theme":"forest"});
+    }
+  </script>
+
+
+
+<script async src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+<span id="busuanzi_container_site_pv">
+    访问量<span id="busuanzi_value_site_pv"></span>
+</span>
+<span class="post-meta-divider">|</span>
+<span id="busuanzi_container_site_uv">
+  访客数<span id="busuanzi_value_site_uv"></span>
+</span>
+
+        
+
+
+
+
+
+
+
+        
+      </div>
+    </footer>
+
+    
+      <div class="back-to-top">
+        <i class="fa fa-arrow-up"></i>
+        
+      </div>
+    
+
+    
+
+  </div>
+
+  
+
+<script type="text/javascript">
+  if (Object.prototype.toString.call(window.Promise) !== '[object Function]') {
+    window.Promise = null;
+  }
+</script>
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery/index.js?v=2.1.3"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fastclick/lib/fastclick.min.js?v=1.0.6"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery_lazyload/jquery.lazyload.js?v=1.9.7"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.ui.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fancybox/source/jquery.fancybox.pack.js?v=2.1.5"></script>
+  
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/utils.js?v=5.1.4"></script>
+
+  <script type="text/javascript" src="/js/src/motion.js?v=5.1.4"></script>
+
+
+
+  
+  
+
+  
+  <script type="text/javascript" src="/js/src/scrollspy.js?v=5.1.4"></script>
+<script type="text/javascript" src="/js/src/post-details.js?v=5.1.4"></script>
+
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/bootstrap.js?v=5.1.4"></script>
+
+
+
+  
+
+
+  
+
+
+
+
+	
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+  <script src="//cdn1.lncld.net/static/js/3.0.4/av-min.js"></script>
+  <script src="//unpkg.com/valine/dist/Valine.min.js"></script>
+  
+  <script type="text/javascript">
+    var GUEST = ['nick','mail','link'];
+    var guest = 'nick';
+    guest = guest.split(',').filter(item=>{
+      return GUEST.indexOf(item)>-1;
+    });
+    new Valine({
+        el: '#comments' ,
+        verify: false,
+        notify: false,
+        appId: 'iYiPQlDR2X2zg2QIql2UEe2o-gzGzoHsz',
+        appKey: 'EW8G4sftwX1pef1zS9EsOeKE',
+        placeholder: 'comment here',
+        avatar:'mm',
+        guest_info:guest,
+        pageSize:'10' || 10,
+    });
+  </script>
+
+
+
+  
+
+
+
+
+
+  
+
+  
+  <script src="https://cdn1.lncld.net/static/js/av-core-mini-0.6.4.js"></script>
+  <script>AV.initialize("iYiPQlDR2X2zg2QIql2UEe2o-gzGzoHsz", "EW8G4sftwX1pef1zS9EsOeKE");</script>
+  <script>
+    function showTime(Counter) {
+      var query = new AV.Query(Counter);
+      var entries = [];
+      var $visitors = $(".leancloud_visitors");
+
+      $visitors.each(function () {
+        entries.push( $(this).attr("id").trim() );
+      });
+
+      query.containedIn('url', entries);
+      query.find()
+        .done(function (results) {
+          var COUNT_CONTAINER_REF = '.leancloud-visitors-count';
+
+          if (results.length === 0) {
+            $visitors.find(COUNT_CONTAINER_REF).text(0);
+            return;
+          }
+
+          for (var i = 0; i < results.length; i++) {
+            var item = results[i];
+            var url = item.get('url');
+            var time = item.get('time');
+            var element = document.getElementById(url);
+
+            $(element).find(COUNT_CONTAINER_REF).text(time);
+          }
+          for(var i = 0; i < entries.length; i++) {
+            var url = entries[i];
+            var element = document.getElementById(url);
+            var countSpan = $(element).find(COUNT_CONTAINER_REF);
+            if( countSpan.text() == '') {
+              countSpan.text(0);
+            }
+          }
+        })
+        .fail(function (object, error) {
+          console.log("Error: " + error.code + " " + error.message);
+        });
+    }
+
+    function addCount(Counter) {
+      var $visitors = $(".leancloud_visitors");
+      var url = $visitors.attr('id').trim();
+      var title = $visitors.attr('data-flag-title').trim();
+      var query = new AV.Query(Counter);
+
+      query.equalTo("url", url);
+      query.find({
+        success: function(results) {
+          if (results.length > 0) {
+            var counter = results[0];
+            counter.fetchWhenSave(true);
+            counter.increment("time");
+            counter.save(null, {
+              success: function(counter) {
+                var $element = $(document.getElementById(url));
+                $element.find('.leancloud-visitors-count').text(counter.get('time'));
+              },
+              error: function(counter, error) {
+                console.log('Failed to save Visitor num, with error message: ' + error.message);
+              }
+            });
+          } else {
+            var newcounter = new Counter();
+            /* Set ACL */
+            var acl = new AV.ACL();
+            acl.setPublicReadAccess(true);
+            acl.setPublicWriteAccess(true);
+            newcounter.setACL(acl);
+            /* End Set ACL */
+            newcounter.set("title", title);
+            newcounter.set("url", url);
+            newcounter.set("time", 1);
+            newcounter.save(null, {
+              success: function(newcounter) {
+                var $element = $(document.getElementById(url));
+                $element.find('.leancloud-visitors-count').text(newcounter.get('time'));
+              },
+              error: function(newcounter, error) {
+                console.log('Failed to create');
+              }
+            });
+          }
+        },
+        error: function(error) {
+          console.log('Error:' + error.code + " " + error.message);
+        }
+      });
+    }
+
+    $(function() {
+      var Counter = AV.Object.extend("Counter");
+      if ($('.leancloud_visitors').length == 1) {
+        addCount(Counter);
+      } else if ($('.post-title-link').length > 1) {
+        showTime(Counter);
+      }
+    });
+  </script>
+
+
+
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+</body>
+</html>
