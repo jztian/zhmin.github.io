@@ -2,6 +2,13 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   
   <url>
+    <loc>https://zhmin.github.io/2019/04/20/kafka-consumer-transaction/</loc>
+    
+    <lastmod>2019-04-20T14:12:00.708Z</lastmod>
+    
+  </url>
+  
+  <url>
     <loc>https://zhmin.github.io/2019/04/16/kafka-producer-idempotence/</loc>
     
     <lastmod>2019-04-16T13:18:48.964Z</lastmod>
@@ -79,14 +86,14 @@
   </url>
   
   <url>
-    <loc>https://zhmin.github.io/2019/01/03/spark-rdd-dependency/</loc>
+    <loc>https://zhmin.github.io/2019/01/26/spark-shuffle-writer/</loc>
     
     <lastmod>2019-03-06T13:14:41.931Z</lastmod>
     
   </url>
   
   <url>
-    <loc>https://zhmin.github.io/2019/01/26/spark-shuffle-writer/</loc>
+    <loc>https://zhmin.github.io/2019/01/03/spark-rdd-dependency/</loc>
     
     <lastmod>2019-03-06T13:14:41.931Z</lastmod>
     
