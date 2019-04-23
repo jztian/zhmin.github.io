@@ -1,0 +1,935 @@
+<!DOCTYPE html>
+
+
+
+  
+
+
+<html class="theme-next mist use-motion" lang="">
+<head><meta name="generator" content="Hexo 3.8.0">
+  <meta charset="UTF-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="theme-color" content="#222">
+
+
+
+
+
+
+
+
+
+<meta http-equiv="Cache-Control" content="no-transform">
+<meta http-equiv="Cache-Control" content="no-siteapp">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+  <link href="/lib/fancybox/source/jquery.fancybox.css?v=2.1.5" rel="stylesheet" type="text/css">
+
+
+
+
+
+
+
+<link href="/lib/font-awesome/css/font-awesome.min.css?v=4.6.2" rel="stylesheet" type="text/css">
+
+<link href="/css/main.css?v=5.1.4" rel="stylesheet" type="text/css">
+
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png?v=5.1.4">
+
+
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png?v=5.1.4">
+
+
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png?v=5.1.4">
+
+
+  <link rel="mask-icon" href="/images/logo.svg?v=5.1.4" color="#222">
+
+
+
+
+
+  <meta name="keywords" content="kafka, schema, registry,">
+
+
+
+
+
+
+
+
+
+
+<meta name="description" content="Kafka Schema Registry 原理Confluent 公司为了能让 Kafka 支持 Avro 序列化，创建了 Kafka Schema Registry 项目，项目地址为 https://github.com/confluentinc/schema-registry 。对于存储大量数据的 kafka 来说，使用 Avro 序列化，可以减少数据的存储空间提高了存储量，减少了序列化时间">
+<meta name="keywords" content="kafka, schema, registry">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Kafka Schema Registry 原理">
+<meta property="og:url" content="https://zhmin.github.io/2019/04/23/kafka-schema-registry/index.html">
+<meta property="og:site_name" content="blog">
+<meta property="og:description" content="Kafka Schema Registry 原理Confluent 公司为了能让 Kafka 支持 Avro 序列化，创建了 Kafka Schema Registry 项目，项目地址为 https://github.com/confluentinc/schema-registry 。对于存储大量数据的 kafka 来说，使用 Avro 序列化，可以减少数据的存储空间提高了存储量，减少了序列化时间">
+<meta property="og:locale" content="default">
+<meta property="og:image" content="https://zhmin.github.io/2019/04/23/kafka-schema-registry/kafka-schema-registry.svg">
+<meta property="og:updated_time" content="2019-04-23T13:09:04.487Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Kafka Schema Registry 原理">
+<meta name="twitter:description" content="Kafka Schema Registry 原理Confluent 公司为了能让 Kafka 支持 Avro 序列化，创建了 Kafka Schema Registry 项目，项目地址为 https://github.com/confluentinc/schema-registry 。对于存储大量数据的 kafka 来说，使用 Avro 序列化，可以减少数据的存储空间提高了存储量，减少了序列化时间">
+<meta name="twitter:image" content="https://zhmin.github.io/2019/04/23/kafka-schema-registry/kafka-schema-registry.svg">
+
+
+
+<script type="text/javascript" id="hexo.configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '/',
+    scheme: 'Mist',
+    version: '5.1.4',
+    sidebar: {"position":"left","display":"hide","offset":12,"b2t":false,"scrollpercent":false,"onmobile":false},
+    fancybox: true,
+    tabs: true,
+    motion: {"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},
+    duoshuo: {
+      userId: '0',
+      author: 'Author'
+    },
+    algolia: {
+      applicationID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    }
+  };
+</script>
+
+
+
+  <link rel="canonical" href="https://zhmin.github.io/2019/04/23/kafka-schema-registry/">
+
+
+
+
+
+  <title>Kafka Schema Registry 原理 | blog</title>
+  
+
+
+
+
+
+
+
+
+</head>
+
+<body itemscope="" itemtype="http://schema.org/WebPage" lang="default">
+
+  
+  
+    
+  
+
+  <div class="container sidebar-position-left page-post-detail">
+    <div class="headband"></div>
+
+    <header id="header" class="header" itemscope="" itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-wrapper">
+  <div class="site-meta ">
+    
+
+    <div class="custom-logo-site-title">
+      <a href="/" class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">blog</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+      
+        <h1 class="site-subtitle" itemprop="description"></h1>
+      
+  </div>
+
+  <div class="site-nav-toggle">
+    <button>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+    </button>
+  </div>
+</div>
+
+<nav class="site-nav">
+  
+
+  
+    <ul id="menu" class="menu">
+      
+        
+        <li class="menu-item menu-item-home">
+          <a href="/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-home"></i> <br>
+            
+            Home
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-categories">
+          <a href="/categories/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-th"></i> <br>
+            
+            Categories
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-archives">
+          <a href="/archives/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-archive"></i> <br>
+            
+            Archives
+          </a>
+        </li>
+      
+
+      
+    </ul>
+  
+
+  
+</nav>
+
+
+
+ </div>
+    </header>
+
+    <main id="main" class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          <div id="content" class="content">
+            
+
+  <div id="posts" class="posts-expand">
+    
+
+  
+
+  
+  
+  
+
+  <article class="post post-type-normal" itemscope="" itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block">
+    <link itemprop="mainEntityOfPage" href="https://zhmin.github.io/2019/04/23/kafka-schema-registry/">
+
+    <span hidden itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="zhmin">
+      <meta itemprop="description" content="">
+      <meta itemprop="image" content="/images/avatar.gif">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope="" itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="blog">
+    </span>
+
+    
+      <header class="post-header">
+
+        
+        
+          <h2 class="post-title" itemprop="name headline">Kafka Schema Registry 原理</h2>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">Posted on</span>
+              
+              <time title="Post created" itemprop="dateCreated datePublished" datetime="2019-04-23T21:01:45+08:00">
+                2019-04-23
+              </time>
+            
+
+            
+
+            
+          </span>
+
+          
+            <span class="post-category">
+            
+              <span class="post-meta-divider">|</span>
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">In</span>
+              
+              
+                <span itemprop="about" itemscope="" itemtype="http://schema.org/Thing">
+                  <a href="/categories/kafka/" itemprop="url" rel="index">
+                    <span itemprop="name">kafka</span>
+                  </a>
+                </span>
+
+                
+                
+              
+            </span>
+          
+
+          
+            
+              <span class="post-comments-count">
+                <span class="post-meta-divider">|</span>
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-comment-o"></i>
+                </span>
+                <a href="/2019/04/23/kafka-schema-registry/#comments" itemprop="discussionUrl">
+                  <span class="post-comments-count valine-comment-count" data-xid="/2019/04/23/kafka-schema-registry/" itemprop="commentCount"></span>
+                </a>
+              </span>
+            
+          
+
+          
+          
+             <span id="/2019/04/23/kafka-schema-registry/" class="leancloud_visitors" data-flag-title="Kafka Schema Registry 原理">
+               <span class="post-meta-divider">|</span>
+               <span class="post-meta-item-icon">
+                 <i class="fa fa-eye"></i>
+               </span>
+               
+                 <span class="post-meta-item-text">Visitors&#58;</span>
+               
+                 <span class="leancloud-visitors-count"></span>
+             </span>
+          
+
+          
+
+          
+
+          
+
+        </div>
+      </header>
+    
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+      
+
+      
+        <h1 id="Kafka-Schema-Registry-原理"><a href="#Kafka-Schema-Registry-原理" class="headerlink" title="Kafka Schema Registry 原理"></a>Kafka Schema Registry 原理</h1><p>Confluent 公司为了能让 Kafka 支持 Avro 序列化，创建了 Kafka Schema Registry 项目，项目地址为 <a href="https://github.com/confluentinc/schema-registry" target="_blank" rel="noopener">https://github.com/confluentinc/schema-registry</a> 。对于存储大量数据的 kafka 来说，使用 Avro 序列化，可以减少数据的存储空间提高了存储量，减少了序列化时间提高了性能。 Kafka 有多个topic，里面存储了不同种类的数据，每种数据都对应着一个 Avro schema 来描述这种格式。Registry 服务支持方便的管理这些 topic 的schema，它还对外提供了多个 restful 接口，用于存储和查找。</p>
+<h2 id="Avro-序列化示例"><a href="#Avro-序列化示例" class="headerlink" title="Avro 序列化示例"></a>Avro 序列化示例</h2><p>Avro 序列化相比常见的序列化（比如 json）会更快，序列化的数据会更小。相比 protobuf ，它可以支持实时编译，不需要像 protobuf 那样先定义好数据格式文件，编译之后才能使用。下面简单的介绍下 如何使用 Avro 序列化：</p>
+<p>数据格式文件：</p>
+<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line">&#123;</span><br><span class="line"> <span class="attr">"namespace"</span>: <span class="string">"example.avro"</span>,</span><br><span class="line"> <span class="attr">"type"</span>: <span class="string">"record"</span>,</span><br><span class="line"> <span class="attr">"name"</span>: <span class="string">"User"</span>,</span><br><span class="line"> <span class="attr">"fields"</span>: [</span><br><span class="line">     &#123;<span class="attr">"name"</span>: <span class="string">"name"</span>, <span class="attr">"type"</span>: <span class="string">"string"</span>&#125;,</span><br><span class="line">     &#123;<span class="attr">"name"</span>: <span class="string">"favorite_number"</span>,  <span class="attr">"type"</span>: [<span class="string">"int"</span>, <span class="string">"null"</span>]&#125;,</span><br><span class="line">     &#123;<span class="attr">"name"</span>: <span class="string">"favorite_color"</span>, <span class="attr">"type"</span>: [<span class="string">"string"</span>, <span class="string">"null"</span>]&#125;</span><br><span class="line"> ]</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>序列化生成字节：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 解析数据格式文件  </span></span><br><span class="line">Schema schema = <span class="keyword">new</span> Schema.Parser().parse(<span class="keyword">new</span> File(<span class="string">"user.avsc"</span>));</span><br><span class="line"><span class="comment">// 创建一个实例</span></span><br><span class="line">GenericRecord user = <span class="keyword">new</span> GenericData.Record(schema);</span><br><span class="line">user.put(<span class="string">"name"</span>, <span class="string">"Alyssa"</span>);</span><br><span class="line">user.put(<span class="string">"favorite_number"</span>, <span class="number">256</span>);</span><br><span class="line"></span><br><span class="line"><span class="comment">// 构建输出流，保存结果</span></span><br><span class="line">ByteArrayOutputStream out = <span class="keyword">new</span> ByteArrayOutputStream();</span><br><span class="line"><span class="comment">// BinaryEncoder负责向输出流，写入数据</span></span><br><span class="line">BinaryEncoder encoder =  EncoderFactory.get().directBinaryEncoder(out, <span class="keyword">null</span>);</span><br><span class="line"><span class="comment">// DatumWriter负责序列化</span></span><br><span class="line">DatumWriter&lt;GenericRecord&gt; datumWriter = <span class="keyword">new</span> GenericDatumWriter&lt;GenericRecord&gt;(schema);</span><br><span class="line"><span class="comment">// 调用DatumWriter序列化，并将结果写入到输出流</span></span><br><span class="line">datumWriter.write(user, encoder);</span><br><span class="line"><span class="comment">// 刷新缓存</span></span><br><span class="line">encoder.flush();</span><br><span class="line"></span><br><span class="line"><span class="comment">// 获取序列化的结果</span></span><br><span class="line"><span class="keyword">byte</span>[] result = out.toByteArray();</span><br></pre></td></tr></table></figure>
+<p>更多用法可以参见官方文档，<a href="http://avro.apache.org/docs/current/gettingstartedjava.html" target="_blank" rel="noopener">http://avro.apache.org/docs/current/gettingstartedjava.html</a></p>
+<h2 id="Kafka-客户端使用原理"><a href="#Kafka-客户端使用原理" class="headerlink" title="Kafka 客户端使用原理"></a>Kafka 客户端使用原理</h2><p>Kafka Schema Registry 提供了 KafkaAvroSerializer 和 KafkaAvroDeserializer 两个类。Kafka 如果要使用 Avro 序列化， 在实例化 KafkaProducer 和 KafkaConsumer 时， 指定序列化或反序列化的配置。</p>
+<p>客户端发送数据的流程图如下所示：</p>
+<p><img src="/2019/04/23/kafka-schema-registry/kafka-schema-registry.svg"></p>
+<p>我们向 kafka 发送数据时，需要先向 Schema Registry 注册 schema，然后序列化发送到 kafka 里。当我们需要从 kafka 消费数据时，也需要先从 Schema Registry 获取 schema，然后才能解析数据。</p>
+<p>下面以实例 KafkaProducer 的使用为例</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">SchemaProducer</span> </span>&#123;</span><br><span class="line"></span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">static</span> <span class="keyword">void</span> <span class="title">main</span><span class="params">(String[] args)</span> <span class="keyword">throws</span> Exception </span>&#123;</span><br><span class="line">        </span><br><span class="line">        String kafkaHost = <span class="string">"xxx.xxx.xxx.xxx:9092"</span>;</span><br><span class="line">        String topic = <span class="string">"schema-tutorial"</span>;</span><br><span class="line">        String schameFilename = <span class="string">"user.json"</span>;</span><br><span class="line">        String registryHost = <span class="string">"http://xxx.xxx.xxx.xxx:8081"</span>;</span><br><span class="line"></span><br><span class="line">        Properties props = <span class="keyword">new</span> Properties();</span><br><span class="line">        props.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, kafkaHost);</span><br><span class="line">        props.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class);</span><br><span class="line">        <span class="comment">// 指定Value的序列化类，KafkaAvroSerializer</span></span><br><span class="line">        props.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, KafkaAvroSerializer.class);</span><br><span class="line">        <span class="comment">// 指定 registry 服务的地址</span></span><br><span class="line">        <span class="comment">// 如果 Schema Registry 启动了高可用，那么这儿的配置值可以是多个服务地址，以逗号隔开</span></span><br><span class="line">        props.put(<span class="string">"schema.registry.url"</span>, registryHost);</span><br><span class="line">        KafkaProducer&lt;String, GenericRecord&gt; producer = <span class="keyword">new</span> KafkaProducer&lt;&gt;(props);</span><br><span class="line"></span><br><span class="line">        String key = <span class="string">"Alyssa key"</span>;</span><br><span class="line">        Schema schema = <span class="keyword">new</span> Schema.Parser().parse(<span class="keyword">new</span> File(schameFilename));</span><br><span class="line">        GenericRecord avroRecord = <span class="keyword">new</span> GenericData.Record(schema);</span><br><span class="line">        avroRecord.put(<span class="string">"name"</span>, <span class="string">"Alyssa"</span>);</span><br><span class="line">        avroRecord.put(<span class="string">"favorite_number"</span>, <span class="number">256</span>);</span><br><span class="line"></span><br><span class="line">        <span class="comment">// 发送消息</span></span><br><span class="line">        ProducerRecord&lt;String, GenericRecord&gt; record = <span class="keyword">new</span> ProducerRecord&lt;&gt;(topic, key, avroRecord);</span><br><span class="line">        producer.send(record);</span><br><span class="line">        producer.flush();</span><br><span class="line">        producer.close();</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>上面使用到了 KafkaAvroSerializer 序列化消息，接下来看看 KafkaAvroSerializer 的 原理。我们知道 Kafka 的消息由 Key 和 Value 组成，这两部分的值可以有不同的数据格式。而这些数据格式都会保存在 Registry 服务端，客户端需要指定数据格式的名称（在 Registry 中叫做 subject），才能获取到。如果我们要获取当前消息 Key 这部分的数据格式，它对于的 subject 名称为 <topic>-key，如果要获取 Value 这部分的数据格式，它对应的 subject 名称为 <topic>-value（topic 为该消息所在的 topic 名称）。</topic></topic></p>
+<p> Kafka Schema Registry 还支持修改数据格式，这样对于同一个 topic ，它的消息有多个版本，前面的消息和最新的消息都可能会完全不一样，那么客户怎么区分呢。Registry 会为每种数据格式都会分配一个 id 号，然后发送的每条消息都会附带对应的数据格式 id。</p>
+<p>KafkaProducer 在第一次序列化的时候，会自动向 Registry 服务端注册。服务端保存数据格式后，会返回一个 id 号。KafkaProducer发送消息的时候，需要附带这个 id 号。这样 KafkaConsumer 在读取消息的时候，通过这个 id 号，就可以从 Registry 服务端 获取。</p>
+<p>Registry 客户端负责向服务端发送 http 请求，然后会将结果缓存起来，以提高性能。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">CachedSchemaRegistryClient</span> <span class="keyword">implements</span> <span class="title">SchemaRegistryClient</span> </span>&#123;</span><br><span class="line">  <span class="comment">// Key 为数据格式的名称， 里面的 Value 为 Map类型，它对于的 Key 为数据格式，Value 为对应的 id 号</span></span><br><span class="line">  <span class="keyword">private</span> <span class="keyword">final</span> Map&lt;String, Map&lt;Schema, Integer&gt;&gt; schemaCache;</span><br><span class="line">  <span class="comment">// Key 为数据格式的名称，里面的 Value 为 Map类型，它对于的 Key 为 id 号，Value 为对应的数据格式</span></span><br><span class="line">  <span class="comment">// 这个集合比较特殊，当 Key 为 null 时，表示 id 到 数据格式的缓存</span></span><br><span class="line">  <span class="keyword">private</span> <span class="keyword">final</span> Map&lt;String, Map&lt;Integer, Schema&gt;&gt; idCache;</span><br><span class="line">        </span><br><span class="line">  <span class="meta">@Override</span></span><br><span class="line">  <span class="function"><span class="keyword">public</span> <span class="keyword">synchronized</span> <span class="keyword">int</span> <span class="title">register</span><span class="params">(String subject, Schema schema, <span class="keyword">int</span> version, <span class="keyword">int</span> id)</span></span></span><br><span class="line"><span class="function">      <span class="keyword">throws</span> IOException, RestClientException </span>&#123;</span><br><span class="line">    <span class="comment">// 从schemaCache查找缓存，如果不存在则初始化空的哈希表</span></span><br><span class="line">    <span class="keyword">final</span> Map&lt;Schema, Integer&gt; schemaIdMap =</span><br><span class="line">        schemaCache.computeIfAbsent(subject, k -&gt; <span class="keyword">new</span> HashMap&lt;&gt;());</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 获取对应的 id 号</span></span><br><span class="line">    <span class="keyword">final</span> Integer cachedId = schemaIdMap.get(schema);</span><br><span class="line">    <span class="keyword">if</span> (cachedId != <span class="keyword">null</span>) &#123;</span><br><span class="line">      <span class="comment">// 检查 id 号是否有冲突</span></span><br><span class="line">      <span class="keyword">if</span> (id &gt;= <span class="number">0</span> &amp;&amp; id != cachedId) &#123;</span><br><span class="line">        <span class="keyword">throw</span> <span class="keyword">new</span> IllegalStateException(<span class="string">"Schema already registered with id "</span></span><br><span class="line">            + cachedId + <span class="string">" instead of input id "</span> + id);</span><br><span class="line">      &#125;</span><br><span class="line">      <span class="comment">// 返回缓存的 id 号</span></span><br><span class="line">      <span class="keyword">return</span> cachedId;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span> (schemaIdMap.size() &gt;= identityMapCapacity) &#123;</span><br><span class="line">      <span class="keyword">throw</span> <span class="keyword">new</span> IllegalStateException(<span class="string">"Too many schema objects created for "</span> + subject + <span class="string">"!"</span>);</span><br><span class="line">    &#125;</span><br><span class="line">      </span><br><span class="line">    <span class="comment">// 如果缓存没有，则向服务端发送 http 请求 </span></span><br><span class="line">    <span class="keyword">final</span> <span class="keyword">int</span> retrievedId = id &gt;= <span class="number">0</span></span><br><span class="line">                            ? registerAndGetId(subject, schema, version, id)</span><br><span class="line">                            : registerAndGetId(subject, schema);</span><br><span class="line">    <span class="comment">// 缓存结果</span></span><br><span class="line">    schemaIdMap.put(schema, retrievedId);</span><br><span class="line">    idCache.get(<span class="keyword">null</span>).put(retrievedId, schema);</span><br><span class="line">    <span class="keyword">return</span> retrievedId;</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h2 id="Registry-服务端"><a href="#Registry-服务端" class="headerlink" title="Registry 服务端"></a>Registry 服务端</h2><h3 id="存储数据"><a href="#存储数据" class="headerlink" title="存储数据"></a>存储数据</h3><p>Registry 服务端将数据格式存储到 Kafka 中，对应的 topic 名称为 _schemas。存储消息的格式如下：</p>
+<ul>
+<li>Key 部分，包含数据格式名称，版本号，由 SchemaRegistryKey 类表示。 </li>
+<li>Value部分，包含数据格式名称，版本号， 数据格式 id 号，数据格式的内容，是否被删除， 由 SchemaRegistryValue 类表示。</li>
+</ul>
+<p>Registry 服务端在存储Kafka之前，还会将上述的 Key 和 Value 序列化，目前序列化由两种方式：</p>
+<ul>
+<li>json 序列化，由 ZkStringSerializer 类负责</li>
+<li>将 SchemaRegistryKey 或 SchemaRegistryValue 强制转换为 String 类型保存起来</li>
+</ul>
+<h3 id="处理请求"><a href="#处理请求" class="headerlink" title="处理请求"></a>处理请求</h3><p>Registry 服务端主要负责两种请求，注册数据格式 schema 请求和 获取数据格式 schema 请求。</p>
+<p>如果 Registry 服务端启动了高可用，说明有多个服务端在运行。如果注册 schema 请求发送给了 follower，那么 follower 会将请求转发给 leader。至于获取 schema 请求，follower 和 leader 都能处理，因为 schema 最后都存在了 kafka 中，它们直接从 kafka 里读取。</p>
+<p>处理注册 schema 请求</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">KafkaSchemaRegistry</span> <span class="keyword">implements</span> <span class="title">SchemaRegistry</span>, <span class="title">MasterAwareSchemaRegistry</span> </span>&#123;</span><br><span class="line"></span><br><span class="line">  <span class="function"><span class="keyword">public</span> <span class="keyword">int</span> <span class="title">registerOrForward</span><span class="params">(String subject,</span></span></span><br><span class="line"><span class="function"><span class="params">                               Schema schema,</span></span></span><br><span class="line"><span class="function"><span class="params">                               Map&lt;String, String&gt; headerProperties)</span></span></span><br><span class="line"><span class="function">      <span class="keyword">throws</span> SchemaRegistryException </span>&#123;</span><br><span class="line">    <span class="comment">// 检测这个schema是否之前注册过</span></span><br><span class="line">    Schema existingSchema = lookUpSchemaUnderSubject(subject, schema, <span class="keyword">false</span>);</span><br><span class="line">    <span class="keyword">if</span> (existingSchema != <span class="keyword">null</span>) &#123;</span><br><span class="line">      <span class="keyword">if</span> (schema.getId() != <span class="keyword">null</span> &amp;&amp; schema.getId() &gt;= <span class="number">0</span> &amp;&amp; !schema.getId().equals(existingSchema.getId())</span><br><span class="line">      ) &#123;</span><br><span class="line">        <span class="keyword">throw</span> <span class="keyword">new</span> IdDoesNotMatchException(existingSchema.getId(), schema.getId());</span><br><span class="line">      &#125;</span><br><span class="line">      <span class="keyword">return</span> existingSchema.getId();</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">synchronized</span> (masterLock) &#123;</span><br><span class="line">      <span class="keyword">if</span> (isMaster()) &#123;</span><br><span class="line">        <span class="comment">// 如果是leader，那么执行register方法，写schema到kafka</span></span><br><span class="line">        <span class="keyword">return</span> register(subject, schema);</span><br><span class="line">      &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">        <span class="comment">// 如果是follower，那么转发请求到 leader</span></span><br><span class="line">        <span class="keyword">if</span> (masterIdentity != <span class="keyword">null</span>) &#123;</span><br><span class="line">          <span class="keyword">return</span> forwardRegisterRequestToMaster(subject, schema, headerProperties);</span><br><span class="line">        &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">          <span class="keyword">throw</span> <span class="keyword">new</span> UnknownMasterException(<span class="string">"Register schema request failed since master is "</span></span><br><span class="line">                                           + <span class="string">"unknown"</span>);</span><br><span class="line">        &#125;</span><br><span class="line">      &#125;</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>上面调用了 register 方法保存 schema，同时它也为这个 schema 分配了一个 id。这里简单说下自增 id 生成器的算法，目前有两种实现方式。一种是基于内存的方式，自己维护一个计数器。另外一种是基于zookeeper的方式，每次从 zookeeper 获取一个 id 段，然后一个 id，一个 id 的分配出去。</p>
+<p>处理获取 schema 请求</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">KafkaSchemaRegistry</span> <span class="keyword">implements</span> <span class="title">SchemaRegistry</span>, <span class="title">MasterAwareSchemaRegistry</span> </span>&#123;</span><br><span class="line">  <span class="comment">// 负责读取kafka</span></span><br><span class="line">  <span class="keyword">final</span> KafkaStore&lt;SchemaRegistryKey, SchemaRegistryValue&gt; kafkaStore;</span><br><span class="line">  <span class="comment">// 缓存</span></span><br><span class="line">  <span class="keyword">private</span> <span class="keyword">final</span> LookupCache&lt;SchemaRegistryKey, SchemaRegistryValue&gt; lookupCache;</span><br><span class="line">    </span><br><span class="line">  <span class="meta">@Override</span></span><br><span class="line">  <span class="function"><span class="keyword">public</span> SchemaString <span class="title">get</span><span class="params">(<span class="keyword">int</span> id)</span> <span class="keyword">throws</span> SchemaRegistryException </span>&#123;</span><br><span class="line">    SchemaValue schema = <span class="keyword">null</span>;</span><br><span class="line">    <span class="keyword">try</span> &#123;</span><br><span class="line">      <span class="comment">// 从缓存中查找，根据 id 获取消息的key</span></span><br><span class="line">      SchemaKey subjectVersionKey = lookupCache.schemaKeyById(id);</span><br><span class="line">      <span class="keyword">if</span> (subjectVersionKey == <span class="keyword">null</span>) &#123;</span><br><span class="line">        <span class="keyword">return</span> <span class="keyword">null</span>;</span><br><span class="line">      &#125;</span><br><span class="line">      <span class="comment">// 从kafka中读取消息的value</span></span><br><span class="line">      schema = (SchemaValue) kafkaStore.get(subjectVersionKey);</span><br><span class="line">      <span class="keyword">if</span> (schema == <span class="keyword">null</span>) &#123;</span><br><span class="line">        <span class="keyword">return</span> <span class="keyword">null</span>;</span><br><span class="line">      &#125;</span><br><span class="line">    &#125; <span class="keyword">catch</span> (StoreException e) &#123;</span><br><span class="line">      <span class="keyword">throw</span> <span class="keyword">new</span> SchemaRegistryStoreException(...);</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">// 返回结果</span></span><br><span class="line">    SchemaString schemaString = <span class="keyword">new</span> SchemaString();</span><br><span class="line">    schemaString.setSchemaString(schema.getSchema());</span><br><span class="line">    <span class="keyword">return</span> schemaString;</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h3 id="高可用"><a href="#高可用" class="headerlink" title="高可用"></a>高可用</h3><p>如果要实现高可用，需要运行多个 Registry 服务，这些服务中必须选择出一个 leader，所有的请求都是最终 由 leader 来负责。当 leader 挂掉之后，就会触发选举操作，来选举出新的 leader。选举的实现有两种方式，基于kafka 和 基于 zookeeper。 </p>
+<p>基于 kafka 的原理是利用消费组，因为消费组的每个成员都需要和 kafka coordinator 服务端保持心跳，如果有成员挂了，那么就会触发组的重分配操作。重分配操作会从存活的成员中，选出 leader 角色。</p>
+<p>KafkaGroupMasterElector 启动了一个心跳线程，定期发送心跳请求。它 实现了监听器的接口，当出发开始选举时会调用onRevoked方法，当选举完之后会调用onAssigned方法。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">KafkaGroupMasterElector</span> <span class="keyword">implements</span> <span class="title">MasterElector</span>, <span class="title">SchemaRegistryRebalanceListener</span> </span>&#123;</span><br><span class="line"></span><br><span class="line"></span><br><span class="line">  <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">init</span><span class="params">()</span> <span class="keyword">throws</span> SchemaRegistryTimeoutException, SchemaRegistryStoreException </span>&#123;</span><br><span class="line">    <span class="comment">// 心跳线程</span></span><br><span class="line">    executor = Executors.newSingleThreadExecutor();</span><br><span class="line">    executor.submit(<span class="keyword">new</span> Runnable() &#123;</span><br><span class="line">      <span class="meta">@Override</span></span><br><span class="line">      <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">run</span><span class="params">()</span> </span>&#123;</span><br><span class="line">        <span class="keyword">try</span> &#123;</span><br><span class="line">          <span class="keyword">while</span> (!stopped.get()) &#123;</span><br><span class="line">            <span class="comment">// 循环调用poll方法，处理心跳</span></span><br><span class="line">            coordinator.poll(Integer.MAX_VALUE);</span><br><span class="line">          &#125;</span><br><span class="line">        &#125; <span class="keyword">catch</span> (Throwable t) &#123;</span><br><span class="line">          log.error(<span class="string">"Unexpected exception in schema registry group processing thread"</span>, t);</span><br><span class="line">        &#125;</span><br><span class="line">      &#125;</span><br><span class="line">    &#125;);</span><br><span class="line"></span><br><span class="line">  <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">onRevoked</span><span class="params">()</span> </span>&#123;</span><br><span class="line">    log.info(<span class="string">"Rebalance started"</span>);</span><br><span class="line">    <span class="keyword">try</span> &#123;</span><br><span class="line">      <span class="comment">// 因为要重新选举，所以将之前的leader清空</span></span><br><span class="line">      schemaRegistry.setMaster(<span class="keyword">null</span>);</span><br><span class="line">    &#125; <span class="keyword">catch</span> (SchemaRegistryException e) &#123;</span><br><span class="line">      <span class="comment">// This shouldn't be possible with this implementation. The exceptions from setMaster come</span></span><br><span class="line">      <span class="comment">// from it calling nextRange in this class, but this implementation doesn't require doing</span></span><br><span class="line">      <span class="comment">// any IO, so the errors that can occur in the ZK implementation should not be possible here.</span></span><br><span class="line">      log.error(</span><br><span class="line">          <span class="string">"Error when updating master, we will not be able to forward requests to the master"</span>,</span><br><span class="line">          e</span><br><span class="line">      );</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br><span class="line">  </span><br><span class="line">  <span class="comment">// assignment为选举结果</span></span><br><span class="line">  <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">onAssigned</span><span class="params">(SchemaRegistryProtocol.Assignment assignment, <span class="keyword">int</span> generation)</span> </span>&#123;</span><br><span class="line">    log.info(<span class="string">"Finished rebalance with master election result: &#123;&#125;"</span>, assignment);</span><br><span class="line">    <span class="keyword">try</span> &#123;</span><br><span class="line">      <span class="keyword">switch</span> (assignment.error()) &#123;</span><br><span class="line">        <span class="keyword">case</span> SchemaRegistryProtocol.Assignment.NO_ERROR:</span><br><span class="line">          <span class="keyword">if</span> (assignment.masterIdentity() == <span class="keyword">null</span>) &#123;</span><br><span class="line">            log.error(...);</span><br><span class="line">          &#125;</span><br><span class="line">          <span class="comment">// 记录分配结果</span></span><br><span class="line">          schemaRegistry.setMaster(assignment.masterIdentity());</span><br><span class="line">          joinedLatch.countDown();</span><br><span class="line">          <span class="keyword">break</span>;</span><br><span class="line">        <span class="keyword">case</span> SchemaRegistryProtocol.Assignment.DUPLICATE_URLS:</span><br><span class="line">          <span class="keyword">throw</span> <span class="keyword">new</span> IllegalStateException(...);</span><br><span class="line">        <span class="keyword">default</span>:</span><br><span class="line">          <span class="keyword">throw</span> <span class="keyword">new</span> IllegalStateException(...);</span><br><span class="line">      &#125;</span><br><span class="line">    &#125; <span class="keyword">catch</span> (SchemaRegistryException e) &#123;</span><br><span class="line">      ......</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>基于 zookeeper 的方式，会更加简单，效率也更高。因为只有 leader 挂掉，zookeeper 才会触发重新选举。而基于 kafka 的方式，只要是有一个成员挂掉，不管它是不是 leader，都会触发重新选举。如果这个成员不是 leader，则会造成不必要的选举。</p>
+<p>使用zookeeper方式的原理是，所有 Registry 服务都会监听一个临时节点，而只有 leader 才会占有这个节点。当 leader 挂掉之后，临时节点会消失。其余的服务发现临时节点不存在，就会立即尝试重新创建，而只有一个服务能够创建成功，成为 leader。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">ZookeeperMasterElector</span> <span class="keyword">implements</span> <span class="title">MasterElector</span> </span>&#123;</span><br><span class="line">  <span class="comment">// 选举使用的临时节点    </span></span><br><span class="line">  <span class="keyword">private</span> <span class="keyword">static</span> <span class="keyword">final</span> String MASTER_PATH = <span class="string">"/schema_registry_master"</span>;</span><br><span class="line">    </span><br><span class="line">  <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">electMaster</span><span class="params">()</span> <span class="keyword">throws</span></span></span><br><span class="line"><span class="function">      SchemaRegistryStoreException, SchemaRegistryTimeoutException,</span></span><br><span class="line"><span class="function">      SchemaRegistryInitializationException, IdGenerationException </span>&#123;</span><br><span class="line">    SchemaRegistryIdentity masterIdentity = <span class="keyword">null</span>;</span><br><span class="line">    <span class="keyword">try</span> &#123;</span><br><span class="line">      <span class="comment">// 尝试在zookeeper中，创建临时节点</span></span><br><span class="line">      zkUtils.createEphemeralPathExpectConflict(MASTER_PATH, myIdentityString,</span><br><span class="line">                                                zkUtils.defaultAcls(MASTER_PATH));</span><br><span class="line">      log.info(<span class="string">"Successfully elected the new master: "</span> + myIdentityString);</span><br><span class="line">      masterIdentity = myIdentity;</span><br><span class="line">      schemaRegistry.setMaster(masterIdentity);</span><br><span class="line">    &#125; <span class="keyword">catch</span> (ZkNodeExistsException znee) &#123;</span><br><span class="line">      <span class="comment">// 创建失败</span></span><br><span class="line">      readCurrentMaster();</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;    </span><br><span class="line">    </span><br><span class="line">    </span><br><span class="line">  <span class="keyword">private</span> <span class="class"><span class="keyword">class</span> <span class="title">MasterChangeListener</span> <span class="keyword">implements</span> <span class="title">IZkDataListener</span> </span>&#123;</span><br><span class="line"></span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="title">MasterChangeListener</span><span class="params">()</span> </span>&#123;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 当数据被更改后，触发</span></span><br><span class="line">    <span class="meta">@Override</span></span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">handleDataChange</span><span class="params">(String dataPath, Object data)</span> </span>&#123;</span><br><span class="line">      </span><br><span class="line">      <span class="keyword">try</span> &#123;</span><br><span class="line">        <span class="keyword">if</span> (isEligibleForMasterElection) &#123;</span><br><span class="line">          <span class="comment">// 选举</span></span><br><span class="line">          electMaster();</span><br><span class="line">        &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">          <span class="comment">// 从节点中读取leader</span></span><br><span class="line">          readCurrentMaster();</span><br><span class="line">        &#125;</span><br><span class="line">      &#125; <span class="keyword">catch</span> (SchemaRegistryException e) &#123;</span><br><span class="line">        log.error(<span class="string">"Error while reading the schema registry master"</span>, e);</span><br><span class="line">      &#125;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// leader 挂掉</span></span><br><span class="line">    <span class="meta">@Override</span></span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">handleDataDeleted</span><span class="params">(String dataPath)</span> <span class="keyword">throws</span> Exception </span>&#123;</span><br><span class="line">      <span class="keyword">if</span> (isEligibleForMasterElection) &#123;</span><br><span class="line">        <span class="comment">// 如果允许选举，那么立即执行</span></span><br><span class="line">        electMaster();</span><br><span class="line">      &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">        <span class="comment">// 否则设置之前的leader为空</span></span><br><span class="line">        schemaRegistry.setMaster(<span class="keyword">null</span>);</span><br><span class="line">      &#125;</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h2 id="参考资料"><a href="#参考资料" class="headerlink" title="参考资料"></a>参考资料</h2><p><a href="https://docs.confluent.io/current/schema-registry/index.html" target="_blank" rel="noopener">https://docs.confluent.io/current/schema-registry/index.html</a></p>
+<p><a href="https://github.com/confluentinc/schema-registry" target="_blank" rel="noopener">https://github.com/confluentinc/schema-registry</a></p>
+<p><a href="http://avro.apache.org/docs/current/gettingstartedjava.html" target="_blank" rel="noopener">http://avro.apache.org/docs/current/gettingstartedjava.html</a></p>
+
+      
+    </div>
+    
+    
+    
+
+    
+
+    
+
+    
+
+    <footer class="post-footer">
+      
+        <div class="post-tags">
+          
+            <a href="/tags/kafka-schema-registry/" rel="tag"># kafka, schema, registry</a>
+          
+        </div>
+      
+
+      
+      
+      
+
+      
+        <div class="post-nav">
+          <div class="post-nav-next post-nav-item">
+            
+              <a href="/2019/04/20/kafka-consumer-transaction/" rel="next" title="Kafka Consumer 读取事务消息">
+                <i class="fa fa-chevron-left"></i> Kafka Consumer 读取事务消息
+              </a>
+            
+          </div>
+
+          <span class="post-nav-divider"></span>
+
+          <div class="post-nav-prev post-nav-item">
+            
+          </div>
+        </div>
+      
+
+      
+      
+    </footer>
+  </div>
+  
+  
+  
+  </article>
+
+
+
+    <div class="post-spread">
+      
+    </div>
+  </div>
+
+
+          </div>
+          
+
+
+          
+
+  
+    <div class="comments" id="comments">
+    </div>
+  
+
+
+
+        </div>
+        
+          
+  
+  <div class="sidebar-toggle">
+    <div class="sidebar-toggle-line-wrap">
+      <span class="sidebar-toggle-line sidebar-toggle-line-first"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-middle"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-last"></span>
+    </div>
+  </div>
+
+  <aside id="sidebar" class="sidebar">
+    
+    <div class="sidebar-inner">
+
+      
+
+      
+        <ul class="sidebar-nav motion-element">
+          <li class="sidebar-nav-toc sidebar-nav-active" data-target="post-toc-wrap">
+            Table of Contents
+          </li>
+          <li class="sidebar-nav-overview" data-target="site-overview-wrap">
+            Overview
+          </li>
+        </ul>
+      
+
+      <section class="site-overview-wrap sidebar-panel">
+        <div class="site-overview">
+          <div class="site-author motion-element" itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+            
+              <p class="site-author-name" itemprop="name">zhmin</p>
+              <p class="site-description motion-element" itemprop="description"></p>
+          </div>
+
+          <nav class="site-state motion-element">
+
+            
+              <div class="site-state-item site-state-posts">
+              
+                <a href="/archives/">
+              
+                  <span class="site-state-item-count">37</span>
+                  <span class="site-state-item-name">posts</span>
+                </a>
+              </div>
+            
+
+            
+              
+              
+              <div class="site-state-item site-state-categories">
+                <a href="/categories/index.html">
+                  <span class="site-state-item-count">6</span>
+                  <span class="site-state-item-name">categories</span>
+                </a>
+              </div>
+            
+
+            
+              
+              
+              <div class="site-state-item site-state-tags">
+                
+                  <span class="site-state-item-count">34</span>
+                  <span class="site-state-item-name">tags</span>
+                
+              </div>
+            
+
+          </nav>
+
+          
+
+          
+            <div class="links-of-author motion-element">
+                
+                  <span class="links-of-author-item">
+                    <a href="https://github.com/zhmin" target="_blank" title="GitHub">
+                      
+                        <i class="fa fa-fw fa-github"></i>GitHub</a>
+                  </span>
+                
+            </div>
+          
+
+          
+          
+
+          
+          
+
+          
+
+        </div>
+      </section>
+
+      
+      <!--noindex-->
+        <section class="post-toc-wrap motion-element sidebar-panel sidebar-panel-active">
+          <div class="post-toc">
+
+            
+              
+            
+
+            
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#Kafka-Schema-Registry-原理"><span class="nav-number">1.</span> <span class="nav-text">Kafka Schema Registry 原理</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#Avro-序列化示例"><span class="nav-number">1.1.</span> <span class="nav-text">Avro 序列化示例</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Kafka-客户端使用原理"><span class="nav-number">1.2.</span> <span class="nav-text">Kafka 客户端使用原理</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Registry-服务端"><span class="nav-number">1.3.</span> <span class="nav-text">Registry 服务端</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#存储数据"><span class="nav-number">1.3.1.</span> <span class="nav-text">存储数据</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#处理请求"><span class="nav-number">1.3.2.</span> <span class="nav-text">处理请求</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#高可用"><span class="nav-number">1.3.3.</span> <span class="nav-text">高可用</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#参考资料"><span class="nav-number">1.4.</span> <span class="nav-text">参考资料</span></a></li></ol></li></ol></div>
+            
+
+          </div>
+        </section>
+      <!--/noindex-->
+      
+
+      
+
+    </div>
+  </aside>
+
+
+        
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="footer-inner">
+        <div class="copyright">&copy; <span itemprop="copyrightYear">2019</span>
+  <span class="with-love">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">zhmin</span>
+
+  
+</div>
+
+
+
+
+
+
+
+
+
+
+
+  <script src="https://unpkg.com/mermaid@7.1.2/dist/mermaid.min.js"></script>
+  <script>
+    if (window.mermaid) {
+      mermaid.initialize({"startOnload":true,"theme":"forest"});
+    }
+  </script>
+
+
+
+<script async src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+<span id="busuanzi_container_site_pv">
+    访问量<span id="busuanzi_value_site_pv"></span>
+</span>
+<span class="post-meta-divider">|</span>
+<span id="busuanzi_container_site_uv">
+  访客数<span id="busuanzi_value_site_uv"></span>
+</span>
+
+        
+
+
+
+
+
+
+
+        
+      </div>
+    </footer>
+
+    
+      <div class="back-to-top">
+        <i class="fa fa-arrow-up"></i>
+        
+      </div>
+    
+
+    
+
+  </div>
+
+  
+
+<script type="text/javascript">
+  if (Object.prototype.toString.call(window.Promise) !== '[object Function]') {
+    window.Promise = null;
+  }
+</script>
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery/index.js?v=2.1.3"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fastclick/lib/fastclick.min.js?v=1.0.6"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery_lazyload/jquery.lazyload.js?v=1.9.7"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.ui.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fancybox/source/jquery.fancybox.pack.js?v=2.1.5"></script>
+  
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/utils.js?v=5.1.4"></script>
+
+  <script type="text/javascript" src="/js/src/motion.js?v=5.1.4"></script>
+
+
+
+  
+  
+
+  
+  <script type="text/javascript" src="/js/src/scrollspy.js?v=5.1.4"></script>
+<script type="text/javascript" src="/js/src/post-details.js?v=5.1.4"></script>
+
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/bootstrap.js?v=5.1.4"></script>
+
+
+
+  
+
+
+  
+
+
+
+
+	
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+  <script src="//cdn1.lncld.net/static/js/3.0.4/av-min.js"></script>
+  <script src="//unpkg.com/valine/dist/Valine.min.js"></script>
+  
+  <script type="text/javascript">
+    var GUEST = ['nick','mail','link'];
+    var guest = 'nick';
+    guest = guest.split(',').filter(item=>{
+      return GUEST.indexOf(item)>-1;
+    });
+    new Valine({
+        el: '#comments' ,
+        verify: false,
+        notify: false,
+        appId: 'iYiPQlDR2X2zg2QIql2UEe2o-gzGzoHsz',
+        appKey: 'EW8G4sftwX1pef1zS9EsOeKE',
+        placeholder: 'comment here',
+        avatar:'mm',
+        guest_info:guest,
+        pageSize:'10' || 10,
+    });
+  </script>
+
+
+
+  
+
+
+
+
+
+  
+
+  
+  <script src="https://cdn1.lncld.net/static/js/av-core-mini-0.6.4.js"></script>
+  <script>AV.initialize("iYiPQlDR2X2zg2QIql2UEe2o-gzGzoHsz", "EW8G4sftwX1pef1zS9EsOeKE");</script>
+  <script>
+    function showTime(Counter) {
+      var query = new AV.Query(Counter);
+      var entries = [];
+      var $visitors = $(".leancloud_visitors");
+
+      $visitors.each(function () {
+        entries.push( $(this).attr("id").trim() );
+      });
+
+      query.containedIn('url', entries);
+      query.find()
+        .done(function (results) {
+          var COUNT_CONTAINER_REF = '.leancloud-visitors-count';
+
+          if (results.length === 0) {
+            $visitors.find(COUNT_CONTAINER_REF).text(0);
+            return;
+          }
+
+          for (var i = 0; i < results.length; i++) {
+            var item = results[i];
+            var url = item.get('url');
+            var time = item.get('time');
+            var element = document.getElementById(url);
+
+            $(element).find(COUNT_CONTAINER_REF).text(time);
+          }
+          for(var i = 0; i < entries.length; i++) {
+            var url = entries[i];
+            var element = document.getElementById(url);
+            var countSpan = $(element).find(COUNT_CONTAINER_REF);
+            if( countSpan.text() == '') {
+              countSpan.text(0);
+            }
+          }
+        })
+        .fail(function (object, error) {
+          console.log("Error: " + error.code + " " + error.message);
+        });
+    }
+
+    function addCount(Counter) {
+      var $visitors = $(".leancloud_visitors");
+      var url = $visitors.attr('id').trim();
+      var title = $visitors.attr('data-flag-title').trim();
+      var query = new AV.Query(Counter);
+
+      query.equalTo("url", url);
+      query.find({
+        success: function(results) {
+          if (results.length > 0) {
+            var counter = results[0];
+            counter.fetchWhenSave(true);
+            counter.increment("time");
+            counter.save(null, {
+              success: function(counter) {
+                var $element = $(document.getElementById(url));
+                $element.find('.leancloud-visitors-count').text(counter.get('time'));
+              },
+              error: function(counter, error) {
+                console.log('Failed to save Visitor num, with error message: ' + error.message);
+              }
+            });
+          } else {
+            var newcounter = new Counter();
+            /* Set ACL */
+            var acl = new AV.ACL();
+            acl.setPublicReadAccess(true);
+            acl.setPublicWriteAccess(true);
+            newcounter.setACL(acl);
+            /* End Set ACL */
+            newcounter.set("title", title);
+            newcounter.set("url", url);
+            newcounter.set("time", 1);
+            newcounter.save(null, {
+              success: function(newcounter) {
+                var $element = $(document.getElementById(url));
+                $element.find('.leancloud-visitors-count').text(newcounter.get('time'));
+              },
+              error: function(newcounter, error) {
+                console.log('Failed to create');
+              }
+            });
+          }
+        },
+        error: function(error) {
+          console.log('Error:' + error.code + " " + error.message);
+        }
+      });
+    }
+
+    $(function() {
+      var Counter = AV.Object.extend("Counter");
+      if ($('.leancloud_visitors').length == 1) {
+        addCount(Counter);
+      } else if ($('.post-title-link').length > 1) {
+        showTime(Counter);
+      }
+    });
+  </script>
+
+
+
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+</body>
+</html>

@@ -2,6 +2,13 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   
   <url>
+    <loc>https://zhmin.github.io/2019/04/23/kafka-schema-registry/</loc>
+    
+    <lastmod>2019-04-23T13:09:04.487Z</lastmod>
+    
+  </url>
+  
+  <url>
     <loc>https://zhmin.github.io/2019/04/20/kafka-consumer-transaction/</loc>
     
     <lastmod>2019-04-20T14:12:00.708Z</lastmod>
