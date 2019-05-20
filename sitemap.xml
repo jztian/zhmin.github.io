@@ -2,6 +2,13 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   
   <url>
+    <loc>https://zhmin.github.io/2019/05/20/kafka-transaction/</loc>
+    
+    <lastmod>2019-05-20T14:27:35.970Z</lastmod>
+    
+  </url>
+  
+  <url>
     <loc>https://zhmin.github.io/2019/04/26/antrl4-tutorial/</loc>
     
     <lastmod>2019-04-26T13:43:22.291Z</lastmod>

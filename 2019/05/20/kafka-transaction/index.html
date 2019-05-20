@@ -1,0 +1,1053 @@
+<!DOCTYPE html>
+
+
+
+  
+
+
+<html class="theme-next mist use-motion" lang="">
+<head><meta name="generator" content="Hexo 3.8.0">
+  <meta charset="UTF-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="theme-color" content="#222">
+
+
+
+
+
+
+
+
+
+<meta http-equiv="Cache-Control" content="no-transform">
+<meta http-equiv="Cache-Control" content="no-siteapp">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+  <link href="/lib/fancybox/source/jquery.fancybox.css?v=2.1.5" rel="stylesheet" type="text/css">
+
+
+
+
+
+
+
+<link href="/lib/font-awesome/css/font-awesome.min.css?v=4.6.2" rel="stylesheet" type="text/css">
+
+<link href="/css/main.css?v=5.1.4" rel="stylesheet" type="text/css">
+
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png?v=5.1.4">
+
+
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png?v=5.1.4">
+
+
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png?v=5.1.4">
+
+
+  <link rel="mask-icon" href="/images/logo.svg?v=5.1.4" color="#222">
+
+
+
+
+
+  <meta name="keywords" content="kafka, transaction,">
+
+
+
+
+
+
+
+
+
+
+<meta name="description" content="Kafka 事务实现原理Kafka 事务在流处理中应用很广泛，比如原子性的读取消息，立即处理和发送，如果中途出现错误，支持回滚操作。这篇文章来讲讲事务是如何实现的，首先来看看事务流程图。 事务流程Kafka的整个事务处理流程如下图：  上图中的 Transaction Coordinator 运行在 Kafka 服务端，下面简称 TC 服务。 __transaction_state 是 TC 服务">
+<meta name="keywords" content="kafka, transaction">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Kafka 事务实现原理">
+<meta property="og:url" content="https://zhmin.github.io/2019/05/20/kafka-transaction/index.html">
+<meta property="og:site_name" content="blog">
+<meta property="og:description" content="Kafka 事务实现原理Kafka 事务在流处理中应用很广泛，比如原子性的读取消息，立即处理和发送，如果中途出现错误，支持回滚操作。这篇文章来讲讲事务是如何实现的，首先来看看事务流程图。 事务流程Kafka的整个事务处理流程如下图：  上图中的 Transaction Coordinator 运行在 Kafka 服务端，下面简称 TC 服务。 __transaction_state 是 TC 服务">
+<meta property="og:locale" content="default">
+<meta property="og:image" content="https://zhmin.github.io/2019/05/20/kafka-transaction/kafka-transaction.svg">
+<meta property="og:updated_time" content="2019-05-20T14:27:35.970Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Kafka 事务实现原理">
+<meta name="twitter:description" content="Kafka 事务实现原理Kafka 事务在流处理中应用很广泛，比如原子性的读取消息，立即处理和发送，如果中途出现错误，支持回滚操作。这篇文章来讲讲事务是如何实现的，首先来看看事务流程图。 事务流程Kafka的整个事务处理流程如下图：  上图中的 Transaction Coordinator 运行在 Kafka 服务端，下面简称 TC 服务。 __transaction_state 是 TC 服务">
+<meta name="twitter:image" content="https://zhmin.github.io/2019/05/20/kafka-transaction/kafka-transaction.svg">
+
+
+
+<script type="text/javascript" id="hexo.configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '/',
+    scheme: 'Mist',
+    version: '5.1.4',
+    sidebar: {"position":"left","display":"hide","offset":12,"b2t":false,"scrollpercent":false,"onmobile":false},
+    fancybox: true,
+    tabs: true,
+    motion: {"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},
+    duoshuo: {
+      userId: '0',
+      author: 'Author'
+    },
+    algolia: {
+      applicationID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    }
+  };
+</script>
+
+
+
+  <link rel="canonical" href="https://zhmin.github.io/2019/05/20/kafka-transaction/">
+
+
+
+
+
+  <title>Kafka 事务实现原理 | blog</title>
+  
+
+
+
+
+
+
+
+
+</head>
+
+<body itemscope="" itemtype="http://schema.org/WebPage" lang="default">
+
+  
+  
+    
+  
+
+  <div class="container sidebar-position-left page-post-detail">
+    <div class="headband"></div>
+
+    <header id="header" class="header" itemscope="" itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-wrapper">
+  <div class="site-meta ">
+    
+
+    <div class="custom-logo-site-title">
+      <a href="/" class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">blog</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+      
+        <h1 class="site-subtitle" itemprop="description"></h1>
+      
+  </div>
+
+  <div class="site-nav-toggle">
+    <button>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+    </button>
+  </div>
+</div>
+
+<nav class="site-nav">
+  
+
+  
+    <ul id="menu" class="menu">
+      
+        
+        <li class="menu-item menu-item-home">
+          <a href="/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-home"></i> <br>
+            
+            Home
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-categories">
+          <a href="/categories/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-th"></i> <br>
+            
+            Categories
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-archives">
+          <a href="/archives/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-archive"></i> <br>
+            
+            Archives
+          </a>
+        </li>
+      
+
+      
+    </ul>
+  
+
+  
+</nav>
+
+
+
+ </div>
+    </header>
+
+    <main id="main" class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          <div id="content" class="content">
+            
+
+  <div id="posts" class="posts-expand">
+    
+
+  
+
+  
+  
+  
+
+  <article class="post post-type-normal" itemscope="" itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block">
+    <link itemprop="mainEntityOfPage" href="https://zhmin.github.io/2019/05/20/kafka-transaction/">
+
+    <span hidden itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="zhmin">
+      <meta itemprop="description" content="">
+      <meta itemprop="image" content="/images/avatar.gif">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope="" itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="blog">
+    </span>
+
+    
+      <header class="post-header">
+
+        
+        
+          <h2 class="post-title" itemprop="name headline">Kafka 事务实现原理</h2>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">Posted on</span>
+              
+              <time title="Post created" itemprop="dateCreated datePublished" datetime="2019-05-20T22:22:10+08:00">
+                2019-05-20
+              </time>
+            
+
+            
+
+            
+          </span>
+
+          
+            <span class="post-category">
+            
+              <span class="post-meta-divider">|</span>
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">In</span>
+              
+              
+                <span itemprop="about" itemscope="" itemtype="http://schema.org/Thing">
+                  <a href="/categories/kafka/" itemprop="url" rel="index">
+                    <span itemprop="name">kafka</span>
+                  </a>
+                </span>
+
+                
+                
+              
+            </span>
+          
+
+          
+            
+              <span class="post-comments-count">
+                <span class="post-meta-divider">|</span>
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-comment-o"></i>
+                </span>
+                <a href="/2019/05/20/kafka-transaction/#comments" itemprop="discussionUrl">
+                  <span class="post-comments-count valine-comment-count" data-xid="/2019/05/20/kafka-transaction/" itemprop="commentCount"></span>
+                </a>
+              </span>
+            
+          
+
+          
+          
+             <span id="/2019/05/20/kafka-transaction/" class="leancloud_visitors" data-flag-title="Kafka 事务实现原理">
+               <span class="post-meta-divider">|</span>
+               <span class="post-meta-item-icon">
+                 <i class="fa fa-eye"></i>
+               </span>
+               
+                 <span class="post-meta-item-text">Visitors&#58;</span>
+               
+                 <span class="leancloud-visitors-count"></span>
+             </span>
+          
+
+          
+
+          
+
+          
+
+        </div>
+      </header>
+    
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+      
+
+      
+        <h1 id="Kafka-事务实现原理"><a href="#Kafka-事务实现原理" class="headerlink" title="Kafka 事务实现原理"></a>Kafka 事务实现原理</h1><p>Kafka 事务在流处理中应用很广泛，比如原子性的读取消息，立即处理和发送，如果中途出现错误，支持回滚操作。这篇文章来讲讲事务是如何实现的，首先来看看事务流程图。</p>
+<h2 id="事务流程"><a href="#事务流程" class="headerlink" title="事务流程"></a>事务流程</h2><p>Kafka的整个事务处理流程如下图：</p>
+<p><img src="/2019/05/20/kafka-transaction/kafka-transaction.svg"></p>
+<p>上图中的 Transaction Coordinator 运行在 Kafka 服务端，下面简称 TC 服务。</p>
+<p>__transaction_state 是 TC 服务持久化事务信息的 topic 名称，下面简称事务 topic。</p>
+<p>Producer 向 TC 服务发送的 commit 消息，下面简称事务提交消息。</p>
+<p>TC 服务向分区发送的消息，下面简称事务结果消息。</p>
+<h3 id="寻找-TC-服务地址"><a href="#寻找-TC-服务地址" class="headerlink" title="寻找 TC 服务地址"></a>寻找 TC 服务地址</h3><p>Producer 会首先从 Kafka 集群中选择任意一台机器，然后向其发送请求，获取 TC 服务的地址。Kafka 有个特殊的事务 topic，名称为__transaction_state ，负责持久化事务消息。这个 topic 有多个分区，默认有50个，每个分区负责一部分事务。事务划分是根据 transaction id， 计算出该事务属于哪个分区。这个分区的 leader 所在的机器，负责这个事务的TC 服务地址。</p>
+<h3 id="事务初始化"><a href="#事务初始化" class="headerlink" title="事务初始化"></a>事务初始化</h3><p>Producer 在使用事务功能，必须先自定义一个唯一的 transaction id。有了 transaction id，即使客户端挂掉了，它重启后也能继续处理未完成的事务。</p>
+<p>Kafka 实现事务需要依靠幂等性，而幂等性需要指定 producer id 。所以Producer在启动事务之前，需要向 TC 服务申请 producer id。TC 服务在分配 producer id 后，会将它持久化到事务 topic。</p>
+<h3 id="发送消息"><a href="#发送消息" class="headerlink" title="发送消息"></a>发送消息</h3><p>Producer 在接收到 producer id 后，就可以正常的发送消息了。不过发送消息之前，需要先将这些消息的分区地址，上传到 TC 服务。TC 服务会将这些分区地址持久化到事务 topic。然后 Producer 才会真正的发送消息，这些消息与普通消息不同，它们会有一个字段，表示自身是事务消息。</p>
+<p>这里需要注意下一种特殊的请求，提交消费位置请求，用于原子性的从某个 topic 读取消息，并且发送消息到另外一个 topic。我们知道一般是消费者使用消费组订阅 topic，才会发送提交消费位置的请求，而这里是由 Producer 发送的。Producer 首先会发送一条请求，里面会包含这个消费组对应的分区（每个消费组的消费位置都保存在 __consumer_offset topic 的一个分区里），TC 服务会将分区持久化之后，发送响应。Producer 收到响应后，就会直接发送消费位置请求给 GroupCoordinator。</p>
+<h3 id="发送提交请求"><a href="#发送提交请求" class="headerlink" title="发送提交请求"></a>发送提交请求</h3><p>Producer 发送完消息后，如果认为该事务可以提交了，就会发送提交请求到 TC 服务。Producer 的工作至此就完成了，接下来它只需要等待响应。这里需要强调下，Producer 会在发送事务提交请求之前，会等待之前所有的请求都已经发送并且响应成功。</p>
+<h3 id="提交请求持久化"><a href="#提交请求持久化" class="headerlink" title="提交请求持久化"></a>提交请求持久化</h3><p>TC 服务收到事务提交请求后，会先将提交信息先持久化到事务 topic 。持久化成功后，服务端就立即发送成功响应给 Producer。然后找到该事务涉及到的所有分区，为每 个分区生成提交请求，存到队列里等待发送。</p>
+<p>读者可能有所疑问，在一般的二阶段提交中，协调者需要收到所有参与者的响应后，才能判断此事务是否成功，最后才将结果返回给客户。那如果 TC 服务在发送响应给 Producer 后，还没来及向分区发送请求就挂掉了，那么 Kafka 是如何保证事务完成。因为每次事务的信息都会持久化，所以 TC 服务挂掉重新启动后，会先从 事务 topic 加载事务信息，如果发现只有事务提交信息，却没有后来的事务完成信息，说明存在事务结果信息没有提交到分区。</p>
+<h3 id="发送事务结果信息给分区"><a href="#发送事务结果信息给分区" class="headerlink" title="发送事务结果信息给分区"></a>发送事务结果信息给分区</h3><p>后台线程会不停的从队列里，拉取请求并且发送到分区。当一个分区收到事务结果消息后，会将结果保存到分区里，并且返回成功响应到 TC服务。当 TC 服务收到所有分区的成功响应后，会持久化一条事务完成的消息到事务 topic。至此，一个完整的事务流程就完成了。</p>
+<h2 id="客户端原理"><a href="#客户端原理" class="headerlink" title="客户端原理"></a>客户端原理</h2><h3 id="使用示例"><a href="#使用示例" class="headerlink" title="使用示例"></a>使用示例</h3><p>下面代码实现，消费者读取消息，并且发送到多个分区的事务</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 创建 Producer 实例，并且指定 transaction id</span></span><br><span class="line">KafkaProducer producer = createKafkaProducer(</span><br><span class="line">  “bootstrap.servers”, “localhost:<span class="number">9092</span>”,</span><br><span class="line">  “transactional.id”, “my-transactional-id”);</span><br><span class="line"></span><br><span class="line"><span class="comment">// 初始化事务，这里会向 TC 服务申请 producer id</span></span><br><span class="line">producer.initTransactions();</span><br><span class="line"></span><br><span class="line"><span class="comment">// 创建 Consumer 实例，并且订阅 topic</span></span><br><span class="line">KafkaConsumer consumer = createKafkaConsumer(</span><br><span class="line">  “bootstrap.servers”, “localhost:<span class="number">9092</span>”,</span><br><span class="line">  “group.id”, “my-group-id”,</span><br><span class="line">  <span class="string">"isolation.level"</span>, <span class="string">"read_committed"</span>);</span><br><span class="line">consumer.subscribe(singleton(“inputTopic”));</span><br><span class="line"></span><br><span class="line"><span class="keyword">while</span> (<span class="keyword">true</span>) &#123;</span><br><span class="line">  ConsumerRecords records = consumer.poll(Long.MAX_VALUE);</span><br><span class="line">  <span class="comment">// 开始新的事务</span></span><br><span class="line">  producer.beginTransaction();</span><br><span class="line">  <span class="keyword">for</span> (ConsumerRecord record : records) &#123;</span><br><span class="line">    <span class="comment">// 发送消息到分区</span></span><br><span class="line">    producer.send(producerRecord(“outputTopic_1”, record));</span><br><span class="line">    producer.send(producerRecord(“outputTopic_2”, record));</span><br><span class="line">  &#125;</span><br><span class="line">  <span class="comment">// 提交 offset</span></span><br><span class="line">  producer.sendOffsetsToTransaction(currentOffsets(consumer), <span class="string">"my-group-id"</span>);  </span><br><span class="line">  <span class="comment">// 提交事务</span></span><br><span class="line">  producer.commitTransaction();</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h3 id="运行原理"><a href="#运行原理" class="headerlink" title="运行原理"></a>运行原理</h3><p>上面的例子使用了 Producer的接口实现了事务，但负责与 TC 服务通信的是 TransactionManager 类。TransactionManager 类会发送申请分配 producer id 请求，上传消息分区请求和事务提交请求，在完成每一步请求，TransactionManager 都会更新自身的状态。</p>
+<pre class="mermaid">graph TD
+    UNINITIALIZED((UNINITIALIZED))
+    INITIALIZING((INITIALIZING))
+    READY((READY))
+    IN_TRANSACTION((IN_TRANSACTION))
+    COMMITTING_TRANSACTION((COMMITTING_TRANSACTION))
+    ABORTING_TRANSACTION((ABORTING_TRANSACTION))
+
+    UNINITIALIZED -->|发送事务初始化请求后| INITIALIZING
+    INITIALIZING -->|成功获取到producer id| READY
+    READY -->| producer调用beginTransaction方法| IN_TRANSACTION
+    IN_TRANSACTION -->|发送事务提交请求| COMMITTING_TRANSACTION
+    COMMITTING_TRANSACTION -->|事务提成功| READY
+    IN_TRANSACTION -->|发送事务回滚请求| ABORTING_TRANSACTION
+    ABORTING_TRANSACTION -->|事务回滚成功| READY</pre>
+
+<p>状态</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">private</span> <span class="keyword">enum</span> State &#123;</span><br><span class="line">    UNINITIALIZED,</span><br><span class="line">    INITIALIZING,</span><br><span class="line">    READY,</span><br><span class="line">    IN_TRANSACTION,</span><br><span class="line">    COMMITTING_TRANSACTION,</span><br><span class="line">    ABORTING_TRANSACTION,</span><br><span class="line">    ABORTABLE_ERROR,</span><br><span class="line">    FATAL_ERROR;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>这里还有两个状态没有列出来 ABORTABLE_ERROR或FATAL_ERROR，这是当请求出错后，状态就会变为它们。</p>
+<h2 id="服务端原理"><a href="#服务端原理" class="headerlink" title="服务端原理"></a>服务端原理</h2><p>TC 服务会为每个 transaction id 都维护了元数据，元数据的字段如下：</p>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">class</span> <span class="title">TransactionMetadata</span>(<span class="params"></span></span></span><br><span class="line"><span class="class"><span class="params">    val transactionalId: <span class="type">String</span>,      // 事务 id</span></span></span><br><span class="line"><span class="class"><span class="params">    var producerId: <span class="type">Long</span>,             // pruducer id</span></span></span><br><span class="line"><span class="class"><span class="params">    var producerEpoch: <span class="type">Short</span>,         // producer epoch</span></span></span><br><span class="line"><span class="class"><span class="params">    var txnTimeoutMs: <span class="type">Int</span>,            // 事务超时时间</span></span></span><br><span class="line"><span class="class"><span class="params">    var state: <span class="type">TransactionState</span>,      // 事务当前状态</span></span></span><br><span class="line"><span class="class"><span class="params">    val topicPartitions: mutable.<span class="type">Set</span>[<span class="type">TopicPartition</span>],    // 该事务涉及到的分区列表</span></span></span><br><span class="line"><span class="class"><span class="params">    @volatile var txnStartTimestamp: <span class="type">Long</span> = -1,          // 事务开始的时间</span></span></span><br><span class="line"><span class="class"><span class="params">    @volatile var txnLastUpdateTimestamp: <span class="type">Long</span></span>)          <span class="title">//</span> <span class="title">事务的更新时间</span></span></span><br></pre></td></tr></table></figure>
+<p>对于服务端，每个事务也有对应的状态图</p>
+<pre class="mermaid">graph TD
+    Empty((Empty))
+    Ongoing((Ongoing))
+    PrepareCommit((PrepareCommit))
+    PrepareAbort((PrepareAbort))
+    CompleteCommit((CompleteCommit))
+    CompleteAbort((CompleteAbort))
+
+    Empty -->|接收到分区请求| Ongoing
+    Ongoing -->|接收到事务提交请求| PrepareCommit
+    Ongoing -->|接收到事务回滚请求| PrepareAbort
+    PrepareCommit -->|持久化成功| CompleteCommit
+    PrepareAbort -->|持久化成功| CompleteAbort
+    CompleteAbort -->|发送消息给分区并且接收到响应| Ongoing
+    CompleteCommit -->|发送消息给分区并且接收到响应| Ongoing</pre>
+
+
+
+<p>当 TC 服务接收到了来自客户端的分区上传请求，此时它才会认为此次事务开始了，然后它会更新分区列表，更新此次的事务开始时间为当前时间，并且会将更新后的元数据，持久化到事务 topic。最后将自身状态改为 Ongoing。</p>
+<p>当TC 服务收到事务提交请求或者事务回滚请求，更新元数据，持久化到事务 topic，然后自身状态改为CompleteCommit 或CompleteAbort 。然后向涉及到该事务的分区发送事务结果消息，等待所有的分区都成功返回响应后，就会持久化一条事务成功的消息到消息 topic。</p>
+<h2 id="高可用分析"><a href="#高可用分析" class="headerlink" title="高可用分析"></a>高可用分析</h2><h3 id="TC-服务"><a href="#TC-服务" class="headerlink" title="TC 服务"></a>TC 服务</h3><p>通过上述对 Kafka 事务的简述，可以看到 TC 服务起着很重要的作用。事实上 Kafka 集群中运行着多个 TC 服务，每个TC 服务负责事务 topic 的一个分区读写，也就是这个分区的 leader。Producer 根据 transaction id 的哈希值，来决定该事务属于事务 topic 的哪个分区，最后找到这个分区的 leader 位置。</p>
+<p>既然 TC 服务负责事务 topic 的一个分区 leader，我们知道当一个分区的 leader挂掉之后，Kafka 会保证这个的分区的 follower 会转换为 leader 角色，会继续对外提供服务。这么 TC 服务的高可用就达到了。</p>
+<h3 id="消息持久化"><a href="#消息持久化" class="headerlink" title="消息持久化"></a>消息持久化</h3><p>TC 服务为了支持重启后，也能恢复到之前的状态，所以它将每次重要的消息都会持久化起来，并且保存到事务 topic 的时候，指定 leader 分区和 follower 分区必须都存储成功。这样每次 TC 服务启动的时候，都会从事务 topic 读取之前的状态，加载到缓存里。比如当TC 服务在响应客户端的事务提交请求后，还没来得及向各分区发送事务结果请求，就已经挂掉了。之后 TC 服务重启，会去事务 topic 加载数据，它发现事务的最后状态为 PrepareCommit，并且事务数据还包括了分区列表，这样 TC 服务会继续未完成的事务，会向列表中的各个分区发送事务结果请求。</p>
+<h3 id="超时处理"><a href="#超时处理" class="headerlink" title="超时处理"></a>超时处理</h3><p>如果 Producer 发起了一个事务，但是由于网络问题，TC 服务迟迟没有接下来的请求，那么该事务就会被认为超时。TC 服务会有个线程，会定期检查处理 Ongoing 状态的事务，如果该事务的开始时间和当前时间的差，超过了指定的超时时间（在发送申请producer id请求时可以指定），那么 TC 服务就会回滚该事务，更新和持久化事务的状态，并且发送事务回滚结果给分区。</p>
+<h2 id="源码分析"><a href="#源码分析" class="headerlink" title="源码分析"></a>源码分析</h2><p>如果对源码还有兴趣的读者，可以继续阅读这部分。这里会大概的讲解下代码结构，读者如果想进一步的理解，可以参看源码。整个事务的源码分为两部分，客户端和服务端。</p>
+<h3 id="客户端"><a href="#客户端" class="headerlink" title="客户端"></a>客户端</h3><p>事务的客户端，只能是 Producer。下面首先介绍下 Producer 与事务相关的接口。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">interface</span> <span class="title">Producer</span>&lt;<span class="title">K</span>, <span class="title">V</span>&gt; <span class="keyword">extends</span> <span class="title">Closeable</span> </span>&#123;</span><br><span class="line">    <span class="comment">// 初始化事务，包括申请 producer id</span></span><br><span class="line">    <span class="function"><span class="keyword">void</span> <span class="title">initTransactions</span><span class="params">()</span></span>;</span><br><span class="line">    <span class="comment">// 开始事务，这里会更改事务的本地状态</span></span><br><span class="line">    <span class="function"><span class="keyword">void</span> <span class="title">beginTransaction</span><span class="params">()</span> <span class="keyword">throws</span> ProducerFencedException</span>;</span><br><span class="line">    <span class="comment">// 提交消费位置， offsets表示每个分区的消费位置， consumerGroupId表示消费组的名称</span></span><br><span class="line">    <span class="function"><span class="keyword">void</span> <span class="title">sendOffsetsToTransaction</span><span class="params">(Map&lt;TopicPartition, OffsetAndMetadata&gt; offsets,</span></span></span><br><span class="line"><span class="function"><span class="params">                                  String consumerGroupId)</span> <span class="keyword">throws</span> ProducerFencedException</span>;</span><br><span class="line">    <span class="comment">// 发送事务提交请求</span></span><br><span class="line">    <span class="function"><span class="keyword">void</span> <span class="title">commitTransaction</span><span class="params">()</span> <span class="keyword">throws</span> ProducerFencedException</span>;</span><br><span class="line">    <span class="comment">// 发送事务回滚请求</span></span><br><span class="line">    <span class="function"><span class="keyword">void</span> <span class="title">abortTransaction</span><span class="params">()</span> <span class="keyword">throws</span> ProducerFencedException</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>KafkaProducer 类实现了 Producer 接口，比较简单，只是调用了 TransactionCoordinator 类的方法。客户端事务处理的核心代码，都是在 TransactionCoordinator 类里。</p>
+<table>
+<thead>
+<tr>
+<th>请求类型</th>
+<th>请求类</th>
+<th>响应处理类</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>寻找 TC 服务地址</td>
+<td>FindCoordinatorRequest</td>
+<td>FindCoordinatorHandler</td>
+</tr>
+<tr>
+<td>事务初始化请求</td>
+<td>InitProducerIdRequest</td>
+<td>InitProducerIdHandler</td>
+</tr>
+<tr>
+<td>消费位置提交请求</td>
+<td>TxnOffsetCommitRequest</td>
+<td>TxnOffsetCommitHandler</td>
+</tr>
+<tr>
+<td>事务分区上传请求</td>
+<td>AddPartitionsToTxnRequest</td>
+<td>AddPartitionsToTxnHandler</td>
+</tr>
+<tr>
+<td>事务提交或者回滚</td>
+<td>EndTxnRequest</td>
+<td>EndTxnHandler</td>
+</tr>
+</tbody>
+</table>
+<p>TransactionCoordinator 发送的请求类，都有一个对应的类来处理响应。这些处理类都是继承 TxnRequestHandler 类，它封装了共同的错误处理，比如连接断开，api 版本不兼容等。子类需要实现 handleResponse 方法，负责处理具体的响应内容。</p>
+<p>initializeTransactions 方法负责事务初始化，它会发送 InitProducerIdRequest 请求。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">public</span> <span class="keyword">synchronized</span> TransactionalRequestResult <span class="title">initializeTransactions</span><span class="params">()</span> </span>&#123;</span><br><span class="line">    <span class="comment">// 检查transaction id是否已经设置</span></span><br><span class="line">    ensureTransactional();</span><br><span class="line">    <span class="comment">// 更改自身状态为INITIALIZING</span></span><br><span class="line">    transitionTo(State.INITIALIZING);</span><br><span class="line">    <span class="comment">// 将producer id和epoch都设为空</span></span><br><span class="line">    setProducerIdAndEpoch(ProducerIdAndEpoch.NONE);</span><br><span class="line">    <span class="comment">// nextSequence在消息发送中会用到，因为发送事务消息要求幂等性，而发送幂等性的消息是需要设置sequence的</span></span><br><span class="line">    <span class="keyword">this</span>.nextSequence.clear();</span><br><span class="line">    <span class="comment">// 构建申请produce id请求</span></span><br><span class="line">    InitProducerIdRequest.Builder builder = <span class="keyword">new</span> InitProducerIdRequest.Builder(transactionalId, transactionTimeoutMs);</span><br><span class="line">    <span class="comment">// InitProducerIdHandler 负责处理响应</span></span><br><span class="line">    InitProducerIdHandler handler = <span class="keyword">new</span> InitProducerIdHandler(builder);</span><br><span class="line">    <span class="comment">// 将消息保存到队列中，等待Sender线程（Producer会有个后台线程发送消息）发送</span></span><br><span class="line">    enqueueRequest(handler);</span><br><span class="line">    <span class="comment">// 返回异步结果</span></span><br><span class="line">    <span class="keyword">return</span> handler.result;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>InitProducerIdHandler 类的定义如下：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">private</span> <span class="class"><span class="keyword">class</span> <span class="title">InitProducerIdHandler</span> <span class="keyword">extends</span> <span class="title">TxnRequestHandler</span> </span>&#123;</span><br><span class="line"></span><br><span class="line">    <span class="meta">@Override</span></span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">handleResponse</span><span class="params">(AbstractResponse response)</span> </span>&#123;</span><br><span class="line">        InitProducerIdResponse initProducerIdResponse = (InitProducerIdResponse) response;</span><br><span class="line">        <span class="comment">// 检查错误</span></span><br><span class="line">        Errors error = initProducerIdResponse.error();</span><br><span class="line">        <span class="keyword">if</span> (error == Errors.NONE) &#123;</span><br><span class="line">            ProducerIdAndEpoch producerIdAndEpoch = <span class="keyword">new</span> ProducerIdAndEpoch(initProducerIdResponse.producerId(), initProducerIdResponse.epoch());</span><br><span class="line">            <span class="comment">// 保存结果 producer id和epoch</span></span><br><span class="line">            setProducerIdAndEpoch(producerIdAndEpoch);</span><br><span class="line">            <span class="comment">// 更改状态为READY</span></span><br><span class="line">            transitionTo(State.READY);</span><br><span class="line">            lastError = <span class="keyword">null</span>;</span><br><span class="line">            <span class="comment">// 通知异步结果已完成</span></span><br><span class="line">            result.done();</span><br><span class="line">        &#125; <span class="keyword">else</span> <span class="keyword">if</span> (error == Errors.NOT_COORDINATOR || error == Errors.COORDINATOR_NOT_AVAILABLE) &#123;</span><br><span class="line">            <span class="comment">// 如果TC服务没有找到或者刚好挂掉，那么生成FindCoordinatorRequest请求，等待发送</span></span><br><span class="line">            lookupCoordinator(FindCoordinatorRequest.CoordinatorType.TRANSACTION, transactionalId);</span><br><span class="line">            <span class="comment">// 并且将自身请求也放入队列，等待发送</span></span><br><span class="line">            reenqueue();</span><br><span class="line">        &#125; <span class="keyword">else</span> <span class="keyword">if</span> (error == Errors.COORDINATOR_LOAD_IN_PROGRESS || error == Errors.CONCURRENT_TRANSACTIONS) &#123;</span><br><span class="line">            <span class="comment">// 如果TC服务正在启动中，那么加入队列，等待发送</span></span><br><span class="line">            reenqueue();</span><br><span class="line">        &#125; <span class="keyword">else</span> <span class="keyword">if</span> (error == Errors.TRANSACTIONAL_ID_AUTHORIZATION_FAILED) &#123;</span><br><span class="line">            <span class="comment">// 如果发生权限问题，那么认为进入错误状态</span></span><br><span class="line">            fatalError(error.exception());</span><br><span class="line">        &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">            fatalError(<span class="keyword">new</span> KafkaException(<span class="string">"Unexpected error in InitProducerIdResponse; "</span> + error.message()));</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>beginTransaction 方法负责开始新事务，它只是更改自身状态为 IN_TRANSACTION，并不会发送任何请求</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">public</span> <span class="keyword">synchronized</span> <span class="keyword">void</span> <span class="title">beginTransaction</span><span class="params">()</span> </span>&#123;</span><br><span class="line">    <span class="comment">// 检查 transaction id</span></span><br><span class="line">    ensureTransactional();</span><br><span class="line">    <span class="comment">// 检查之前响应是否出错</span></span><br><span class="line">    maybeFailWithError();</span><br><span class="line">    <span class="comment">// 更改状态</span></span><br><span class="line">    transitionTo(State.IN_TRANSACTION);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>我们知道Producer发送消息，都是先将消息发送到缓存队列里，最后是由Sender线程发送出去 。Producer 如果开启了事务， 它在发送消息到缓存之前，会将消息所在的分区保存在 TransactionCoordinator 里。然后Sender线程在发送消息之前，会去从 TransactionCoordinator 检查是否需要上次分区到 TC 服务，如果有就先上次分区，随后才发送消息。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">KafkaProducer</span>&lt;<span class="title">K</span>, <span class="title">V</span>&gt; <span class="keyword">implements</span> <span class="title">Producer</span>&lt;<span class="title">K</span>, <span class="title">V</span>&gt; </span>&#123;</span><br><span class="line">    <span class="function"><span class="keyword">private</span> Future&lt;RecordMetadata&gt; <span class="title">doSend</span><span class="params">(ProducerRecord&lt;K, V&gt; record, Callback callback)</span> </span>&#123;</span><br><span class="line">        .......</span><br><span class="line">        <span class="keyword">int</span> partition = partition(record, serializedKey, serializedValue, cluster);</span><br><span class="line">        tp = <span class="keyword">new</span> TopicPartition(record.topic(), partition);</span><br><span class="line">        ......</span><br><span class="line">        <span class="keyword">if</span> (transactionManager != <span class="keyword">null</span> &amp;&amp; transactionManager.isTransactional())</span><br><span class="line">            <span class="comment">// 如果开启了事务，那么就先将分区保存在 transactionManager</span></span><br><span class="line">            transactionManager.maybeAddPartitionToTransaction(tp);</span><br><span class="line">        ......</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>TransactionManager 提供了 maybeAddPartitionToTransaction 方法添加分区。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">TransactionManager</span> </span>&#123;</span><br><span class="line">    <span class="comment">// 新增的上传分区集合</span></span><br><span class="line">    <span class="keyword">private</span> <span class="keyword">final</span> Set&lt;TopicPartition&gt; newPartitionsInTransaction;</span><br><span class="line">    <span class="comment">// 本次事务已经上传的分区集合</span></span><br><span class="line">    <span class="keyword">private</span> <span class="keyword">final</span> Set&lt;TopicPartition&gt; partitionsInTransaction;</span><br><span class="line">    <span class="comment">// 本次事务涉及到的所有分区集合</span></span><br><span class="line">    <span class="keyword">private</span> <span class="keyword">final</span> Set&lt;TopicPartition&gt; pendingPartitionsInTransaction;</span><br><span class="line">    </span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">synchronized</span> <span class="keyword">void</span> <span class="title">maybeAddPartitionToTransaction</span><span class="params">(TopicPartition topicPartition)</span> </span>&#123;</span><br><span class="line">        <span class="comment">// 检查事务状态必须为IN_TRANSACTION</span></span><br><span class="line">        failIfNotReadyForSend();</span><br><span class="line">        <span class="comment">// 如果已经上传过这个分区，或者正在上传这个分区，那么直接返回</span></span><br><span class="line">        <span class="keyword">if</span> (isPartitionAdded(topicPartition) || isPartitionPendingAdd(topicPartition))</span><br><span class="line">            <span class="keyword">return</span>;</span><br><span class="line"></span><br><span class="line">        log.debug(<span class="string">"Begin adding new partition &#123;&#125; to transaction"</span>, topicPartition);</span><br><span class="line">        <span class="comment">// 添加到需要上次的集合</span></span><br><span class="line">        newPartitionsInTransaction.add(topicPartition);</span><br><span class="line">    &#125;</span><br><span class="line">    </span><br><span class="line">    <span class="comment">// 检查是否这个分区已经上传过了</span></span><br><span class="line">    <span class="function"><span class="keyword">synchronized</span> <span class="keyword">boolean</span> <span class="title">isPartitionAdded</span><span class="params">(TopicPartition partition)</span> </span>&#123;</span><br><span class="line">        <span class="keyword">return</span> partitionsInTransaction.contains(partition);</span><br><span class="line">    &#125;</span><br><span class="line">    </span><br><span class="line">    <span class="comment">// 检查是否这个分区正在上传中</span></span><br><span class="line">    <span class="function"><span class="keyword">synchronized</span> <span class="keyword">boolean</span> <span class="title">isPartitionPendingAdd</span><span class="params">(TopicPartition partition)</span> </span>&#123;</span><br><span class="line">        <span class="keyword">return</span> newPartitionsInTransaction.contains(partition) || pendingPartitionsInTransaction.contains(partition);</span><br><span class="line">    &#125;    </span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>TransactionManager 的 addPartitionsToTransactionHandler 方法，会生成分区上传请求，然后由Sender发送。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">TransactionManager</span> </span>&#123;</span><br><span class="line"></span><br><span class="line">    <span class="function"><span class="keyword">private</span> <span class="keyword">synchronized</span> TxnRequestHandler <span class="title">addPartitionsToTransactionHandler</span><span class="params">()</span> </span>&#123;</span><br><span class="line">        <span class="comment">// 将新增的分区，添加到 pendingPartitionsInTransaction 集合</span></span><br><span class="line">        pendingPartitionsInTransaction.addAll(newPartitionsInTransaction);</span><br><span class="line">        <span class="comment">// 清空新增的分区集合</span></span><br><span class="line">        newPartitionsInTransaction.clear();</span><br><span class="line">        <span class="comment">// 构建 AddPartitionsToTxnRequest 请求</span></span><br><span class="line">        AddPartitionsToTxnRequest.Builder builder = <span class="keyword">new</span> AddPartitionsToTxnRequest.Builder(transactionalId,</span><br><span class="line">                producerIdAndEpoch.producerId, producerIdAndEpoch.epoch, <span class="keyword">new</span> ArrayList&lt;&gt;(pendingPartitionsInTransaction));</span><br><span class="line">        <span class="keyword">return</span> <span class="keyword">new</span> AddPartitionsToTxnHandler(builder);</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>AddPartitionsToTxnHandler 负责处理响应</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">private</span> <span class="class"><span class="keyword">class</span> <span class="title">AddPartitionsToTxnHandler</span> <span class="keyword">extends</span> <span class="title">TxnRequestHandler</span> </span>&#123;</span><br><span class="line"></span><br><span class="line">    <span class="meta">@Override</span></span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">handleResponse</span><span class="params">(AbstractResponse response)</span> </span>&#123;</span><br><span class="line">        AddPartitionsToTxnResponse addPartitionsToTxnResponse = (AddPartitionsToTxnResponse) response;</span><br><span class="line">        Map&lt;TopicPartition, Errors&gt; errors = addPartitionsToTxnResponse.errors();</span><br><span class="line">        <span class="keyword">boolean</span> hasPartitionErrors = <span class="keyword">false</span>;</span><br><span class="line">        Set&lt;String&gt; unauthorizedTopics = <span class="keyword">new</span> HashSet&lt;&gt;();</span><br><span class="line">        retryBackoffMs = TransactionManager.<span class="keyword">this</span>.retryBackoffMs;</span><br><span class="line"></span><br><span class="line">        <span class="keyword">for</span> (Map.Entry&lt;TopicPartition, Errors&gt; topicPartitionErrorEntry : errors.entrySet()) &#123;</span><br><span class="line">            <span class="comment">// 检查每个分区的响应错误</span></span><br><span class="line">            .....</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        Set&lt;TopicPartition&gt; partitions = errors.keySet();</span><br><span class="line">        <span class="comment">// 因为这些分区已经有响应了，即使错误也需要从集合中删除</span></span><br><span class="line">        pendingPartitionsInTransaction.removeAll(partitions);</span><br><span class="line"></span><br><span class="line">        <span class="keyword">if</span> (!unauthorizedTopics.isEmpty()) &#123;</span><br><span class="line">            abortableError(<span class="keyword">new</span> TopicAuthorizationException(unauthorizedTopics));</span><br><span class="line">        &#125; <span class="keyword">else</span> <span class="keyword">if</span> (hasPartitionErrors) &#123;</span><br><span class="line">            abortableError(<span class="keyword">new</span> KafkaException(<span class="string">"Could not add partitions to transaction due to errors: "</span> + errors));</span><br><span class="line">        &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">            log.debug(<span class="string">"Successfully added partitions &#123;&#125; to transaction"</span>, partitions);</span><br><span class="line">            <span class="comment">// 将这些成功响应的分区，添加到 partitionsInTransaction集合</span></span><br><span class="line">            partitionsInTransaction.addAll(partitions);</span><br><span class="line">            transactionStarted = <span class="keyword">true</span>;</span><br><span class="line">            <span class="comment">// 通知结果成功</span></span><br><span class="line">            result.done();</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>sendOffsetsToTransaction 方法负责发送消费位置提交请求</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">TransactionManager</span> </span>&#123;</span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">synchronized</span> TransactionalRequestResult <span class="title">sendOffsetsToTransaction</span><span class="params">(Map&lt;TopicPartition, OffsetAndMetadata&gt; offsets, String consumerGroupId)</span> </span>&#123;</span><br><span class="line">        <span class="comment">// 保证transaction id</span></span><br><span class="line">        ensureTransactional();</span><br><span class="line">        <span class="comment">// 检查之前的响应错误</span></span><br><span class="line">        maybeFailWithError();</span><br><span class="line">        <span class="comment">// 只有 IN_TRANSACTION 状态才可以发送这种类型请求</span></span><br><span class="line">        <span class="keyword">if</span> (currentState != State.IN_TRANSACTION)</span><br><span class="line">            <span class="keyword">throw</span> <span class="keyword">new</span> KafkaException(<span class="string">"..."</span>);</span><br><span class="line">        <span class="comment">// 构建请求</span></span><br><span class="line">        AddOffsetsToTxnRequest.Builder builder = <span class="keyword">new</span> AddOffsetsToTxnRequest.Builder(transactionalId, producerIdAndEpoch.producerId, producerIdAndEpoch.epoch, consumerGroupId);</span><br><span class="line">        <span class="comment">// 构建处理器</span></span><br><span class="line">        AddOffsetsToTxnHandler handler = <span class="keyword">new</span> AddOffsetsToTxnHandler(builder, offsets);</span><br><span class="line">        <span class="comment">// 添加到队列</span></span><br><span class="line">        enqueueRequest(handler);</span><br><span class="line">        <span class="keyword">return</span> handler.result;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>AddOffsetsToTxnHandler 类负责处理响应，它的处理逻辑很简单，它收到响应后，会发送 TxnOffsetCommitRequest 请求给 TC 服务。</p>
+<p>最后还剩下事务提交或回滚请求，还没讲述。Producer 在调用 commitTransaction 或 abortTransaction 方法，本质都是调用了 TransactionManager 的 beginCompletingTransaction 方法发送请求。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">public</span> <span class="keyword">synchronized</span> TransactionalRequestResult <span class="title">beginCommit</span><span class="params">()</span> </span>&#123;</span><br><span class="line">    ensureTransactional();</span><br><span class="line">    maybeFailWithError();</span><br><span class="line">    <span class="comment">// 更改状态为 COMMITTING_TRANSACTION</span></span><br><span class="line">    transitionTo(State.COMMITTING_TRANSACTION);</span><br><span class="line">    <span class="comment">// 调用 beginCompletingTransaction 方法发送请求</span></span><br><span class="line">    <span class="keyword">return</span> beginCompletingTransaction(TransactionResult.COMMIT);</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">public</span> <span class="keyword">synchronized</span> TransactionalRequestResult <span class="title">beginAbort</span><span class="params">()</span> </span>&#123;</span><br><span class="line">    ensureTransactional();</span><br><span class="line">    <span class="comment">// 更改状态为 ABORTABLE_ERROR</span></span><br><span class="line">    <span class="keyword">if</span> (currentState != State.ABORTABLE_ERROR)</span><br><span class="line">        maybeFailWithError();</span><br><span class="line">    transitionTo(State.ABORTING_TRANSACTION);</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 清空分区集合</span></span><br><span class="line">    newPartitionsInTransaction.clear();</span><br><span class="line">    <span class="comment">// 发送请求</span></span><br><span class="line">    <span class="keyword">return</span> beginCompletingTransaction(TransactionResult.ABORT);</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">private</span> TransactionalRequestResult <span class="title">beginCompletingTransaction</span><span class="params">(TransactionResult transactionResult)</span> </span>&#123;</span><br><span class="line">    <span class="comment">// 如果还有分区没有上传，那么生成请求放进队列</span></span><br><span class="line">    <span class="keyword">if</span> (!newPartitionsInTransaction.isEmpty())</span><br><span class="line">        enqueueRequest(addPartitionsToTransactionHandler());</span><br><span class="line">    <span class="comment">// 构建请求</span></span><br><span class="line">    EndTxnRequest.Builder builder = <span class="keyword">new</span> EndTxnRequest.Builder(transactionalId, producerIdAndEpoch.producerId, producerIdAndEpoch.epoch, transactionResult);</span><br><span class="line">    <span class="comment">// 构建处理器</span></span><br><span class="line">    EndTxnHandler handler = <span class="keyword">new</span> EndTxnHandler(builder);</span><br><span class="line">    enqueueRequest(handler);</span><br><span class="line">    <span class="keyword">return</span> handler.result;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>EndTxnHandler 负责处理事务提交或回滚响应，EndTxnHandler的处理逻辑比较简单，它只是调用了 completeTransaction 方法。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">private</span> <span class="keyword">synchronized</span> <span class="keyword">void</span> <span class="title">completeTransaction</span><span class="params">()</span> </span>&#123;</span><br><span class="line">    <span class="comment">// 更改状态为READY</span></span><br><span class="line">    transitionTo(State.READY);</span><br><span class="line">    lastError = <span class="keyword">null</span>;</span><br><span class="line">    transactionStarted = <span class="keyword">false</span>;</span><br><span class="line">    <span class="comment">// 清空分区集合</span></span><br><span class="line">    newPartitionsInTransaction.clear();</span><br><span class="line">    pendingPartitionsInTransaction.clear();</span><br><span class="line">    partitionsInTransaction.clear();</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h3 id="服务端"><a href="#服务端" class="headerlink" title="服务端"></a>服务端</h3><p>服务端的结构会相对复杂一些，这里尽量简单的讲讲大概逻辑。首先介绍下 TransactionStateManager 类，它负责管理事务的元数据，它也提供持久化事务的元数据，和从事务 topic 加载数据的功能。</p>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">class</span> <span class="title">TransactionStateManager</span>(<span class="params">...</span>) </span>&#123;</span><br><span class="line">  <span class="comment">// key值为 partition id，value为 TxnMetadataCacheEntry对象</span></span><br><span class="line">  <span class="keyword">private</span> <span class="keyword">val</span> transactionMetadataCache: mutable.<span class="type">Map</span>[<span class="type">Int</span>, <span class="type">TxnMetadataCacheEntry</span>] = mutable.<span class="type">Map</span>()</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// metadataPerTransactionalId 参数是Pool类型，可以看成是Map</span></span><br><span class="line"><span class="comment">// key值为transaction id， value为元数据</span></span><br><span class="line"><span class="keyword">private</span>[transaction] <span class="keyword">case</span> <span class="class"><span class="keyword">class</span> <span class="title">TxnMetadataCacheEntry</span>(<span class="params">coordinatorEpoch: <span class="type">Int</span>,</span></span></span><br><span class="line"><span class="class"><span class="params">                                                      metadataPerTransactionalId: <span class="type">Pool</span>[<span class="type">String</span>, <span class="type">TransactionMetadata</span>]</span>)</span></span><br></pre></td></tr></table></figure>
+<p>TransactionStateManager 提供了 appendTransactionToLog 方法用于持久化。</p>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">class</span> <span class="title">TransactionStateManager</span> </span>&#123;</span><br><span class="line">    </span><br><span class="line">  <span class="function"><span class="keyword">def</span> <span class="title">appendTransactionToLog</span></span>(transactionalId: <span class="type">String</span>,</span><br><span class="line">                             coordinatorEpoch: <span class="type">Int</span>,</span><br><span class="line">                             newMetadata: <span class="type">TxnTransitMetadata</span>,  <span class="comment">// 新的元数据</span></span><br><span class="line">                             responseCallback: <span class="type">Errors</span> =&gt; <span class="type">Unit</span>, <span class="comment">// 回调函数</span></span><br><span class="line">                             retryOnError: <span class="type">Errors</span> =&gt; <span class="type">Boolean</span> = _ =&gt; <span class="literal">false</span>): <span class="type">Unit</span> = &#123;</span><br><span class="line">    <span class="comment">// 生成record的key</span></span><br><span class="line">    <span class="keyword">val</span> keyBytes = <span class="type">TransactionLog</span>.keyToBytes(transactionalId)</span><br><span class="line">    <span class="comment">// 生成record的calue</span></span><br><span class="line">    <span class="keyword">val</span> valueBytes = <span class="type">TransactionLog</span>.valueToBytes(newMetadata)</span><br><span class="line">    <span class="comment">// 生成record</span></span><br><span class="line">    <span class="keyword">val</span> records = <span class="type">MemoryRecords</span>.withRecords(<span class="type">TransactionLog</span>.<span class="type">EnforcedCompressionType</span>, <span class="keyword">new</span> <span class="type">SimpleRecord</span>(timestamp, keyBytes, valueBytes))</span><br><span class="line">    <span class="keyword">val</span> topicPartition = <span class="keyword">new</span> <span class="type">TopicPartition</span>(<span class="type">Topic</span>.<span class="type">TRANSACTION_STATE_TOPIC_NAME</span>, partitionFor(transactionalId))</span><br><span class="line">    <span class="keyword">val</span> recordsPerPartition = <span class="type">Map</span>(topicPartition -&gt; records)      </span><br><span class="line">    </span><br><span class="line">    <span class="comment">// 当持久化完成后，会调用这个函数，更新transactionMetadataCache集合的元数据</span></span><br><span class="line">    <span class="function"><span class="keyword">def</span> <span class="title">updateCacheCallback</span></span>(responseStatus: collection.<span class="type">Map</span>[<span class="type">TopicPartition</span>, <span class="type">PartitionResponse</span>]): <span class="type">Unit</span> = &#123;</span><br><span class="line">        <span class="comment">// 检查持久化是否出错</span></span><br><span class="line">        .....</span><br><span class="line">        <span class="comment">// 更改元数据</span></span><br><span class="line">        metadata.completeTransitionTo(newMetadata)</span><br><span class="line">        <span class="comment">// 执行回调函数</span></span><br><span class="line">        responseCallback(responseError)</span><br><span class="line">    &#125;</span><br><span class="line">      </span><br><span class="line">    ......</span><br><span class="line">      </span><br><span class="line">    <span class="comment">// 持久化recod到topic里</span></span><br><span class="line">    replicaManager.appendRecords(</span><br><span class="line">                newMetadata.txnTimeoutMs.toLong,</span><br><span class="line">                <span class="type">TransactionLog</span>.<span class="type">EnforcedRequiredAcks</span>,</span><br><span class="line">                internalTopicsAllowed = <span class="literal">true</span>,</span><br><span class="line">                isFromClient = <span class="literal">false</span>,</span><br><span class="line">                recordsPerPartition,</span><br><span class="line">                updateCacheCallback,   <span class="comment">// 持久化完成后，会调用这个函数</span></span><br><span class="line">                delayedProduceLock = <span class="type">Some</span>(stateLock.readLock))</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>TransactionStateManager 提供了 loadTransactionsForTxnTopicPartition 方法用于从消息 topic 恢复数据，这里不再详细介绍。</p>
+<p>接下来来讲讲 TransactionCoordinator 类，它负责处理重要的事务请求。</p>
+<table>
+<thead>
+<tr>
+<th>请求类型</th>
+<th>响应方法</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>InitProducerIdRequest</td>
+<td>handleInitProducerId</td>
+</tr>
+<tr>
+<td>AddPartitionsToTxnRequest</td>
+<td>handleAddPartitionsToTransaction</td>
+</tr>
+<tr>
+<td>EndTxnRequest</td>
+<td>handleEndTransaction</td>
+</tr>
+</tbody>
+</table>
+<p>handleInitProducerId 方法会返回 producer id，如果这个事务的 transaction id 第一次请求，那么会为它分配新的 producer id 。如果之前请求过，就会返回之前分配的 producer id。</p>
+<p>handleAddPartitionsToTransaction 方法会将上传的分区列表，添加到元数据并且持久化。</p>
+<p>handleEndTransaction 方法会稍微复杂一些，因为它需要将这个消息转发给各个分区。</p>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">handleEndTransaction</span></span>(transactionalId: <span class="type">String</span>,</span><br><span class="line">                         producerId: <span class="type">Long</span>,</span><br><span class="line">                         producerEpoch: <span class="type">Short</span>,</span><br><span class="line">                         txnMarkerResult: <span class="type">TransactionResult</span>,</span><br><span class="line">                         responseCallback: <span class="type">EndTxnCallback</span>): <span class="type">Unit</span> = &#123;</span><br><span class="line">    <span class="comment">// 获取元数据，更改状态</span></span><br><span class="line">    <span class="keyword">val</span> preAppendResult: <span class="type">ApiResult</span>[(<span class="type">Int</span>, <span class="type">TxnTransitMetadata</span>)] = txnManager.getTransactionState(transactionalId).right.flatMap &#123;</span><br><span class="line">      <span class="keyword">case</span> <span class="type">None</span> =&gt;</span><br><span class="line">        <span class="comment">// 如果元数据不存在，说明存在问题</span></span><br><span class="line">        <span class="type">Left</span>(<span class="type">Errors</span>.<span class="type">INVALID_PRODUCER_ID_MAPPING</span>)</span><br><span class="line">      <span class="keyword">case</span> <span class="type">Some</span>(epochAndTxnMetadata) =&gt;</span><br><span class="line">        <span class="keyword">val</span> txnMetadata = epochAndTxnMetadata.transactionMetadata</span><br><span class="line">        <span class="keyword">val</span> coordinatorEpoch = epochAndTxnMetadata.coordinatorEpoch</span><br><span class="line">        ......</span><br><span class="line">        txnMetadata.state <span class="keyword">match</span> &#123;</span><br><span class="line">            <span class="comment">// 必须是Ongoing状态，如果是别的状态，就会报错</span></span><br><span class="line">            <span class="keyword">case</span> <span class="type">Ongoing</span> =&gt;</span><br><span class="line">              <span class="comment">// 根据发送的消息类型，查看是事务提交还是回滚，来决定接下来的状态</span></span><br><span class="line">              <span class="keyword">val</span> nextState = <span class="keyword">if</span> (txnMarkerResult == <span class="type">TransactionResult</span>.<span class="type">COMMIT</span>)</span><br><span class="line">                <span class="type">PrepareCommit</span></span><br><span class="line">              <span class="keyword">else</span></span><br><span class="line">                <span class="type">PrepareAbort</span></span><br><span class="line">              <span class="comment">// 调用 prepareAbortOrCommit 来更新状态</span></span><br><span class="line">              <span class="type">Right</span>(coordinatorEpoch, txnMetadata.prepareAbortOrCommit(nextState, time.milliseconds()))</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    </span><br><span class="line">    <span class="comment">// 检查上一步的结果</span></span><br><span class="line">    preAppendResult <span class="keyword">match</span> &#123;</span><br><span class="line">      <span class="keyword">case</span> <span class="type">Left</span>(err) =&gt;</span><br><span class="line">        responseCallback(err)</span><br><span class="line">      <span class="keyword">case</span> <span class="type">Right</span>((coordinatorEpoch, newMetadata)) =&gt;</span><br><span class="line">        </span><br><span class="line">        <span class="comment">// 定义回调函数，用于发送请求到分区</span></span><br><span class="line">        <span class="function"><span class="keyword">def</span> <span class="title">sendTxnMarkersCallback</span></span>(error: <span class="type">Errors</span>): <span class="type">Unit</span> = &#123;</span><br><span class="line">          <span class="keyword">if</span> (error == <span class="type">Errors</span>.<span class="type">NONE</span>) &#123;</span><br><span class="line">              ...... <span class="comment">// 检查状态，只有是PrepareCommit或PrepareAbort，才能继续执行</span></span><br><span class="line">            txnMetadata.state <span class="keyword">match</span> &#123;</span><br><span class="line">              <span class="keyword">case</span> <span class="type">PrepareCommit</span> =&gt;</span><br><span class="line">                <span class="comment">// 更改状态为 CompleteCommit</span></span><br><span class="line">                txnMetadata.prepareComplete(time.milliseconds())</span><br><span class="line">              <span class="keyword">case</span> <span class="type">PrepareAbort</span> =&gt;</span><br><span class="line">                <span class="comment">// 更改状态为 CompleteAbort</span></span><br><span class="line">                txnMetadata.prepareComplete(time.milliseconds())</span><br><span class="line">            &#125;</span><br><span class="line">          &#125;</span><br><span class="line">          <span class="comment">// 检查更改状态的结果</span></span><br><span class="line">          preSendResult <span class="keyword">match</span> &#123;</span><br><span class="line">            <span class="keyword">case</span> <span class="type">Left</span>(err) =&gt;</span><br><span class="line">              responseCallback(err)</span><br><span class="line">            <span class="keyword">case</span> <span class="type">Right</span>((txnMetadata, newPreSendMetadata)) =&gt;</span><br><span class="line">              <span class="comment">// 向客户端发送成功响应</span></span><br><span class="line">              responseCallback(<span class="type">Errors</span>.<span class="type">NONE</span>)</span><br><span class="line">              <span class="comment">// 通过txnMarkerChannelManager发送请求到分区</span></span><br><span class="line">              txnMarkerChannelManager.addTxnMarkersToSend(transactionalId, coordinatorEpoch, txnMarkerResult, txnMetadata, newPreSendMetadata)</span><br><span class="line">          &#125;</span><br><span class="line">        &#125;</span><br><span class="line">        </span><br><span class="line">        <span class="comment">// 持久化元数据，然后调用sendTxnMarkersCallback函数，发送客户端的响应和发送请求到分区</span></span><br><span class="line">        txnManager.appendTransactionToLog(transactionalId, coordinatorEpoch, newMetadata, sendTxnMarkersCallback)</span><br></pre></td></tr></table></figure>
+<p>上面发送请求到分区，调用了 TransactionMarkerChannelManager 的方法。它会生成每个分区的请求，然后放到一个队列里，后台线程会负责将这些请求发送出去。当收到所有分区的响应后，它还负责更改事务的状态，并且负责持久化一条事务成功的消息。</p>
+<p>这里需要提下延迟任务 DelayedTxnMarker，它负责检查是否收到所有分区的响应。它设置的延迟时间达到365天，所以可以认为次任务几乎不会过期。</p>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">private</span>[transaction] <span class="class"><span class="keyword">class</span> <span class="title">DelayedTxnMarker</span>(<span class="params">txnMetadata: <span class="type">TransactionMetadata</span>,</span></span></span><br><span class="line"><span class="class"><span class="params">                                           completionCallback: <span class="type">Errors</span> =&gt; <span class="type">Unit</span>,</span></span></span><br><span class="line"><span class="class"><span class="params">                                           lock: <span class="type">Lock</span></span>)</span></span><br><span class="line"><span class="class">  <span class="keyword">extends</span> <span class="title">DelayedOperation</span>(<span class="params"><span class="type">TimeUnit</span>.<span class="type">DAYS</span>.toMillis(100 * 365</span>), <span class="title">Some</span>(<span class="params">lock</span>)) </span>&#123;</span><br><span class="line"></span><br><span class="line">  <span class="keyword">override</span> <span class="function"><span class="keyword">def</span> <span class="title">tryComplete</span></span>(): <span class="type">Boolean</span> = &#123;</span><br><span class="line">    txnMetadata.inLock &#123;</span><br><span class="line">      <span class="comment">// 当每收到一个分区的响应后，就会从元数据中删除掉。</span></span><br><span class="line">      <span class="comment">// 直到分区列表为空，就说明所有分区都已经成功响应</span></span><br><span class="line">      <span class="keyword">if</span> (txnMetadata.topicPartitions.isEmpty)</span><br><span class="line">        forceComplete()</span><br><span class="line">      <span class="keyword">else</span> <span class="literal">false</span></span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  <span class="keyword">override</span> <span class="function"><span class="keyword">def</span> <span class="title">onExpiration</span></span>(): <span class="type">Unit</span> = &#123;</span><br><span class="line">    <span class="comment">// this should never happen</span></span><br><span class="line">    <span class="keyword">throw</span> <span class="keyword">new</span> <span class="type">IllegalStateException</span>(<span class="string">s"Delayed write txn marker operation for metadata <span class="subst">$txnMetadata</span> has timed out, this should never happen."</span>)</span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  <span class="comment">// <span class="doctag">TODO:</span> if we will always return NONE upon completion, we can remove the error code in the param</span></span><br><span class="line">  <span class="keyword">override</span> <span class="function"><span class="keyword">def</span> <span class="title">onComplete</span></span>(): <span class="type">Unit</span> = completionCallback(<span class="type">Errors</span>.<span class="type">NONE</span>)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>DelayedTxnMarker 是在 TransactionMarkerChannelManager 的 addTxnMarkersToSend 方法中实例化的，它的 completionCallback 参数，就是定义在 addTxnMarkersToSend 方法里面。</p>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">addTxnMarkersToSend</span></span>(transactionalId: <span class="type">String</span>,</span><br><span class="line">                        coordinatorEpoch: <span class="type">Int</span>,</span><br><span class="line">                        txnResult: <span class="type">TransactionResult</span>,</span><br><span class="line">                        txnMetadata: <span class="type">TransactionMetadata</span>,</span><br><span class="line">                        newMetadata: <span class="type">TxnTransitMetadata</span>): <span class="type">Unit</span> = &#123;</span><br><span class="line">  <span class="comment">// 定义延迟任务的回调函数</span></span><br><span class="line">  <span class="function"><span class="keyword">def</span> <span class="title">appendToLogCallback</span></span>(error: <span class="type">Errors</span>): <span class="type">Unit</span> = &#123;</span><br><span class="line">    <span class="comment">// 检查错误</span></span><br><span class="line">    error <span class="keyword">match</span> &#123;</span><br><span class="line">      <span class="keyword">case</span> <span class="type">Errors</span>.<span class="type">NONE</span> =&gt;</span><br><span class="line">        <span class="comment">// 检查状态</span></span><br><span class="line">        txnStateManager.getTransactionState(transactionalId) <span class="keyword">match</span> &#123;</span><br><span class="line">          <span class="keyword">case</span> <span class="type">Right</span>(<span class="type">Some</span>(epochAndMetadata)) =&gt;</span><br><span class="line">            <span class="keyword">if</span> (epochAndMetadata.coordinatorEpoch == coordinatorEpoch) &#123;</span><br><span class="line">               <span class="comment">// 持久化事务成功消息TxnLogAppend，写入到事务 topic</span></span><br><span class="line">              tryAppendToLog(<span class="type">TxnLogAppend</span>(transactionalId, coordinatorEpoch, txnMetadata, newMetadata))</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br><span class="line">      </span><br><span class="line">  <span class="comment">// 实例化延迟任务</span></span><br><span class="line">  <span class="keyword">val</span> delayedTxnMarker = <span class="keyword">new</span> <span class="type">DelayedTxnMarker</span>(txnMetadata, appendToLogCallback, txnStateManager.stateReadLock)</span><br><span class="line">  <span class="comment">// 等待执行</span></span><br><span class="line">  txnMarkerPurgatory.tryCompleteElseWatch(delayedTxnMarker, <span class="type">Seq</span>(transactionalId))</span><br><span class="line">  <span class="comment">// 将请求放进队列里</span></span><br><span class="line">  addTxnMarkersToBrokerQueue(transactionalId, txnMetadata.producerId, txnMetadata.producerEpoch, txnResult, coordinatorEpoch, txnMetadata.topicPartitions.toSet)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+      
+    </div>
+    
+    
+    
+
+    
+
+    
+
+    
+
+    <footer class="post-footer">
+      
+        <div class="post-tags">
+          
+            <a href="/tags/kafka-transaction/" rel="tag"># kafka, transaction</a>
+          
+        </div>
+      
+
+      
+      
+      
+
+      
+        <div class="post-nav">
+          <div class="post-nav-next post-nav-item">
+            
+              <a href="/2019/04/26/antrl4-tutorial/" rel="next" title="antrl4 使用原理">
+                <i class="fa fa-chevron-left"></i> antrl4 使用原理
+              </a>
+            
+          </div>
+
+          <span class="post-nav-divider"></span>
+
+          <div class="post-nav-prev post-nav-item">
+            
+          </div>
+        </div>
+      
+
+      
+      
+    </footer>
+  </div>
+  
+  
+  
+  </article>
+
+
+
+    <div class="post-spread">
+      
+    </div>
+  </div>
+
+
+          </div>
+          
+
+
+          
+
+  
+    <div class="comments" id="comments">
+    </div>
+  
+
+
+
+        </div>
+        
+          
+  
+  <div class="sidebar-toggle">
+    <div class="sidebar-toggle-line-wrap">
+      <span class="sidebar-toggle-line sidebar-toggle-line-first"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-middle"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-last"></span>
+    </div>
+  </div>
+
+  <aside id="sidebar" class="sidebar">
+    
+    <div class="sidebar-inner">
+
+      
+
+      
+        <ul class="sidebar-nav motion-element">
+          <li class="sidebar-nav-toc sidebar-nav-active" data-target="post-toc-wrap">
+            Table of Contents
+          </li>
+          <li class="sidebar-nav-overview" data-target="site-overview-wrap">
+            Overview
+          </li>
+        </ul>
+      
+
+      <section class="site-overview-wrap sidebar-panel">
+        <div class="site-overview">
+          <div class="site-author motion-element" itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+            
+              <p class="site-author-name" itemprop="name">zhmin</p>
+              <p class="site-description motion-element" itemprop="description"></p>
+          </div>
+
+          <nav class="site-state motion-element">
+
+            
+              <div class="site-state-item site-state-posts">
+              
+                <a href="/archives/">
+              
+                  <span class="site-state-item-count">39</span>
+                  <span class="site-state-item-name">posts</span>
+                </a>
+              </div>
+            
+
+            
+              
+              
+              <div class="site-state-item site-state-categories">
+                <a href="/categories/index.html">
+                  <span class="site-state-item-count">7</span>
+                  <span class="site-state-item-name">categories</span>
+                </a>
+              </div>
+            
+
+            
+              
+              
+              <div class="site-state-item site-state-tags">
+                
+                  <span class="site-state-item-count">36</span>
+                  <span class="site-state-item-name">tags</span>
+                
+              </div>
+            
+
+          </nav>
+
+          
+
+          
+            <div class="links-of-author motion-element">
+                
+                  <span class="links-of-author-item">
+                    <a href="https://github.com/zhmin" target="_blank" title="GitHub">
+                      
+                        <i class="fa fa-fw fa-github"></i>GitHub</a>
+                  </span>
+                
+            </div>
+          
+
+          
+          
+
+          
+          
+
+          
+
+        </div>
+      </section>
+
+      
+      <!--noindex-->
+        <section class="post-toc-wrap motion-element sidebar-panel sidebar-panel-active">
+          <div class="post-toc">
+
+            
+              
+            
+
+            
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#Kafka-事务实现原理"><span class="nav-number">1.</span> <span class="nav-text">Kafka 事务实现原理</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#事务流程"><span class="nav-number">1.1.</span> <span class="nav-text">事务流程</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#寻找-TC-服务地址"><span class="nav-number">1.1.1.</span> <span class="nav-text">寻找 TC 服务地址</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#事务初始化"><span class="nav-number">1.1.2.</span> <span class="nav-text">事务初始化</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#发送消息"><span class="nav-number">1.1.3.</span> <span class="nav-text">发送消息</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#发送提交请求"><span class="nav-number">1.1.4.</span> <span class="nav-text">发送提交请求</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#提交请求持久化"><span class="nav-number">1.1.5.</span> <span class="nav-text">提交请求持久化</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#发送事务结果信息给分区"><span class="nav-number">1.1.6.</span> <span class="nav-text">发送事务结果信息给分区</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#客户端原理"><span class="nav-number">1.2.</span> <span class="nav-text">客户端原理</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#使用示例"><span class="nav-number">1.2.1.</span> <span class="nav-text">使用示例</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#运行原理"><span class="nav-number">1.2.2.</span> <span class="nav-text">运行原理</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#服务端原理"><span class="nav-number">1.3.</span> <span class="nav-text">服务端原理</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#高可用分析"><span class="nav-number">1.4.</span> <span class="nav-text">高可用分析</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#TC-服务"><span class="nav-number">1.4.1.</span> <span class="nav-text">TC 服务</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#消息持久化"><span class="nav-number">1.4.2.</span> <span class="nav-text">消息持久化</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#超时处理"><span class="nav-number">1.4.3.</span> <span class="nav-text">超时处理</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#源码分析"><span class="nav-number">1.5.</span> <span class="nav-text">源码分析</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#客户端"><span class="nav-number">1.5.1.</span> <span class="nav-text">客户端</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#服务端"><span class="nav-number">1.5.2.</span> <span class="nav-text">服务端</span></a></li></ol></li></ol></li></ol></div>
+            
+
+          </div>
+        </section>
+      <!--/noindex-->
+      
+
+      
+
+    </div>
+  </aside>
+
+
+        
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="footer-inner">
+        <div class="copyright">&copy; <span itemprop="copyrightYear">2019</span>
+  <span class="with-love">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">zhmin</span>
+
+  
+</div>
+
+
+
+
+
+
+
+
+
+
+
+  <script src="https://unpkg.com/mermaid@7.1.2/dist/mermaid.min.js"></script>
+  <script>
+    if (window.mermaid) {
+      mermaid.initialize({"startOnload":true,"theme":"forest"});
+    }
+  </script>
+
+
+
+<script async src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+<span id="busuanzi_container_site_pv">
+    访问量<span id="busuanzi_value_site_pv"></span>
+</span>
+<span class="post-meta-divider">|</span>
+<span id="busuanzi_container_site_uv">
+  访客数<span id="busuanzi_value_site_uv"></span>
+</span>
+
+        
+
+
+
+
+
+
+
+        
+      </div>
+    </footer>
+
+    
+      <div class="back-to-top">
+        <i class="fa fa-arrow-up"></i>
+        
+      </div>
+    
+
+    
+
+  </div>
+
+  
+
+<script type="text/javascript">
+  if (Object.prototype.toString.call(window.Promise) !== '[object Function]') {
+    window.Promise = null;
+  }
+</script>
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery/index.js?v=2.1.3"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fastclick/lib/fastclick.min.js?v=1.0.6"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery_lazyload/jquery.lazyload.js?v=1.9.7"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.ui.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fancybox/source/jquery.fancybox.pack.js?v=2.1.5"></script>
+  
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/utils.js?v=5.1.4"></script>
+
+  <script type="text/javascript" src="/js/src/motion.js?v=5.1.4"></script>
+
+
+
+  
+  
+
+  
+  <script type="text/javascript" src="/js/src/scrollspy.js?v=5.1.4"></script>
+<script type="text/javascript" src="/js/src/post-details.js?v=5.1.4"></script>
+
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/bootstrap.js?v=5.1.4"></script>
+
+
+
+  
+
+
+  
+
+
+
+
+	
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+  <script src="//cdn1.lncld.net/static/js/3.0.4/av-min.js"></script>
+  <script src="//unpkg.com/valine/dist/Valine.min.js"></script>
+  
+  <script type="text/javascript">
+    var GUEST = ['nick','mail','link'];
+    var guest = 'nick';
+    guest = guest.split(',').filter(item=>{
+      return GUEST.indexOf(item)>-1;
+    });
+    new Valine({
+        el: '#comments' ,
+        verify: false,
+        notify: false,
+        appId: 'iYiPQlDR2X2zg2QIql2UEe2o-gzGzoHsz',
+        appKey: 'EW8G4sftwX1pef1zS9EsOeKE',
+        placeholder: 'comment here',
+        avatar:'mm',
+        guest_info:guest,
+        pageSize:'10' || 10,
+    });
+  </script>
+
+
+
+  
+
+
+
+
+
+  
+
+  
+  <script src="https://cdn1.lncld.net/static/js/av-core-mini-0.6.4.js"></script>
+  <script>AV.initialize("iYiPQlDR2X2zg2QIql2UEe2o-gzGzoHsz", "EW8G4sftwX1pef1zS9EsOeKE");</script>
+  <script>
+    function showTime(Counter) {
+      var query = new AV.Query(Counter);
+      var entries = [];
+      var $visitors = $(".leancloud_visitors");
+
+      $visitors.each(function () {
+        entries.push( $(this).attr("id").trim() );
+      });
+
+      query.containedIn('url', entries);
+      query.find()
+        .done(function (results) {
+          var COUNT_CONTAINER_REF = '.leancloud-visitors-count';
+
+          if (results.length === 0) {
+            $visitors.find(COUNT_CONTAINER_REF).text(0);
+            return;
+          }
+
+          for (var i = 0; i < results.length; i++) {
+            var item = results[i];
+            var url = item.get('url');
+            var time = item.get('time');
+            var element = document.getElementById(url);
+
+            $(element).find(COUNT_CONTAINER_REF).text(time);
+          }
+          for(var i = 0; i < entries.length; i++) {
+            var url = entries[i];
+            var element = document.getElementById(url);
+            var countSpan = $(element).find(COUNT_CONTAINER_REF);
+            if( countSpan.text() == '') {
+              countSpan.text(0);
+            }
+          }
+        })
+        .fail(function (object, error) {
+          console.log("Error: " + error.code + " " + error.message);
+        });
+    }
+
+    function addCount(Counter) {
+      var $visitors = $(".leancloud_visitors");
+      var url = $visitors.attr('id').trim();
+      var title = $visitors.attr('data-flag-title').trim();
+      var query = new AV.Query(Counter);
+
+      query.equalTo("url", url);
+      query.find({
+        success: function(results) {
+          if (results.length > 0) {
+            var counter = results[0];
+            counter.fetchWhenSave(true);
+            counter.increment("time");
+            counter.save(null, {
+              success: function(counter) {
+                var $element = $(document.getElementById(url));
+                $element.find('.leancloud-visitors-count').text(counter.get('time'));
+              },
+              error: function(counter, error) {
+                console.log('Failed to save Visitor num, with error message: ' + error.message);
+              }
+            });
+          } else {
+            var newcounter = new Counter();
+            /* Set ACL */
+            var acl = new AV.ACL();
+            acl.setPublicReadAccess(true);
+            acl.setPublicWriteAccess(true);
+            newcounter.setACL(acl);
+            /* End Set ACL */
+            newcounter.set("title", title);
+            newcounter.set("url", url);
+            newcounter.set("time", 1);
+            newcounter.save(null, {
+              success: function(newcounter) {
+                var $element = $(document.getElementById(url));
+                $element.find('.leancloud-visitors-count').text(newcounter.get('time'));
+              },
+              error: function(newcounter, error) {
+                console.log('Failed to create');
+              }
+            });
+          }
+        },
+        error: function(error) {
+          console.log('Error:' + error.code + " " + error.message);
+        }
+      });
+    }
+
+    $(function() {
+      var Counter = AV.Object.extend("Counter");
+      if ($('.leancloud_visitors').length == 1) {
+        addCount(Counter);
+      } else if ($('.post-title-link').length > 1) {
+        showTime(Counter);
+      }
+    });
+  </script>
+
+
+
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+</body>
+</html>
