@@ -2,6 +2,13 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   
   <url>
+    <loc>https://zhmin.github.io/2019/06/16/spark-sql-treenode/</loc>
+    
+    <lastmod>2019-06-16T13:09:02.126Z</lastmod>
+    
+  </url>
+  
+  <url>
     <loc>https://zhmin.github.io/2019/06/01/hbase-bulkload/</loc>
     
     <lastmod>2019-06-04T14:41:46.468Z</lastmod>
