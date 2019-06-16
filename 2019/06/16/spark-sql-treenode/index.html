@@ -79,19 +79,19 @@
 
 
 
-<meta name="description" content="Spark Sql 基础类 TreeNode前言Spark Sql 不仅支持 sql 语句，而且还会对 sql 进行自动优化。整体流程如下图所示：   接收 sql 语句，初步解析成 logical plan 分析上步生成的 logical plan，生成验证后的 logical plan 对分析过后的 logical plan，进行优化 对优化过后的 logical plan，生成 physic">
+<meta name="description" content="前言Spark Sql 不仅支持 sql 语句，而且还会对 sql 进行自动优化。整体流程如下图所示：   接收 sql 语句，初步解析成 logical plan 分析上步生成的 logical plan，生成验证后的 logical plan 对分析过后的 logical plan，进行优化 对优化过后的 logical plan，生成 physical plan 根据 physical pl">
 <meta name="keywords" content="spark-sql">
 <meta property="og:type" content="article">
 <meta property="og:title" content="Spark Sql 基础类 TreeNode">
 <meta property="og:url" content="https://zhmin.github.io/2019/06/16/spark-sql-treenode/index.html">
 <meta property="og:site_name" content="blog">
-<meta property="og:description" content="Spark Sql 基础类 TreeNode前言Spark Sql 不仅支持 sql 语句，而且还会对 sql 进行自动优化。整体流程如下图所示：   接收 sql 语句，初步解析成 logical plan 分析上步生成的 logical plan，生成验证后的 logical plan 对分析过后的 logical plan，进行优化 对优化过后的 logical plan，生成 physic">
+<meta property="og:description" content="前言Spark Sql 不仅支持 sql 语句，而且还会对 sql 进行自动优化。整体流程如下图所示：   接收 sql 语句，初步解析成 logical plan 分析上步生成的 logical plan，生成验证后的 logical plan 对分析过后的 logical plan，进行优化 对优化过后的 logical plan，生成 physical plan 根据 physical pl">
 <meta property="og:locale" content="default">
 <meta property="og:image" content="https://zhmin.github.io/2019/06/16/spark-sql-treenode/Catalyst-Optimizer-diagram.png">
-<meta property="og:updated_time" content="2019-06-16T13:09:02.126Z">
+<meta property="og:updated_time" content="2019-06-16T13:10:34.829Z">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="Spark Sql 基础类 TreeNode">
-<meta name="twitter:description" content="Spark Sql 基础类 TreeNode前言Spark Sql 不仅支持 sql 语句，而且还会对 sql 进行自动优化。整体流程如下图所示：   接收 sql 语句，初步解析成 logical plan 分析上步生成的 logical plan，生成验证后的 logical plan 对分析过后的 logical plan，进行优化 对优化过后的 logical plan，生成 physic">
+<meta name="twitter:description" content="前言Spark Sql 不仅支持 sql 语句，而且还会对 sql 进行自动优化。整体流程如下图所示：   接收 sql 语句，初步解析成 logical plan 分析上步生成的 logical plan，生成验证后的 logical plan 对分析过后的 logical plan，进行优化 对优化过后的 logical plan，生成 physical plan 根据 physical pl">
 <meta name="twitter:image" content="https://zhmin.github.io/2019/06/16/spark-sql-treenode/Catalyst-Optimizer-diagram.png">
 
 
@@ -355,7 +355,7 @@
       
 
       
-        <h1 id="Spark-Sql-基础类-TreeNode"><a href="#Spark-Sql-基础类-TreeNode" class="headerlink" title="Spark Sql 基础类 TreeNode"></a>Spark Sql 基础类 TreeNode</h1><h2 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h2><p>Spark Sql 不仅支持 sql 语句，而且还会对 sql 进行自动优化。整体流程如下图所示：</p>
+        <h2 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h2><p>Spark Sql 不仅支持 sql 语句，而且还会对 sql 进行自动优化。整体流程如下图所示：</p>
 <p><img src="/2019/06/16/spark-sql-treenode/Catalyst-Optimizer-diagram.png"></p>
 <ol>
 <li>接收 sql 语句，初步解析成 logical plan</li>
@@ -587,7 +587,7 @@
             
 
             
-              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#Spark-Sql-基础类-TreeNode"><span class="nav-number">1.</span> <span class="nav-text">Spark Sql 基础类 TreeNode</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#前言"><span class="nav-number">1.1.</span> <span class="nav-text">前言</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#查看spark-sql-的解析和优化过程"><span class="nav-number">1.2.</span> <span class="nav-text">查看spark sql 的解析和优化过程</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#自限定泛型"><span class="nav-number">1.3.</span> <span class="nav-text">自限定泛型</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Case-Class-使用"><span class="nav-number">1.4.</span> <span class="nav-text">Case Class 使用</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#判断相等"><span class="nav-number">1.5.</span> <span class="nav-text">判断相等</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#遍历构造方法的参数"><span class="nav-number">1.6.</span> <span class="nav-text">遍历构造方法的参数</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#偏函数"><span class="nav-number">1.7.</span> <span class="nav-text">偏函数</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Transform-操作"><span class="nav-number">1.8.</span> <span class="nav-text">Transform 操作</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#TransformUp-操作"><span class="nav-number">1.9.</span> <span class="nav-text">TransformUp 操作</span></a></li></ol></li></ol></div>
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#前言"><span class="nav-number">1.</span> <span class="nav-text">前言</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#查看spark-sql-的解析和优化过程"><span class="nav-number">2.</span> <span class="nav-text">查看spark sql 的解析和优化过程</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#自限定泛型"><span class="nav-number">3.</span> <span class="nav-text">自限定泛型</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Case-Class-使用"><span class="nav-number">4.</span> <span class="nav-text">Case Class 使用</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#判断相等"><span class="nav-number">5.</span> <span class="nav-text">判断相等</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#遍历构造方法的参数"><span class="nav-number">6.</span> <span class="nav-text">遍历构造方法的参数</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#偏函数"><span class="nav-number">7.</span> <span class="nav-text">偏函数</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Transform-操作"><span class="nav-number">8.</span> <span class="nav-text">Transform 操作</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#TransformUp-操作"><span class="nav-number">9.</span> <span class="nav-text">TransformUp 操作</span></a></li></ol></div>
             
 
           </div>
