@@ -2,16 +2,16 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   
   <url>
-    <loc>https://zhmin.github.io/2019/06/18/spark-sql-logicalplan/</loc>
+    <loc>https://zhmin.github.io/2019/06/16/spark-sql-treenode/</loc>
     
-    <lastmod>2019-07-10T13:14:33.361Z</lastmod>
+    <lastmod>2019-07-10T13:23:09.781Z</lastmod>
     
   </url>
   
   <url>
-    <loc>https://zhmin.github.io/2019/06/16/spark-sql-treenode/</loc>
+    <loc>https://zhmin.github.io/2019/06/18/spark-sql-logicalplan/</loc>
     
-    <lastmod>2019-06-16T13:10:34.829Z</lastmod>
+    <lastmod>2019-07-10T13:14:33.361Z</lastmod>
     
   </url>
   
