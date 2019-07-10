@@ -353,11 +353,7 @@
       
         
           
-          前言Spark Sql 会使用 antrl 解析 sql 语句，生成一颗树，树的节点由 LogicalPlan 类表示。后面的验证和优化操作，都是基于这棵树进行的。下面来看看 LogicalPlan 的组成和种类
-UML 类
-下面依次介绍这些类：
-TreeNode： 表示树结构的节点，是一个泛型类
-
+          Spark Sql  LogicalPlan 介绍前言LogicalPlan 表示逻辑计划，它表示 spark sql 初步解析的成果。之后的验证和优化，都是基于逻辑计划的。spark sql 使用 antrl4 解析 sql 语句生成语法树，然后遍历这棵树生成 LogicalPlan 二叉树。这篇
           ...
           <!--noindex-->
           <div class="post-button text-center">

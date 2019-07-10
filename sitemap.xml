@@ -4,7 +4,7 @@
   <url>
     <loc>https://zhmin.github.io/2019/06/18/spark-sql-logicalplan/</loc>
     
-    <lastmod>2019-06-18T14:24:31.903Z</lastmod>
+    <lastmod>2019-07-10T13:14:33.361Z</lastmod>
     
   </url>
   
@@ -128,14 +128,14 @@
   </url>
   
   <url>
-    <loc>https://zhmin.github.io/2019/01/26/spark-shuffle-writer/</loc>
+    <loc>https://zhmin.github.io/2019/01/03/spark-rdd-dependency/</loc>
     
     <lastmod>2019-03-06T13:14:41.931Z</lastmod>
     
   </url>
   
   <url>
-    <loc>https://zhmin.github.io/2019/01/03/spark-rdd-dependency/</loc>
+    <loc>https://zhmin.github.io/2019/01/26/spark-shuffle-writer/</loc>
     
     <lastmod>2019-03-06T13:14:41.931Z</lastmod>
     
