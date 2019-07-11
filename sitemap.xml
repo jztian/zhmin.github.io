@@ -2,6 +2,20 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   
   <url>
+    <loc>https://zhmin.github.io/2019/04/03/spark-sql-cdh/</loc>
+    
+    <lastmod>2019-07-11T14:03:09.909Z</lastmod>
+    
+  </url>
+  
+  <url>
+    <loc>https://zhmin.github.io/2019/04/26/antlr4-tutorial/</loc>
+    
+    <lastmod>2019-07-11T13:59:39.580Z</lastmod>
+    
+  </url>
+  
+  <url>
     <loc>https://zhmin.github.io/2019/06/18/spark-sql-logicalplan/</loc>
     
     <lastmod>2019-07-11T13:51:48.775Z</lastmod>
@@ -37,13 +51,6 @@
   </url>
   
   <url>
-    <loc>https://zhmin.github.io/2019/04/26/antrl4-tutorial/</loc>
-    
-    <lastmod>2019-04-26T13:43:22.291Z</lastmod>
-    
-  </url>
-  
-  <url>
     <loc>https://zhmin.github.io/2019/04/23/kafka-schema-registry/</loc>
     
     <lastmod>2019-04-23T13:09:04.487Z</lastmod>
@@ -68,13 +75,6 @@
     <loc>https://zhmin.github.io/2019/04/08/kafka-consumer-offset/</loc>
     
     <lastmod>2019-04-08T15:07:00.245Z</lastmod>
-    
-  </url>
-  
-  <url>
-    <loc>https://zhmin.github.io/2019/04/03/spark-sql-cdh/</loc>
-    
-    <lastmod>2019-04-08T15:05:00.720Z</lastmod>
     
   </url>
   
