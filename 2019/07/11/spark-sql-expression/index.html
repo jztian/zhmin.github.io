@@ -1,0 +1,1047 @@
+<!DOCTYPE html>
+
+
+
+  
+
+
+<html class="theme-next mist use-motion" lang="">
+<head><meta name="generator" content="Hexo 3.8.0">
+  <meta charset="UTF-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="theme-color" content="#222">
+
+
+
+
+
+
+
+
+
+<meta http-equiv="Cache-Control" content="no-transform">
+<meta http-equiv="Cache-Control" content="no-siteapp">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+  <link href="/lib/fancybox/source/jquery.fancybox.css?v=2.1.5" rel="stylesheet" type="text/css">
+
+
+
+
+
+
+
+<link href="/lib/font-awesome/css/font-awesome.min.css?v=4.6.2" rel="stylesheet" type="text/css">
+
+<link href="/css/main.css?v=5.1.4" rel="stylesheet" type="text/css">
+
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png?v=5.1.4">
+
+
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png?v=5.1.4">
+
+
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png?v=5.1.4">
+
+
+  <link rel="mask-icon" href="/images/logo.svg?v=5.1.4" color="#222">
+
+
+
+
+
+  <meta name="keywords" content="spark sql, expression,">
+
+
+
+
+
+
+
+
+
+
+<meta name="description" content="前言上篇博客介绍了解析 sql 语句生成 LogicalPlan 树的原理，还没有介绍如何解析表达式。LogicalPlan 大都包含了多个表达式，可以认为 LogicalPlan 只是对 sql 语句做了一次粗略的划分，再细一层的划分就是基于表达式的解析。表达式的种类繁多，下面先从简单的单值表达式介绍，然后到复杂的表达式。介绍完表达式的种类，最后再来介绍解析的原理。 表达式基类表达式由 Expr">
+<meta name="keywords" content="spark sql, expression">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Spark Sql 表达式介绍">
+<meta property="og:url" content="https://zhmin.github.io/2019/07/11/spark-sql-expression/index.html">
+<meta property="og:site_name" content="blog">
+<meta property="og:description" content="前言上篇博客介绍了解析 sql 语句生成 LogicalPlan 树的原理，还没有介绍如何解析表达式。LogicalPlan 大都包含了多个表达式，可以认为 LogicalPlan 只是对 sql 语句做了一次粗略的划分，再细一层的划分就是基于表达式的解析。表达式的种类繁多，下面先从简单的单值表达式介绍，然后到复杂的表达式。介绍完表达式的种类，最后再来介绍解析的原理。 表达式基类表达式由 Expr">
+<meta property="og:locale" content="default">
+<meta property="og:image" content="http://www.plantuml.com/plantuml/svg/TP0n2iCm34LtdS8No0qwf4FN3YazW6B_WC5nYgIK3ZryanH2CF4Y9DwN_aVKgh7OF2QAsI03UxWxZmYtpqkW6gTCtAi9UtC-iQgxcadiPqC97iifecBRNRvDSzZPkpzuvaKtfJT2LRAF7GO8iaV58qNMStIqgQks_6ifessWHGxhdtu0">
+<meta property="og:updated_time" content="2019-07-11T13:51:02.107Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Spark Sql 表达式介绍">
+<meta name="twitter:description" content="前言上篇博客介绍了解析 sql 语句生成 LogicalPlan 树的原理，还没有介绍如何解析表达式。LogicalPlan 大都包含了多个表达式，可以认为 LogicalPlan 只是对 sql 语句做了一次粗略的划分，再细一层的划分就是基于表达式的解析。表达式的种类繁多，下面先从简单的单值表达式介绍，然后到复杂的表达式。介绍完表达式的种类，最后再来介绍解析的原理。 表达式基类表达式由 Expr">
+<meta name="twitter:image" content="http://www.plantuml.com/plantuml/svg/TP0n2iCm34LtdS8No0qwf4FN3YazW6B_WC5nYgIK3ZryanH2CF4Y9DwN_aVKgh7OF2QAsI03UxWxZmYtpqkW6gTCtAi9UtC-iQgxcadiPqC97iifecBRNRvDSzZPkpzuvaKtfJT2LRAF7GO8iaV58qNMStIqgQks_6ifessWHGxhdtu0">
+
+
+
+<script type="text/javascript" id="hexo.configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '/',
+    scheme: 'Mist',
+    version: '5.1.4',
+    sidebar: {"position":"left","display":"hide","offset":12,"b2t":false,"scrollpercent":false,"onmobile":false},
+    fancybox: true,
+    tabs: true,
+    motion: {"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},
+    duoshuo: {
+      userId: '0',
+      author: 'Author'
+    },
+    algolia: {
+      applicationID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    }
+  };
+</script>
+
+
+
+  <link rel="canonical" href="https://zhmin.github.io/2019/07/11/spark-sql-expression/">
+
+
+
+
+
+  <title>Spark Sql 表达式介绍 | blog</title>
+  
+
+
+
+
+
+
+
+
+</head>
+
+<body itemscope="" itemtype="http://schema.org/WebPage" lang="default">
+
+  
+  
+    
+  
+
+  <div class="container sidebar-position-left page-post-detail">
+    <div class="headband"></div>
+
+    <header id="header" class="header" itemscope="" itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-wrapper">
+  <div class="site-meta ">
+    
+
+    <div class="custom-logo-site-title">
+      <a href="/" class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">blog</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+      
+        <h1 class="site-subtitle" itemprop="description"></h1>
+      
+  </div>
+
+  <div class="site-nav-toggle">
+    <button>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+    </button>
+  </div>
+</div>
+
+<nav class="site-nav">
+  
+
+  
+    <ul id="menu" class="menu">
+      
+        
+        <li class="menu-item menu-item-home">
+          <a href="/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-home"></i> <br>
+            
+            Home
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-categories">
+          <a href="/categories/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-th"></i> <br>
+            
+            Categories
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-archives">
+          <a href="/archives/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-archive"></i> <br>
+            
+            Archives
+          </a>
+        </li>
+      
+
+      
+    </ul>
+  
+
+  
+</nav>
+
+
+
+ </div>
+    </header>
+
+    <main id="main" class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          <div id="content" class="content">
+            
+
+  <div id="posts" class="posts-expand">
+    
+
+  
+
+  
+  
+  
+
+  <article class="post post-type-normal" itemscope="" itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block">
+    <link itemprop="mainEntityOfPage" href="https://zhmin.github.io/2019/07/11/spark-sql-expression/">
+
+    <span hidden itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="zhmin">
+      <meta itemprop="description" content="">
+      <meta itemprop="image" content="/images/avatar.gif">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope="" itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="blog">
+    </span>
+
+    
+      <header class="post-header">
+
+        
+        
+          <h2 class="post-title" itemprop="name headline">Spark Sql 表达式介绍</h2>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">Posted on</span>
+              
+              <time title="Post created" itemprop="dateCreated datePublished" datetime="2019-07-11T21:47:46+08:00">
+                2019-07-11
+              </time>
+            
+
+            
+
+            
+          </span>
+
+          
+            <span class="post-category">
+            
+              <span class="post-meta-divider">|</span>
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">In</span>
+              
+              
+                <span itemprop="about" itemscope="" itemtype="http://schema.org/Thing">
+                  <a href="/categories/spark-sql/" itemprop="url" rel="index">
+                    <span itemprop="name">spark sql</span>
+                  </a>
+                </span>
+
+                
+                
+              
+            </span>
+          
+
+          
+            
+              <span class="post-comments-count">
+                <span class="post-meta-divider">|</span>
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-comment-o"></i>
+                </span>
+                <a href="/2019/07/11/spark-sql-expression/#comments" itemprop="discussionUrl">
+                  <span class="post-comments-count valine-comment-count" data-xid="/2019/07/11/spark-sql-expression/" itemprop="commentCount"></span>
+                </a>
+              </span>
+            
+          
+
+          
+          
+             <span id="/2019/07/11/spark-sql-expression/" class="leancloud_visitors" data-flag-title="Spark Sql 表达式介绍">
+               <span class="post-meta-divider">|</span>
+               <span class="post-meta-item-icon">
+                 <i class="fa fa-eye"></i>
+               </span>
+               
+                 <span class="post-meta-item-text">Visitors&#58;</span>
+               
+                 <span class="leancloud-visitors-count"></span>
+             </span>
+          
+
+          
+
+          
+
+          
+
+        </div>
+      </header>
+    
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+      
+
+      
+        <h2 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h2><p>上篇博客介绍了解析 sql 语句生成 LogicalPlan 树的原理，还没有介绍如何解析表达式。LogicalPlan 大都包含了多个表达式，可以认为 LogicalPlan 只是对 sql 语句做了一次粗略的划分，再细一层的划分就是基于表达式的解析。表达式的种类繁多，下面先从简单的单值表达式介绍，然后到复杂的表达式。介绍完表达式的种类，最后再来介绍解析的原理。</p>
+<h2 id="表达式基类"><a href="#表达式基类" class="headerlink" title="表达式基类"></a>表达式基类</h2><p>表达式由 Expression 基类表示，先来看看它的几个重要属性</p>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">abstract</span> <span class="class"><span class="keyword">class</span> <span class="title">Expression</span> <span class="keyword">extends</span> <span class="title">TreeNode</span>[<span class="type">Expression</span>] </span>&#123;</span><br><span class="line">  <span class="comment">// 表达式的值类型</span></span><br><span class="line">  <span class="function"><span class="keyword">def</span> <span class="title">dataType</span></span>: <span class="type">DataType</span></span><br><span class="line"></span><br><span class="line">  <span class="comment">// 引用的列</span></span><br><span class="line">  <span class="function"><span class="keyword">def</span> <span class="title">references</span></span>: <span class="type">AttributeSet</span> = <span class="type">AttributeSet</span>(children.flatMap(_.references.iterator))</span><br><span class="line"></span><br><span class="line">  <span class="comment">// 检查输入类型，默认成功。子类如果对输入类型有要求，则需要重写</span></span><br><span class="line">  <span class="function"><span class="keyword">def</span> <span class="title">checkInputDataTypes</span></span>(): <span class="type">TypeCheckResult</span> = <span class="type">TypeCheckResult</span>.<span class="type">TypeCheckSuccess</span></span><br><span class="line"></span><br><span class="line">  <span class="comment">// 根据输入计算表达式的值    </span></span><br><span class="line">  <span class="function"><span class="keyword">def</span> <span class="title">eval</span></span>(input: <span class="type">InternalRow</span> = <span class="literal">null</span>): <span class="type">Any</span></span><br><span class="line"></span><br><span class="line">  <span class="comment">// 是否结果确定性，也就是相同的输入必定有同样的值</span></span><br><span class="line">  <span class="comment">// 因为空列表的forall返回true，说明叶子节点默认是结果确定性</span></span><br><span class="line">  <span class="function"><span class="keyword">def</span> <span class="title">deterministic</span></span>: <span class="type">Boolean</span> = children.forall(_.deterministic)</span><br><span class="line">    </span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>Expression 也是继承 TreeNode，说明表达式也是被组织成数据结构。根据子节点的数量，可以将表达式分为三种：</p>
+<ul>
+<li>没有子节点，对应 LeafExpression 类</li>
+<li>只有一个子节点，对应 UnaryExpression 类</li>
+<li>只有两个子节点，对应 BinaryExpression 类</li>
+<li>只有三个子节点，对应 TernaryExpression 类（这种情况比较少见）</li>
+</ul>
+<h3 id="计算表达式的值"><a href="#计算表达式的值" class="headerlink" title="计算表达式的值"></a>计算表达式的值</h3><p>UnaryExpression 类为了方便子类实现计算值时，不需要从考虑 null 值特殊情况，复写了 eval 方法</p>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">abstract</span> <span class="class"><span class="keyword">class</span> <span class="title">UnaryExpression</span> <span class="keyword">extends</span> <span class="title">Expression</span> </span>&#123;</span><br><span class="line">  <span class="comment">// 子类需要实现此方法</span></span><br><span class="line">  <span class="keyword">protected</span> <span class="function"><span class="keyword">def</span> <span class="title">nullSafeEval</span></span>(input: <span class="type">Any</span>): <span class="type">Any</span> =</span><br><span class="line">    sys.error(<span class="string">s"UnaryExpressions must override either eval or nullSafeEval"</span>)</span><br><span class="line">    </span><br><span class="line">  <span class="keyword">override</span> <span class="function"><span class="keyword">def</span> <span class="title">eval</span></span>(input: <span class="type">InternalRow</span>): <span class="type">Any</span> = &#123;</span><br><span class="line">    <span class="comment">// 如果子表达式的值为null，那么输出也为null</span></span><br><span class="line">    <span class="comment">// 否则调用nullSafeEval方法计算</span></span><br><span class="line">    <span class="keyword">val</span> value = child.eval(input)</span><br><span class="line">    <span class="keyword">if</span> (value == <span class="literal">null</span>) &#123;</span><br><span class="line">      <span class="literal">null</span></span><br><span class="line">    &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">      nullSafeEval(value)</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>BinaryExpression 类同样也复写了 eval 方法，如果有一个子节点的值为null，那么它的输出值也为null。子类同样需要实现 nullSafeEval 方法。</p>
+<h3 id="检查输入值"><a href="#检查输入值" class="headerlink" title="检查输入值"></a>检查输入值</h3><p>为了更方便的检查输入类型，spark sql 提供了 ExpectsInputTypes 接口。子类只需要复写 inputTypes 方法，定义各个输入值的类型即可。</p>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">trait</span> <span class="title">ExpectsInputTypes</span> <span class="keyword">extends</span> <span class="title">Expression</span> </span>&#123;</span><br><span class="line">  <span class="comment">// 返回类型列表，第 i 个类型对应着第 i 个输入值</span></span><br><span class="line">  <span class="function"><span class="keyword">def</span> <span class="title">inputTypes</span></span>: <span class="type">Seq</span>[<span class="type">AbstractDataType</span>]</span><br><span class="line"></span><br><span class="line">  <span class="keyword">override</span> <span class="function"><span class="keyword">def</span> <span class="title">checkInputDataTypes</span></span>(): <span class="type">TypeCheckResult</span> = &#123;</span><br><span class="line">    <span class="comment">// 检查类型是否不匹配</span></span><br><span class="line">    <span class="keyword">val</span> mismatches = children.zip(inputTypes).zipWithIndex.collect &#123;</span><br><span class="line">      <span class="keyword">case</span> ((child, expected), idx) <span class="keyword">if</span> !expected.acceptsType(child.dataType) =&gt;</span><br><span class="line">        <span class="string">s"......"</span></span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span> (mismatches.isEmpty) &#123;</span><br><span class="line">      <span class="type">TypeCheckResult</span>.<span class="type">TypeCheckSuccess</span></span><br><span class="line">    &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">      <span class="type">TypeCheckResult</span>.<span class="type">TypeCheckFailure</span>(mismatches.mkString(<span class="string">" "</span>))</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h2 id="单值表达式"><a href="#单值表达式" class="headerlink" title="单值表达式"></a>单值表达式</h2><h3 id="星号"><a href="#星号" class="headerlink" title="星号"></a>星号</h3><p>当我们编写 sql 语句时，经常会用到 SELECT * 语句，这个星号就会被解析成 UnresolvedStar 实例，表示选择所有列。星号会被后面的 Analyser 解析成字段列表。</p>
+<h3 id="字段"><a href="#字段" class="headerlink" title="字段"></a>字段</h3><p>比如我们编写的 sql 语句如下：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">SELECT</span> <span class="keyword">name</span>, price <span class="keyword">FROM</span> fruit <span class="keyword">WHERE</span> price &gt; <span class="number">10</span> <span class="keyword">ORDER</span> <span class="keyword">BY</span> PRICE;</span><br></pre></td></tr></table></figure>
+<p>这条语句涉及到了两个字段 name 和 price，这两个字段会被解析成 UnresolvedAttribute 实例。我们知道WHERE 语句被会被解析成 Filter 实例，Filter 会包含 price 字段的实例。SELECT 语句会被解析成 Project 实例，Project 会包含 name 和 price 两个字段的实例。</p>
+<p>关于字段的表达式，还支持前缀表名，比如我们有一个子查询，这里的 t1.NAME 仍然会被解析成 UnresolvedAttribute。</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">SELECT</span> t1.name <span class="keyword">FROM</span> (<span class="keyword">SELECT</span> <span class="keyword">name</span>, price <span class="keyword">FROM</span> fruit <span class="keyword">WHERE</span> price &gt; <span class="number">10</span>) t1</span><br></pre></td></tr></table></figure>
+<p>对于字段表达式，它的基类为Attribute，有两个重要属性，  所属表名和列名。</p>
+<p>UnresolvedAttribute 表示还没被 analyse，所以它的表名和列名都没有。</p>
+<p>当 UnresolvedAttribute 被analyse 之后，它的表名和列名都会生成。比如上面的第一条 sql 数据，以 price 字段为例，它的列名为 price，表名为 fruit。</p>
+<p>UnresolvedAttribute 类的定义如下，有一个字符串列表 nameParts。读者可能好奇为什么会是列表，如果是有前缀表名，那么 nameParts 的值就为 [“t1”, “name”]</p>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">case</span> <span class="class"><span class="keyword">class</span> <span class="title">UnresolvedAttribute</span>(<span class="params">nameParts: <span class="type">Seq</span>[<span class="type">String</span>]</span>) <span class="keyword">extends</span> <span class="title">Attribute</span> <span class="keyword">with</span> <span class="title">Unevaluable</span> </span>&#123;</span><br><span class="line">    .....</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h3 id="集合取值运算"><a href="#集合取值运算" class="headerlink" title="集合取值运算"></a>集合取值运算</h3><p>Spark Sql 的字段类型支持集合类型，比如 Map，Array。它们的取值符号都为点号，</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">spark-sql&gt; select * from fruit;</span><br><span class="line">id  name    price</span><br><span class="line">2	banana	2.5</span><br><span class="line">1	apple	1.5</span><br><span class="line"></span><br><span class="line"><span class="comment"># 我们使用map函数，新建了一个Map类型的字段，key为name的值，value为id的值 </span></span><br><span class="line">spark-sql&gt; select map(name, id).apple from fruit;</span><br><span class="line">NULL</span><br><span class="line">1</span><br></pre></td></tr></table></figure>
+<p>这个表达式会被解析成 UnresolvedExtractValue 实例，它的字表达式是map函数。</p>
+<p>这里说下特殊情况，假设我们有一个 Map 类型的字段 items，执行的 sql 语句如下：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">SELECT</span> items.apple <span class="keyword">FROM</span> fruit</span><br></pre></td></tr></table></figure>
+<p>items.apple 会被解析成 UnresolvedAttribute 实例，虽然它确实是集合取值运算。不过在后面的 Analyser 会修正这一点，它首先会匹配 items 不是表名，然后匹到它是字段名，所以最终会认为它是集合取值运算。</p>
+<h3 id="常数"><a href="#常数" class="headerlink" title="常数"></a>常数</h3><p>当 sql 中遇到 整数型，字符串型 或其他数值型的表达式，就会被解析成 Literal 实例。</p>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">case</span> <span class="class"><span class="keyword">class</span> <span class="title">Literal</span> (<span class="params">value: <span class="type">Any</span>, dataType: <span class="type">DataType</span></span>)</span></span><br></pre></td></tr></table></figure>
+<p>它使用Any类型保存值，并用 dataType 描述类型。虽然有不同的数据类型，但是有些数据类型可以隐式转换的。</p>
+<h3 id="函数"><a href="#函数" class="headerlink" title="函数"></a>函数</h3><p>我们以 Md5 函数为例，</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">SELECT</span> <span class="keyword">MD5</span>(<span class="keyword">name</span>) <span class="keyword">FROM</span> fruit</span><br></pre></td></tr></table></figure>
+<p>上述md5函数的语句，会被解析成 UnresolvedFunction 实例。</p>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">case</span> <span class="class"><span class="keyword">class</span> <span class="title">UnresolvedFunction</span>(<span class="params"></span></span></span><br><span class="line"><span class="class"><span class="params">    name: <span class="type">FunctionIdentifier</span>,  // 函数名称</span></span></span><br><span class="line"><span class="class"><span class="params">    children: <span class="type">Seq</span>[<span class="type">Expression</span>],  // 函数参数</span></span></span><br><span class="line"><span class="class"><span class="params">    isDistinct: <span class="type">Boolean</span></span>)   <span class="title">//</span> <span class="title">是否函数参数有</span> <span class="title">distinct</span> <span class="title">关键字</span></span></span><br></pre></td></tr></table></figure>
+<p>Spark Sql 会根据函数名称，在注册中心找到对应的函数。Md5 函数的定义如下：</p>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">case</span> <span class="class"><span class="keyword">class</span> <span class="title">Md5</span>(<span class="params">child: <span class="type">Expression</span></span>) <span class="keyword">extends</span> <span class="title">UnaryExpression</span> <span class="keyword">with</span> <span class="title">ImplicitCastInputTypes</span> </span>&#123;</span><br><span class="line"></span><br><span class="line">  <span class="keyword">override</span> <span class="function"><span class="keyword">def</span> <span class="title">dataType</span></span>: <span class="type">DataType</span> = <span class="type">StringType</span>  <span class="comment">// 输出类型为String</span></span><br><span class="line"></span><br><span class="line">  <span class="keyword">override</span> <span class="function"><span class="keyword">def</span> <span class="title">inputTypes</span></span>: <span class="type">Seq</span>[<span class="type">DataType</span>] = <span class="type">Seq</span>(<span class="type">BinaryType</span>) <span class="comment">// 输入类型为字节数组</span></span><br><span class="line"></span><br><span class="line">  <span class="comment">// 复写 nullSafeEval 方法</span></span><br><span class="line">  <span class="keyword">protected</span> <span class="keyword">override</span> <span class="function"><span class="keyword">def</span> <span class="title">nullSafeEval</span></span>(input: <span class="type">Any</span>): <span class="type">Any</span> =</span><br><span class="line">    <span class="type">UTF8String</span>.fromString(<span class="type">DigestUtils</span>.md5Hex(input.asInstanceOf[<span class="type">Array</span>[<span class="type">Byte</span>]]))</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h3 id="别名"><a href="#别名" class="headerlink" title="别名"></a>别名</h3><p>sql 语句支持别名，这些别名会被解析成 Alias。</p>
+<h3 id="多个别名"><a href="#多个别名" class="headerlink" title="多个别名"></a>多个别名</h3><p>sql 语句支持多个别名，这些别名会被解析成 MultiAlias。</p>
+<h2 id="命名表达式"><a href="#命名表达式" class="headerlink" title="命名表达式"></a>命名表达式</h2><p>这类表达式比较特殊，它只对应 SELECT 语句后面的选择表达式。 命名表达式的基类是 NamedExpression，它都至少有一个名称，和一个可选的表名。</p>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">trait</span> <span class="title">NamedExpression</span> <span class="keyword">extends</span> <span class="title">Expression</span> </span>&#123;</span><br><span class="line">  <span class="comment">// 名称</span></span><br><span class="line">  <span class="function"><span class="keyword">def</span> <span class="title">name</span></span>: <span class="type">String</span></span><br><span class="line">  <span class="comment">// 所属表名</span></span><br><span class="line">  <span class="function"><span class="keyword">def</span> <span class="title">qualifier</span></span>: <span class="type">Option</span>[<span class="type">String</span>]</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>它的子类如下所示：</p>
+<img src="http://www.plantuml.com/plantuml/svg/TP0n2iCm34LtdS8No0qwf4FN3YazW6B_WC5nYgIK3ZryanH2CF4Y9DwN_aVKgh7OF2QAsI03UxWxZmYtpqkW6gTCtAi9UtC-iQgxcadiPqC97iifecBRNRvDSzZPkpzuvaKtfJT2LRAF7GO8iaV58qNMStIqgQks_6ifessWHGxhdtu0">
+<p>SELECT 语句中的选择表达式，在被解析时，都会生成 NamedExpression 子类。注意到 UnresolvedAlias这个特殊的类，它只是起到封装的作用，将其他类型的表达式封装成 NamedExpression 的子类，在解析LogicalPlan里提到过。</p>
+<h2 id="数值运算"><a href="#数值运算" class="headerlink" title="数值运算"></a>数值运算</h2><p>sql 支持常见的数值运算，每种运算对应不同的实例。下面列出了比较常见的类型</p>
+<table>
+<thead>
+<tr>
+<th>运算类型</th>
+<th>表达式类</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>加法</td>
+<td>Add</td>
+</tr>
+<tr>
+<td>减法</td>
+<td>Subtract</td>
+</tr>
+<tr>
+<td>乘法</td>
+<td>Multiply</td>
+</tr>
+<tr>
+<td>除法</td>
+<td>Divide</td>
+</tr>
+<tr>
+<td>取余</td>
+<td>Remainder</td>
+</tr>
+</tbody>
+</table>
+<h2 id="逻辑表达式"><a href="#逻辑表达式" class="headerlink" title="逻辑表达式"></a>逻辑表达式</h2><p>当表达式返回的值为 Boolean 类型，那么就可以称为逻辑表达式，由 Predicate 接口表示。</p>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">trait</span> <span class="title">Predicate</span> <span class="keyword">extends</span> <span class="title">Expression</span> </span>&#123;</span><br><span class="line">  <span class="keyword">override</span> <span class="function"><span class="keyword">def</span> <span class="title">dataType</span></span>: <span class="type">DataType</span> = <span class="type">BooleanType</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>逻辑表达式的种类有多种，首先介绍下简单的情况，然后再介绍复杂的。</p>
+<h3 id="数值比较"><a href="#数值比较" class="headerlink" title="数值比较"></a>数值比较</h3><p>sql 语句也支持数值之间的比较运算，下面列出了比较常见的情况</p>
+<table>
+<thead>
+<tr>
+<th>运算类型</th>
+<th>表达式类</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>等于</td>
+<td>EqualTo</td>
+</tr>
+<tr>
+<td>小于</td>
+<td>LessThan</td>
+</tr>
+<tr>
+<td>…….</td>
+<td>…….</td>
+</tr>
+</tbody>
+</table>
+<h3 id="判断表达式"><a href="#判断表达式" class="headerlink" title="判断表达式"></a>判断表达式</h3><p>sql 语句支持 BETWEEN  AND 语句，IN 语句来判断范围，还有常见的 IS 或 IS NOT 语句。</p>
+<p>其中 BETWEEN  AND 语句会被解析成一个大于等于的实例，和一个小于等于的实例，然后将两个实例通过 And 逻辑运算连接到一起。</p>
+<h2 id="逻辑运算"><a href="#逻辑运算" class="headerlink" title="逻辑运算"></a>逻辑运算</h2><p>逻辑运算有以下三种</p>
+<table>
+<thead>
+<tr>
+<th>运算类型</th>
+<th>表达式类</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>And</td>
+<td>And</td>
+</tr>
+<tr>
+<td>Or</td>
+<td>Or</td>
+</tr>
+<tr>
+<td>Not</td>
+<td>Not</td>
+</tr>
+</tbody>
+</table>
+<p>我们以 And 为例，来看看它是如何计算表达式的值</p>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">case</span> <span class="class"><span class="keyword">class</span> <span class="title">And</span>(<span class="params">left: <span class="type">Expression</span>, right: <span class="type">Expression</span></span>) <span class="keyword">extends</span> <span class="title">BinaryOperator</span> <span class="keyword">with</span> <span class="title">Predicate</span> </span>&#123;</span><br><span class="line">  <span class="comment">// 输入类型必须为 Boolean 类型</span></span><br><span class="line">  <span class="keyword">override</span> <span class="function"><span class="keyword">def</span> <span class="title">inputType</span></span>: <span class="type">AbstractDataType</span> = <span class="type">BooleanType</span></span><br><span class="line"> </span><br><span class="line">  <span class="keyword">override</span> <span class="function"><span class="keyword">def</span> <span class="title">eval</span></span>(input: <span class="type">InternalRow</span>): <span class="type">Any</span> = &#123;</span><br><span class="line">    <span class="comment">// 计算第一个子表达式的值</span></span><br><span class="line">    <span class="keyword">val</span> input1 = left.eval(input)</span><br><span class="line">    <span class="keyword">if</span> (input1 == <span class="literal">false</span>) &#123;</span><br><span class="line">       <span class="literal">false</span></span><br><span class="line">    &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">      <span class="comment">// 计算第一个子表达式的值</span></span><br><span class="line">      <span class="keyword">val</span> input2 = right.eval(input)</span><br><span class="line">      <span class="keyword">if</span> (input2 == <span class="literal">false</span>) &#123;</span><br><span class="line">        <span class="literal">false</span></span><br><span class="line">      &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">        <span class="keyword">if</span> (input1 != <span class="literal">null</span> &amp;&amp; input2 != <span class="literal">null</span>) &#123;</span><br><span class="line">          <span class="literal">true</span></span><br><span class="line">        &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">          <span class="literal">null</span></span><br><span class="line">        &#125;</span><br><span class="line">      &#125;</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h2 id="解析原理"><a href="#解析原理" class="headerlink" title="解析原理"></a>解析原理</h2><p>表达式的解析也是基于语法树生成的，所以解析原理还是需要理解 antlr 文件。 </p>
+<p>我们以下面的 sql 语句为例，</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">SELECT</span> <span class="keyword">NAME</span>, PRICE<span class="number">-1</span> <span class="keyword">AS</span> DISCOUNT, <span class="string">'favorite'</span> <span class="keyword">FROM</span> fruit <span class="keyword">WHERE</span> PRICE &gt; <span class="number">2</span> <span class="keyword">AND</span> <span class="keyword">NAME</span> = <span class="string">'apple'</span></span><br></pre></td></tr></table></figure>
+<p>它的语法树如下</p>
+<h3 id="namedExpression-规则"><a href="#namedExpression-规则" class="headerlink" title="namedExpression 规则"></a>namedExpression 规则</h3><p>这条语句的 NAME, PRICE-1 AS DISCOUNT, ‘favorite’ 都会匹配 namedExpression 语法规则，它包含了可选的别名，还有一个 子规则 expression。</p>
+<p>visitNamedExpression 方法定义了访问原理，会返回 Expression 的子类。</p>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">override</span> <span class="function"><span class="keyword">def</span> <span class="title">visitNamedExpression</span></span>(ctx: <span class="type">NamedExpressionContext</span>): <span class="type">Expression</span> = withOrigin(ctx) &#123;</span><br><span class="line">  <span class="comment">// 解析子表达式</span></span><br><span class="line">  <span class="keyword">val</span> e = expression(ctx.expression)</span><br><span class="line">  <span class="keyword">if</span> (ctx.identifier != <span class="literal">null</span>) &#123;</span><br><span class="line">    <span class="comment">// 如果指定了一个别名，那么返回Alias实例</span></span><br><span class="line">    <span class="type">Alias</span>(e, ctx.identifier.getText)()</span><br><span class="line">  &#125; <span class="keyword">else</span> <span class="keyword">if</span> (ctx.identifierList != <span class="literal">null</span>) &#123;</span><br><span class="line">    <span class="comment">// 如果有多个别名（需要以括号将这些别名包起来），那么返回MultiAlias实例</span></span><br><span class="line">    <span class="type">MultiAlias</span>(e, visitIdentifierList(ctx.identifierList))</span><br><span class="line">  &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">    <span class="comment">// 返回子表达式</span></span><br><span class="line">    e</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>而 expression 规则最后会按照 booleanExpression 规则解析，并且 WHERE 后面的过滤表达式，也会匹配为 booleanExpression 规则。booleanExpression 规则主要有两类格式，一种是包含逻辑运算符的，另一种是基础的表达式。</p>
+<h3 id="booleanExpression-规则"><a href="#booleanExpression-规则" class="headerlink" title="booleanExpression 规则"></a>booleanExpression 规则</h3><p>如果是第一种格式，比如包含 AND 或 OR 关键字。这类语句的解析稍微复杂，因为spark sql 会做一部分的优化。我们知道antrl4 是匹配语法规则时，它是用左递归的方式匹配。下面以 booleanExpression 规则为例，</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">booleanExpression</span><br><span class="line">    : NOT booleanExpression                                        #logicalNot</span><br><span class="line">    | EXISTS '(' query ')'                                         #exists</span><br><span class="line">    | valueExpression predicate?                                   #predicated</span><br><span class="line">    | left=booleanExpression operator=AND right=booleanExpression  #logicalBinary</span><br><span class="line">    | left=booleanExpression operator=OR right=booleanExpression   #logicalBinary</span><br><span class="line">    ;</span><br></pre></td></tr></table></figure>
+<p>假设有一个表达式语句</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">NAME = 'pear' AND NAME = 'apple' AND NAME = 'orange' AND NAME = 'banana' AND NAME = 'strawberry'</span><br></pre></td></tr></table></figure>
+<p>那么它会被解析</p>
+<p>很明显这颗树左右不对称，而且左子树的深度很大。这样递归遍历树的时候，容易造成栈溢出。spark sql 针对这种情况，会尽可能的平衡这棵树，比如上面连续的 AND 表达式，会被优化成如下图所示。不过 spark sql 只能优化，从跟节点开始，连续为AND 或者连续为OR的这一段路径。具体程序就不介绍了，定义在 visitLogicalBinary 方法中。</p>
+<p>如果是基础表达式，则对应于 predicated 格式。predicated格式的 predicate 规则，用来匹配 IN，BETWEEN AND 等语句。</p>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">override</span> <span class="function"><span class="keyword">def</span> <span class="title">visitPredicated</span></span>(ctx: <span class="type">PredicatedContext</span>): <span class="type">Expression</span> = withOrigin(ctx) &#123;</span><br><span class="line">  <span class="comment">// 遍历子规则 valueExpression</span></span><br><span class="line">  <span class="keyword">val</span> e = expression(ctx.valueExpression)</span><br><span class="line">  <span class="keyword">if</span> (ctx.predicate != <span class="literal">null</span>) &#123;</span><br><span class="line">    <span class="comment">// 如果满足 predicate 格式的语句，则调用 withPredicate 方法生成Expression实例</span></span><br><span class="line">    withPredicate(e, ctx.predicate)</span><br><span class="line">  &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">    e</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h3 id="valueExpression-规则"><a href="#valueExpression-规则" class="headerlink" title="valueExpression 规则"></a>valueExpression 规则</h3><p>继续看子规则 valueExpression 的原理，valueExpression 有多种规则，能够匹配四则运算，大小等于的比较操作，还有异或预算。对于这些运算的规则，访问的原理很简单，只是生成了对应数值运算表达式。</p>
+<h3 id="primaryExpression-规则"><a href="#primaryExpression-规则" class="headerlink" title="primaryExpression 规则"></a>primaryExpression 规则</h3><p>继续遍历子节点 primaryExpression，它的规则比较多，这里仅仅介绍常见的几种。</p>
+<ol>
+<li>columnReference 规则负责匹配列名，会返回字段表达式</li>
+<li>functionCall 规则负责匹配函数，会返回函数表达式</li>
+<li>star 规则负责匹配星号，用来表示选择所有列，会返回星号表达式</li>
+<li>constantDefault 规则负责匹配常量，返回 Literal 类</li>
+<li>dereference 规则匹配点号，返回带前缀表名的字段或集合取值运算</li>
+</ol>
+
+      
+    </div>
+    
+    
+    
+
+    
+
+    
+
+    
+
+    <footer class="post-footer">
+      
+        <div class="post-tags">
+          
+            <a href="/tags/spark-sql-expression/" rel="tag"># spark sql, expression</a>
+          
+        </div>
+      
+
+      
+      
+      
+
+      
+        <div class="post-nav">
+          <div class="post-nav-next post-nav-item">
+            
+              <a href="/2019/06/18/spark-sql-logicalplan/" rel="next" title="Spark Sql  LogicalPlan 介绍">
+                <i class="fa fa-chevron-left"></i> Spark Sql  LogicalPlan 介绍
+              </a>
+            
+          </div>
+
+          <span class="post-nav-divider"></span>
+
+          <div class="post-nav-prev post-nav-item">
+            
+          </div>
+        </div>
+      
+
+      
+      
+    </footer>
+  </div>
+  
+  
+  
+  </article>
+
+
+
+    <div class="post-spread">
+      
+    </div>
+  </div>
+
+
+          </div>
+          
+
+
+          
+
+  
+    <div class="comments" id="comments">
+    </div>
+  
+
+
+
+        </div>
+        
+          
+  
+  <div class="sidebar-toggle">
+    <div class="sidebar-toggle-line-wrap">
+      <span class="sidebar-toggle-line sidebar-toggle-line-first"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-middle"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-last"></span>
+    </div>
+  </div>
+
+  <aside id="sidebar" class="sidebar">
+    
+    <div class="sidebar-inner">
+
+      
+
+      
+        <ul class="sidebar-nav motion-element">
+          <li class="sidebar-nav-toc sidebar-nav-active" data-target="post-toc-wrap">
+            Table of Contents
+          </li>
+          <li class="sidebar-nav-overview" data-target="site-overview-wrap">
+            Overview
+          </li>
+        </ul>
+      
+
+      <section class="site-overview-wrap sidebar-panel">
+        <div class="site-overview">
+          <div class="site-author motion-element" itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+            
+              <p class="site-author-name" itemprop="name">zhmin</p>
+              <p class="site-description motion-element" itemprop="description"></p>
+          </div>
+
+          <nav class="site-state motion-element">
+
+            
+              <div class="site-state-item site-state-posts">
+              
+                <a href="/archives/">
+              
+                  <span class="site-state-item-count">43</span>
+                  <span class="site-state-item-name">posts</span>
+                </a>
+              </div>
+            
+
+            
+              
+              
+              <div class="site-state-item site-state-categories">
+                <a href="/categories/index.html">
+                  <span class="site-state-item-count">8</span>
+                  <span class="site-state-item-name">categories</span>
+                </a>
+              </div>
+            
+
+            
+              
+              
+              <div class="site-state-item site-state-tags">
+                
+                  <span class="site-state-item-count">40</span>
+                  <span class="site-state-item-name">tags</span>
+                
+              </div>
+            
+
+          </nav>
+
+          
+
+          
+            <div class="links-of-author motion-element">
+                
+                  <span class="links-of-author-item">
+                    <a href="https://github.com/zhmin" target="_blank" title="GitHub">
+                      
+                        <i class="fa fa-fw fa-github"></i>GitHub</a>
+                  </span>
+                
+            </div>
+          
+
+          
+          
+
+          
+          
+
+          
+
+        </div>
+      </section>
+
+      
+      <!--noindex-->
+        <section class="post-toc-wrap motion-element sidebar-panel sidebar-panel-active">
+          <div class="post-toc">
+
+            
+              
+            
+
+            
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#前言"><span class="nav-number">1.</span> <span class="nav-text">前言</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#表达式基类"><span class="nav-number">2.</span> <span class="nav-text">表达式基类</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#计算表达式的值"><span class="nav-number">2.1.</span> <span class="nav-text">计算表达式的值</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#检查输入值"><span class="nav-number">2.2.</span> <span class="nav-text">检查输入值</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#单值表达式"><span class="nav-number">3.</span> <span class="nav-text">单值表达式</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#星号"><span class="nav-number">3.1.</span> <span class="nav-text">星号</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#字段"><span class="nav-number">3.2.</span> <span class="nav-text">字段</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#集合取值运算"><span class="nav-number">3.3.</span> <span class="nav-text">集合取值运算</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#常数"><span class="nav-number">3.4.</span> <span class="nav-text">常数</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#函数"><span class="nav-number">3.5.</span> <span class="nav-text">函数</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#别名"><span class="nav-number">3.6.</span> <span class="nav-text">别名</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#多个别名"><span class="nav-number">3.7.</span> <span class="nav-text">多个别名</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#命名表达式"><span class="nav-number">4.</span> <span class="nav-text">命名表达式</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#数值运算"><span class="nav-number">5.</span> <span class="nav-text">数值运算</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#逻辑表达式"><span class="nav-number">6.</span> <span class="nav-text">逻辑表达式</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#数值比较"><span class="nav-number">6.1.</span> <span class="nav-text">数值比较</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#判断表达式"><span class="nav-number">6.2.</span> <span class="nav-text">判断表达式</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#逻辑运算"><span class="nav-number">7.</span> <span class="nav-text">逻辑运算</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#解析原理"><span class="nav-number">8.</span> <span class="nav-text">解析原理</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#namedExpression-规则"><span class="nav-number">8.1.</span> <span class="nav-text">namedExpression 规则</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#booleanExpression-规则"><span class="nav-number">8.2.</span> <span class="nav-text">booleanExpression 规则</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#valueExpression-规则"><span class="nav-number">8.3.</span> <span class="nav-text">valueExpression 规则</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#primaryExpression-规则"><span class="nav-number">8.4.</span> <span class="nav-text">primaryExpression 规则</span></a></li></ol></li></ol></div>
+            
+
+          </div>
+        </section>
+      <!--/noindex-->
+      
+
+      
+
+    </div>
+  </aside>
+
+
+        
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="footer-inner">
+        <div class="copyright">&copy; <span itemprop="copyrightYear">2019</span>
+  <span class="with-love">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">zhmin</span>
+
+  
+</div>
+
+
+
+
+
+
+
+
+
+
+
+  <script src="https://unpkg.com/mermaid@7.1.2/dist/mermaid.min.js"></script>
+  <script>
+    if (window.mermaid) {
+      mermaid.initialize({"startOnload":true,"theme":"forest"});
+    }
+  </script>
+
+
+
+<script async src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+<span id="busuanzi_container_site_pv">
+    访问量<span id="busuanzi_value_site_pv"></span>
+</span>
+<span class="post-meta-divider">|</span>
+<span id="busuanzi_container_site_uv">
+  访客数<span id="busuanzi_value_site_uv"></span>
+</span>
+
+        
+
+
+
+
+
+
+
+        
+      </div>
+    </footer>
+
+    
+      <div class="back-to-top">
+        <i class="fa fa-arrow-up"></i>
+        
+      </div>
+    
+
+    
+
+  </div>
+
+  
+
+<script type="text/javascript">
+  if (Object.prototype.toString.call(window.Promise) !== '[object Function]') {
+    window.Promise = null;
+  }
+</script>
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery/index.js?v=2.1.3"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fastclick/lib/fastclick.min.js?v=1.0.6"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery_lazyload/jquery.lazyload.js?v=1.9.7"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.ui.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fancybox/source/jquery.fancybox.pack.js?v=2.1.5"></script>
+  
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/utils.js?v=5.1.4"></script>
+
+  <script type="text/javascript" src="/js/src/motion.js?v=5.1.4"></script>
+
+
+
+  
+  
+
+  
+  <script type="text/javascript" src="/js/src/scrollspy.js?v=5.1.4"></script>
+<script type="text/javascript" src="/js/src/post-details.js?v=5.1.4"></script>
+
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/bootstrap.js?v=5.1.4"></script>
+
+
+
+  
+
+
+  
+
+
+
+
+	
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+  <script src="//cdn1.lncld.net/static/js/3.0.4/av-min.js"></script>
+  <script src="//unpkg.com/valine/dist/Valine.min.js"></script>
+  
+  <script type="text/javascript">
+    var GUEST = ['nick','mail','link'];
+    var guest = 'nick';
+    guest = guest.split(',').filter(item=>{
+      return GUEST.indexOf(item)>-1;
+    });
+    new Valine({
+        el: '#comments' ,
+        verify: false,
+        notify: false,
+        appId: 'iYiPQlDR2X2zg2QIql2UEe2o-gzGzoHsz',
+        appKey: 'EW8G4sftwX1pef1zS9EsOeKE',
+        placeholder: 'comment here',
+        avatar:'mm',
+        guest_info:guest,
+        pageSize:'10' || 10,
+    });
+  </script>
+
+
+
+  
+
+
+
+
+
+  
+
+  
+  <script src="https://cdn1.lncld.net/static/js/av-core-mini-0.6.4.js"></script>
+  <script>AV.initialize("iYiPQlDR2X2zg2QIql2UEe2o-gzGzoHsz", "EW8G4sftwX1pef1zS9EsOeKE");</script>
+  <script>
+    function showTime(Counter) {
+      var query = new AV.Query(Counter);
+      var entries = [];
+      var $visitors = $(".leancloud_visitors");
+
+      $visitors.each(function () {
+        entries.push( $(this).attr("id").trim() );
+      });
+
+      query.containedIn('url', entries);
+      query.find()
+        .done(function (results) {
+          var COUNT_CONTAINER_REF = '.leancloud-visitors-count';
+
+          if (results.length === 0) {
+            $visitors.find(COUNT_CONTAINER_REF).text(0);
+            return;
+          }
+
+          for (var i = 0; i < results.length; i++) {
+            var item = results[i];
+            var url = item.get('url');
+            var time = item.get('time');
+            var element = document.getElementById(url);
+
+            $(element).find(COUNT_CONTAINER_REF).text(time);
+          }
+          for(var i = 0; i < entries.length; i++) {
+            var url = entries[i];
+            var element = document.getElementById(url);
+            var countSpan = $(element).find(COUNT_CONTAINER_REF);
+            if( countSpan.text() == '') {
+              countSpan.text(0);
+            }
+          }
+        })
+        .fail(function (object, error) {
+          console.log("Error: " + error.code + " " + error.message);
+        });
+    }
+
+    function addCount(Counter) {
+      var $visitors = $(".leancloud_visitors");
+      var url = $visitors.attr('id').trim();
+      var title = $visitors.attr('data-flag-title').trim();
+      var query = new AV.Query(Counter);
+
+      query.equalTo("url", url);
+      query.find({
+        success: function(results) {
+          if (results.length > 0) {
+            var counter = results[0];
+            counter.fetchWhenSave(true);
+            counter.increment("time");
+            counter.save(null, {
+              success: function(counter) {
+                var $element = $(document.getElementById(url));
+                $element.find('.leancloud-visitors-count').text(counter.get('time'));
+              },
+              error: function(counter, error) {
+                console.log('Failed to save Visitor num, with error message: ' + error.message);
+              }
+            });
+          } else {
+            var newcounter = new Counter();
+            /* Set ACL */
+            var acl = new AV.ACL();
+            acl.setPublicReadAccess(true);
+            acl.setPublicWriteAccess(true);
+            newcounter.setACL(acl);
+            /* End Set ACL */
+            newcounter.set("title", title);
+            newcounter.set("url", url);
+            newcounter.set("time", 1);
+            newcounter.save(null, {
+              success: function(newcounter) {
+                var $element = $(document.getElementById(url));
+                $element.find('.leancloud-visitors-count').text(newcounter.get('time'));
+              },
+              error: function(newcounter, error) {
+                console.log('Failed to create');
+              }
+            });
+          }
+        },
+        error: function(error) {
+          console.log('Error:' + error.code + " " + error.message);
+        }
+      });
+    }
+
+    $(function() {
+      var Counter = AV.Object.extend("Counter");
+      if ($('.leancloud_visitors').length == 1) {
+        addCount(Counter);
+      } else if ($('.post-title-link').length > 1) {
+        showTime(Counter);
+      }
+    });
+  </script>
+
+
+
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+</body>
+</html>
