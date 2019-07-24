@@ -1,0 +1,929 @@
+<!DOCTYPE html>
+
+
+
+  
+
+
+<html class="theme-next mist use-motion" lang="">
+<head><meta name="generator" content="Hexo 3.8.0">
+  <meta charset="UTF-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="theme-color" content="#222">
+
+
+
+
+
+
+
+
+
+<meta http-equiv="Cache-Control" content="no-transform">
+<meta http-equiv="Cache-Control" content="no-siteapp">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+  <link href="/lib/fancybox/source/jquery.fancybox.css?v=2.1.5" rel="stylesheet" type="text/css">
+
+
+
+
+
+
+
+<link href="/lib/font-awesome/css/font-awesome.min.css?v=4.6.2" rel="stylesheet" type="text/css">
+
+<link href="/css/main.css?v=5.1.4" rel="stylesheet" type="text/css">
+
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png?v=5.1.4">
+
+
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png?v=5.1.4">
+
+
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png?v=5.1.4">
+
+
+  <link rel="mask-icon" href="/images/logo.svg?v=5.1.4" color="#222">
+
+
+
+
+
+  <meta name="keywords" content="kafka, buffer,">
+
+
+
+
+
+
+
+
+
+
+<meta name="description" content="前言Kafka 作为一个高吞吐量的消息队列，它的很多设计都体现了这一点。比如它的客户端，无论是 Producer 还是 Consumer    ，都会内置一个缓存用来存储消息。这样类似于我们写文件时，并不会一次只写一个字节，而是先写到一个缓存里，然后等缓存满了，才会将缓存里的数据写入到磁盘。这种缓存机制可以有效的提高吞吐量，本篇文章介绍缓存在 Kafka 客户端的实现原理。 Producer 缓存">
+<meta name="keywords" content="kafka, buffer">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Kafka 客户端的缓存管理">
+<meta property="og:url" content="https://zhmin.github.io/2019/07/24/kafka-client-buffer-manage/index.html">
+<meta property="og:site_name" content="blog">
+<meta property="og:description" content="前言Kafka 作为一个高吞吐量的消息队列，它的很多设计都体现了这一点。比如它的客户端，无论是 Producer 还是 Consumer    ，都会内置一个缓存用来存储消息。这样类似于我们写文件时，并不会一次只写一个字节，而是先写到一个缓存里，然后等缓存满了，才会将缓存里的数据写入到磁盘。这种缓存机制可以有效的提高吞吐量，本篇文章介绍缓存在 Kafka 客户端的实现原理。 Producer 缓存">
+<meta property="og:locale" content="default">
+<meta property="og:image" content="https://zhmin.github.io/2019/07/24/kafka-client-buffer-manage/kafka-producer-bufferpool.svg">
+<meta property="og:updated_time" content="2019-07-24T12:56:15.860Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Kafka 客户端的缓存管理">
+<meta name="twitter:description" content="前言Kafka 作为一个高吞吐量的消息队列，它的很多设计都体现了这一点。比如它的客户端，无论是 Producer 还是 Consumer    ，都会内置一个缓存用来存储消息。这样类似于我们写文件时，并不会一次只写一个字节，而是先写到一个缓存里，然后等缓存满了，才会将缓存里的数据写入到磁盘。这种缓存机制可以有效的提高吞吐量，本篇文章介绍缓存在 Kafka 客户端的实现原理。 Producer 缓存">
+<meta name="twitter:image" content="https://zhmin.github.io/2019/07/24/kafka-client-buffer-manage/kafka-producer-bufferpool.svg">
+
+
+
+<script type="text/javascript" id="hexo.configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '/',
+    scheme: 'Mist',
+    version: '5.1.4',
+    sidebar: {"position":"left","display":"hide","offset":12,"b2t":false,"scrollpercent":false,"onmobile":false},
+    fancybox: true,
+    tabs: true,
+    motion: {"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},
+    duoshuo: {
+      userId: '0',
+      author: 'Author'
+    },
+    algolia: {
+      applicationID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    }
+  };
+</script>
+
+
+
+  <link rel="canonical" href="https://zhmin.github.io/2019/07/24/kafka-client-buffer-manage/">
+
+
+
+
+
+  <title>Kafka 客户端的缓存管理 | blog</title>
+  
+
+
+
+
+
+
+
+
+</head>
+
+<body itemscope="" itemtype="http://schema.org/WebPage" lang="default">
+
+  
+  
+    
+  
+
+  <div class="container sidebar-position-left page-post-detail">
+    <div class="headband"></div>
+
+    <header id="header" class="header" itemscope="" itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-wrapper">
+  <div class="site-meta ">
+    
+
+    <div class="custom-logo-site-title">
+      <a href="/" class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">blog</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+      
+        <h1 class="site-subtitle" itemprop="description"></h1>
+      
+  </div>
+
+  <div class="site-nav-toggle">
+    <button>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+    </button>
+  </div>
+</div>
+
+<nav class="site-nav">
+  
+
+  
+    <ul id="menu" class="menu">
+      
+        
+        <li class="menu-item menu-item-home">
+          <a href="/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-home"></i> <br>
+            
+            Home
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-categories">
+          <a href="/categories/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-th"></i> <br>
+            
+            Categories
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-archives">
+          <a href="/archives/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-archive"></i> <br>
+            
+            Archives
+          </a>
+        </li>
+      
+
+      
+    </ul>
+  
+
+  
+</nav>
+
+
+
+ </div>
+    </header>
+
+    <main id="main" class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          <div id="content" class="content">
+            
+
+  <div id="posts" class="posts-expand">
+    
+
+  
+
+  
+  
+  
+
+  <article class="post post-type-normal" itemscope="" itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block">
+    <link itemprop="mainEntityOfPage" href="https://zhmin.github.io/2019/07/24/kafka-client-buffer-manage/">
+
+    <span hidden itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="zhmin">
+      <meta itemprop="description" content="">
+      <meta itemprop="image" content="/images/avatar.gif">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope="" itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="blog">
+    </span>
+
+    
+      <header class="post-header">
+
+        
+        
+          <h2 class="post-title" itemprop="name headline">Kafka 客户端的缓存管理</h2>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">Posted on</span>
+              
+              <time title="Post created" itemprop="dateCreated datePublished" datetime="2019-07-24T20:49:00+08:00">
+                2019-07-24
+              </time>
+            
+
+            
+
+            
+          </span>
+
+          
+            <span class="post-category">
+            
+              <span class="post-meta-divider">|</span>
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">In</span>
+              
+              
+                <span itemprop="about" itemscope="" itemtype="http://schema.org/Thing">
+                  <a href="/categories/kafka/" itemprop="url" rel="index">
+                    <span itemprop="name">kafka</span>
+                  </a>
+                </span>
+
+                
+                
+              
+            </span>
+          
+
+          
+            
+              <span class="post-comments-count">
+                <span class="post-meta-divider">|</span>
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-comment-o"></i>
+                </span>
+                <a href="/2019/07/24/kafka-client-buffer-manage/#comments" itemprop="discussionUrl">
+                  <span class="post-comments-count valine-comment-count" data-xid="/2019/07/24/kafka-client-buffer-manage/" itemprop="commentCount"></span>
+                </a>
+              </span>
+            
+          
+
+          
+          
+             <span id="/2019/07/24/kafka-client-buffer-manage/" class="leancloud_visitors" data-flag-title="Kafka 客户端的缓存管理">
+               <span class="post-meta-divider">|</span>
+               <span class="post-meta-item-icon">
+                 <i class="fa fa-eye"></i>
+               </span>
+               
+                 <span class="post-meta-item-text">Visitors&#58;</span>
+               
+                 <span class="leancloud-visitors-count"></span>
+             </span>
+          
+
+          
+
+          
+
+          
+
+        </div>
+      </header>
+    
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+      
+
+      
+        <h2 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h2><p>Kafka 作为一个高吞吐量的消息队列，它的很多设计都体现了这一点。比如它的客户端，无论是 Producer 还是 Consumer    ，都会内置一个缓存用来存储消息。这样类似于我们写文件时，并不会一次只写一个字节，而是先写到一个缓存里，然后等缓存满了，才会将缓存里的数据写入到磁盘。这种缓存机制可以有效的提高吞吐量，本篇文章介绍缓存在 Kafka 客户端的实现原理。</p>
+<h2 id="Producer-缓存"><a href="#Producer-缓存" class="headerlink" title="Producer 缓存"></a>Producer 缓存</h2><p>我们知道 Producer 发送消息，会先将它存到 RecordAccumulator 的缓存里，等待缓存满了之后，就会发送到服务端。这个缓存的大小，是由内部的内存池控制的。</p>
+<h3 id="内存池使用"><a href="#内存池使用" class="headerlink" title="内存池使用"></a>内存池使用</h3><p>我们通过观察 RecordAccumulator 的 append 接口，可以看到每次缓存消息之前，都会向内存池申请内存。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="keyword">final</span> <span class="class"><span class="keyword">class</span> <span class="title">RecordAccumulator</span> </span>&#123;</span><br><span class="line">    <span class="comment">// 消息缓存队列，以batch格式存储</span></span><br><span class="line">    <span class="keyword">private</span> <span class="keyword">final</span> ConcurrentMap&lt;TopicPartition, Deque&lt;ProducerBatch&gt;&gt; batches;    </span><br><span class="line">    <span class="comment">// 内存池</span></span><br><span class="line">    <span class="keyword">private</span> <span class="keyword">final</span> BufferPool free;</span><br><span class="line">    </span><br><span class="line">    <span class="function"><span class="keyword">public</span> RecordAppendResult <span class="title">append</span><span class="params">(....)</span> </span>&#123;</span><br><span class="line">        <span class="comment">// 计算该消息占用的内存大小    </span></span><br><span class="line">        <span class="keyword">int</span> size = Math.max(<span class="keyword">this</span>.batchSize, AbstractRecords.estimateSizeInBytesUpperBound(maxUsableMagic, compression, key, value, headers));</span><br><span class="line">        <span class="comment">// 向内存池申请内存</span></span><br><span class="line">        buffer = free.allocate(size, maxTimeToBlock);</span><br><span class="line">        .......</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>当消息发送后，会触发 RecordAccumulator 释放内存。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="keyword">final</span> <span class="class"><span class="keyword">class</span> <span class="title">RecordAccumulator</span> </span>&#123;</span><br><span class="line">    <span class="comment">// 内存池</span></span><br><span class="line">    <span class="keyword">private</span> <span class="keyword">final</span> BufferPool free;</span><br><span class="line">    </span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">deallocate</span><span class="params">(ProducerBatch batch)</span> </span>&#123;</span><br><span class="line">        incomplete.remove(batch);</span><br><span class="line">        <span class="comment">// 检测是否该消息batch数据太大了，如果太大了则需要切割。所以这种情况不需要释放内存</span></span><br><span class="line">        <span class="keyword">if</span> (!batch.isSplitBatch())</span><br><span class="line">            <span class="comment">// 向内存池释放内存</span></span><br><span class="line">            free.deallocate(batch.buffer(), batch.initialCapacity());</span><br><span class="line">    &#125;    </span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h3 id="内存池结构"><a href="#内存池结构" class="headerlink" title="内存池结构"></a>内存池结构</h3><p>使用内存池有两个优点，一个是能够限制内存的使用量，另一个是减少内存的申请和回收频率。虽然 java 支持自动 gc ，但是 gc 也是有成本的。如果之前申请的内存用完之后，还可以重新复用，那么就不会触发 gc。但是内存池的实现有一个难点，那就是如何高效的重新利用。因为每次申请的内存大小都不相同，这样就没办法直接利用了。一种常见的做法是只缓存那些特定大小的内存，对于其他大小的内存则使用后直接丢弃。</p>
+<p>我们知道 Kafka 为了提高吞吐量，都是以 batch 格式保存消息。Producer 在实现内存池时，它结合了消息 batch 的特点，试图将每个消息 batch 的大小控制在一定范围内。这样每次申请内存的大小，就可以是相同的。基于这个原因，Kafka 的内存池分为两部分。一部分是特定大小内存块的缓存池，另一个是非缓存池。</p>
+<p><img src="/2019/07/24/kafka-client-buffer-manage/kafka-producer-bufferpool.svg"></p>
+<p>当申请的内存大小等于特定的数值，则优先从缓存池中获取。如果缓存池没有，那么需要向非缓存池部分申请内存。等到这块内存使用完后，才会被放入到缓存池等待复用。注意到缓存池的大小是可变的，一开始为零。随着用户申请和释放，才慢慢增长起来的。</p>
+<p>如果申请的内存不等于特定的数值，则向非缓存池申请。如果内存空间不够用，那么就需要释放缓存池的内存。</p>
+<p>缓存池的内存一般都很少回收，除非是内存空间不足。而非缓存池的内存，都是使用后丢弃，等待 gc 回收。</p>
+<h3 id="内存池实现"><a href="#内存池实现" class="headerlink" title="内存池实现"></a>内存池实现</h3><p>BufferPool 类负责实现内存池，它有两个重要接口：</p>
+<ul>
+<li>allocate 接口，负责申请内存</li>
+<li>deallocate 接口，负责释放内存</li>
+</ul>
+<p>allocate 接口代码简化如下，它支持用户并发申请内存，里面包含了一个等待的用户队列，队列采用了先进先出的方式。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">BufferPool</span> </span>&#123;</span><br><span class="line">    <span class="keyword">private</span> <span class="keyword">final</span> <span class="keyword">long</span> totalMemory;  <span class="comment">// 整个内存池的总容量</span></span><br><span class="line">    <span class="keyword">private</span> <span class="keyword">long</span> nonPooledAvailableMemory;  <span class="comment">// 非缓存池的空闲大小    </span></span><br><span class="line">    <span class="keyword">private</span> <span class="keyword">final</span> <span class="keyword">int</span> poolableSize;  <span class="comment">// 缓存池中，特定内存的大小</span></span><br><span class="line">    <span class="keyword">private</span> <span class="keyword">final</span> ReentrantLock lock;  <span class="comment">// 锁用来防治并发</span></span><br><span class="line">    <span class="keyword">private</span> <span class="keyword">final</span> Deque&lt;ByteBuffer&gt; free;  <span class="comment">// 缓存池中的空闲内存块</span></span><br><span class="line">    <span class="keyword">private</span> <span class="keyword">final</span> Deque&lt;Condition&gt; waiters;  <span class="comment">// 等待申请的用户</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">// 参数size表示申请的内存大小，参数maxTimeToBlockMs表示等待的最长时间</span></span><br><span class="line">    <span class="function"><span class="keyword">public</span> ByteBuffer <span class="title">allocate</span><span class="params">(<span class="keyword">int</span> size, <span class="keyword">long</span> maxTimeToBlockMs)</span> <span class="keyword">throws</span> InterruptedException </span>&#123;</span><br><span class="line">        <span class="keyword">if</span> (size &gt; <span class="keyword">this</span>.totalMemory)</span><br><span class="line">            <span class="keyword">throw</span> <span class="keyword">new</span> IllegalArgumentException(<span class="string">"..."</span>)</span><br><span class="line">        ByteBuffer buffer = <span class="keyword">null</span>;</span><br><span class="line">        <span class="keyword">this</span>.lock.lock();</span><br><span class="line">        <span class="comment">// 如果申请大小等于指定的值，并且缓存池中有空闲的内存块，则直接返回</span></span><br><span class="line">         <span class="keyword">if</span> (size == poolableSize &amp;&amp; !<span class="keyword">this</span>.free.isEmpty())</span><br><span class="line">             <span class="keyword">return</span> <span class="keyword">this</span>.free.pollFirst();</span><br><span class="line">        <span class="comment">// 计算总的空闲内存大小， 等于缓存池的大小 + 非缓存池的空闲大小</span></span><br><span class="line">        <span class="keyword">int</span> freeListSize = freeSize() * <span class="keyword">this</span>.poolableSize;</span><br><span class="line">        <span class="keyword">if</span> (<span class="keyword">this</span>.nonPooledAvailableMemory + freeListSize &gt;= size) &#123;</span><br><span class="line">            <span class="comment">// 如果空闲内存足够，那么需要保证非缓存池的空闲空间足够</span></span><br><span class="line">            <span class="comment">// 因为所有的内存分配都是从非缓存池开始</span></span><br><span class="line">            freeUp(size);</span><br><span class="line">            <span class="keyword">this</span>.nonPooledAvailableMemory -= size;</span><br><span class="line">        &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">            <span class="comment">// 如果空闲内存不够，那么需要等待别的用户释放内存</span></span><br><span class="line">            <span class="keyword">int</span> accumulated = <span class="number">0</span>; <span class="comment">// 表示已经成功申请的内存大小</span></span><br><span class="line">            Condition moreMemory = <span class="keyword">this</span>.lock.newCondition();</span><br><span class="line">            </span><br><span class="line">            <span class="keyword">long</span> remainingTimeToBlockNs = TimeUnit.MILLISECONDS.toNanos(maxTimeToBlockMs);</span><br><span class="line">            <span class="comment">// 添加到等待集合中</span></span><br><span class="line">            <span class="keyword">this</span>.waiters.addLast(moreMemory);</span><br><span class="line">            <span class="comment">// 循环等待</span></span><br><span class="line">            <span class="keyword">while</span> (accumulated &lt; size) &#123;</span><br><span class="line">                ......</span><br><span class="line">                <span class="comment">// 等待通知</span></span><br><span class="line">                waitingTimeElapsed = !moreMemory.await(remainingTimeToBlockNs, TimeUnit.NANOSECONDS);</span><br><span class="line">                <span class="keyword">if</span> (waitingTimeElapsed) &#123;</span><br><span class="line">                    <span class="comment">// 超过等待时间还没有分配到足够的内存，那么就抛出异常</span></span><br><span class="line">                    <span class="keyword">throw</span> <span class="keyword">new</span> TimeoutException(<span class="string">"Failed to allocate memory within the configured max blocking time "</span> + maxTimeToBlockMs + <span class="string">" ms."</span>);</span><br><span class="line">                &#125;</span><br><span class="line">                <span class="comment">// 如果申请大小等于指定的值，而这时刚好有其他用户释放了内存，那么就直接从缓存池中获取</span></span><br><span class="line">                <span class="keyword">if</span> (accumulated == <span class="number">0</span> &amp;&amp; size == <span class="keyword">this</span>.poolableSize &amp;&amp; !<span class="keyword">this</span>.free.isEmpty()) &#123;</span><br><span class="line">                    buffer = <span class="keyword">this</span>.free.pollFirst();</span><br><span class="line">                    accumulated = size;</span><br><span class="line">                &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">                    <span class="comment">// 继续释放足够的内存</span></span><br><span class="line">                    freeUp(size - accumulated);</span><br><span class="line">                    <span class="comment">// 计算可以分配的内存大小</span></span><br><span class="line">                    <span class="keyword">int</span> got = (<span class="keyword">int</span>) Math.min(size - accumulated, <span class="keyword">this</span>.nonPooledAvailableMemory);</span><br><span class="line">                    <span class="comment">// 更改非缓存池的空闲内存大小</span></span><br><span class="line">                    <span class="keyword">this</span>.nonPooledAvailableMemory -= got;</span><br><span class="line">                    accumulated += got;</span><br><span class="line">                &#125;</span><br><span class="line">            &#125;</span><br><span class="line"></span><br><span class="line">            <span class="comment">// 这里会检查是否还有剩下的空闲内存，如果有则需要通知下一个用户。</span></span><br><span class="line">            <span class="comment">// 因为这时可能有多个用户都释放了内存，而用户释放内存只会通知第一个用户（也就是当前用户），而下个用户还在一直等待中，如果当前用户不主动通知的话，可能造成下个用户等待超时。</span></span><br><span class="line">            <span class="keyword">if</span> (!(<span class="keyword">this</span>.nonPooledAvailableMemory == <span class="number">0</span> &amp;&amp; <span class="keyword">this</span>.free.isEmpty()) &amp;&amp; !<span class="keyword">this</span>.waiters.isEmpty())</span><br><span class="line">                    <span class="keyword">this</span>.waiters.peekFirst().signal();</span><br><span class="line">            </span><br><span class="line">            <span class="comment">// 运行到这里，说明已经成功了申请到了内存          </span></span><br><span class="line">            <span class="keyword">if</span> (buffer == <span class="keyword">null</span>)</span><br><span class="line">                <span class="comment">// 表示buffer不是从缓存池中获取的，需要执行内存分配</span></span><br><span class="line">                <span class="keyword">return</span> safeAllocateByteBuffer(size);</span><br><span class="line">            <span class="keyword">else</span>:</span><br><span class="line">                <span class="comment">// 已经从缓存池中获取到了，则直接返回</span></span><br><span class="line">                <span class="keyword">return</span> buffer;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>deallocate 接口的源码比较简单</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">BufferPool</span> </span>&#123;</span><br><span class="line">    </span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">deallocate</span><span class="params">(ByteBuffer buffer)</span> </span>&#123;</span><br><span class="line">        deallocate(buffer, buffer.capacity());</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">deallocate</span><span class="params">(ByteBuffer buffer, <span class="keyword">int</span> size)</span> </span>&#123;</span><br><span class="line">        lock.lock();</span><br><span class="line">        <span class="keyword">try</span> &#123;</span><br><span class="line">            <span class="comment">// 如果释放的内存大小等于指定的值，那么就将它添加到缓存池。free列表存储这些内存块</span></span><br><span class="line">            <span class="keyword">if</span> (size == <span class="keyword">this</span>.poolableSize &amp;&amp; size == buffer.capacity()) &#123;</span><br><span class="line">                buffer.clear();</span><br><span class="line">                <span class="keyword">this</span>.free.add(buffer);</span><br><span class="line">            &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">                <span class="comment">// 否则更新非缓存池的空闲大小，这个ByteBuffer实例等待jvm自动gc</span></span><br><span class="line">                <span class="keyword">this</span>.nonPooledAvailableMemory += size;</span><br><span class="line">            &#125;</span><br><span class="line">            <span class="comment">// 通知队列的第一个用户</span></span><br><span class="line">            Condition moreMem = <span class="keyword">this</span>.waiters.peekFirst();</span><br><span class="line">            <span class="keyword">if</span> (moreMem != <span class="keyword">null</span>)</span><br><span class="line">                moreMem.signal();</span><br><span class="line">        &#125; <span class="keyword">finally</span> &#123;</span><br><span class="line">            lock.unlock();</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h2 id="Consumer-缓存"><a href="#Consumer-缓存" class="headerlink" title="Consumer 缓存"></a>Consumer 缓存</h2><p>Consumer 从服务端获取消息，也是以消息 batch 的格式获取，然后存到缓存里。KafkaConsumer 提供了 poll 方法读取消息。它的原理是从缓存里直接获取，如果缓存里没有，才会向服务端发出请求。</p>
+<p>Fetcher 使用了一个队列，来缓存从服务端获取的响应。当用户从缓存中读取消息时，会依次从队列里解析响应，返回消息。但是用户一次不能获取过多数量的消息，这个阈值由配置项 max.poll.records 指定，默认为500。</p>
+<p>Fetcher 类还负责与服务端的交互。这里主要关注两个接口</p>
+<ul>
+<li>fetchedRecords，负责读取缓存消息</li>
+<li>sendFetches，负责发送请求</li>
+</ul>
+<p>KafkaConsumer 读取消息的过程如下</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">KafkaConsumer</span>&lt;<span class="title">K</span>, <span class="title">V</span>&gt; <span class="keyword">implements</span> <span class="title">Consumer</span>&lt;<span class="title">K</span>, <span class="title">V</span>&gt; </span>&#123;</span><br><span class="line">    </span><br><span class="line">    <span class="keyword">private</span> <span class="keyword">final</span> Fetcher&lt;K, V&gt; fetcher; <span class="comment">// 消息缓存</span></span><br><span class="line">    </span><br><span class="line">    <span class="comment">// poll 方法做过简化，省略了Metadata和topic subcribe的步骤 </span></span><br><span class="line">    <span class="function"><span class="keyword">private</span> ConsumerRecords&lt;K, V&gt; <span class="title">poll</span><span class="params">(<span class="keyword">final</span> <span class="keyword">long</span> timeoutMs, <span class="keyword">final</span> <span class="keyword">boolean</span> includeMetadataInTimeout)</span> </span>&#123;</span><br><span class="line">        <span class="comment">// 调用 pollForFetches 获取消息</span></span><br><span class="line">        <span class="keyword">final</span> Map&lt;TopicPartition, List&lt;ConsumerRecord&lt;K, V&gt;&gt;&gt; records = pollForFetches(remainingTimeAtLeastZero(timeoutMs, elapsedTime));</span><br><span class="line">        <span class="keyword">if</span> (!records.isEmpty()) &#123;</span><br><span class="line">            <span class="comment">// 注意到这里，成功获取之后，还会调用sendFetches方法，发送请求</span></span><br><span class="line">            <span class="comment">// 因为kafka发送请求都是异步的，这里提前发出请求，可以有效的减少下次缓存为空而需要等待请求的时间</span></span><br><span class="line">            <span class="keyword">if</span> (fetcher.sendFetches() &gt; <span class="number">0</span> || client.hasPendingRequests()) &#123;</span><br><span class="line">                client.pollNoWakeup();</span><br><span class="line">            &#125;</span><br><span class="line">            <span class="keyword">return</span> <span class="keyword">this</span>.interceptors.onConsume(<span class="keyword">new</span> ConsumerRecords&lt;&gt;(records));</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    </span><br><span class="line">    <span class="keyword">private</span> Map&lt;TopicPartition, List&lt;ConsumerRecord&lt;K, V&gt;&gt;&gt; pollForFetches(<span class="keyword">final</span> <span class="keyword">long</span> timeoutMs) &#123;</span><br><span class="line">        <span class="comment">// 首先从缓存中尝试读取</span></span><br><span class="line">        <span class="keyword">final</span> Map&lt;TopicPartition, List&lt;ConsumerRecord&lt;K, V&gt;&gt;&gt; records = fetcher.fetchedRecords();</span><br><span class="line">        <span class="keyword">if</span> (!records.isEmpty()) &#123;</span><br><span class="line">            <span class="keyword">return</span> records;</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        <span class="comment">// 如果缓存为空，则向服务端发出请求</span></span><br><span class="line">        fetcher.sendFetches();</span><br><span class="line">        <span class="comment">// 等待服务端的响应</span></span><br><span class="line">        client.poll(pollTimeout, startMs, () -&gt; &#123;</span><br><span class="line">            <span class="comment">// hasCompletedFetches 表示是否有成功的响应</span></span><br><span class="line">            <span class="keyword">return</span> !fetcher.hasCompletedFetches();</span><br><span class="line">        &#125;);</span><br><span class="line">        <span class="comment">// 从缓存中获取消息</span></span><br><span class="line">        <span class="keyword">return</span> fetcher.fetchedRecords();</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>我们注意到 Consumer 在每次读取消息之后，都会触发一次发送请求，这样对于提高性能有好处，减少了下一次的请求等待时间。但是这样会存在一个问题，假想我们把  max.poll.records 设置为 1，这样每次从服务端返回的消息数量都比 1 大，那么缓存就会持续的增长，造成 OOM。</p>
+<p>其实 Fetcher 每次发送请求，并不是拉取所有分区的消息。它的 fetchablePartitions 方法决定了请求的分区，它会检查分区在缓存中是否有对应的消息，如果有那么就不请求。这样就基本保证了缓存里拥有每个分区的消息。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">Fetcher</span>&lt;<span class="title">K</span>, <span class="title">V</span>&gt; <span class="keyword">implements</span> <span class="title">SubscriptionState</span>.<span class="title">Listener</span>, <span class="title">Closeable</span> </span>&#123;</span><br><span class="line">    <span class="comment">// CompletedFetch代表着响应，对应着一个分区的消息</span></span><br><span class="line">    <span class="keyword">private</span> <span class="keyword">final</span> ConcurrentLinkedQueue&lt;CompletedFetch&gt; completedFetches;</span><br><span class="line">    </span><br><span class="line">    <span class="function"><span class="keyword">private</span> List&lt;TopicPartition&gt; <span class="title">fetchablePartitions</span><span class="params">()</span> </span>&#123;</span><br><span class="line">        <span class="comment">// 存储着哪些分区不需要请求</span></span><br><span class="line">        Set&lt;TopicPartition&gt; exclude = <span class="keyword">new</span> HashSet&lt;&gt;();  </span><br><span class="line">        <span class="comment">// 获取分配的分区</span></span><br><span class="line">        List&lt;TopicPartition&gt; fetchable = subscriptions.fetchablePartitions();</span><br><span class="line">        <span class="comment">// nextInLineRecords 表示正在解析的响应</span></span><br><span class="line">        <span class="keyword">if</span> (nextInLineRecords != <span class="keyword">null</span> &amp;&amp; !nextInLineRecords.isFetched) &#123;</span><br><span class="line">            exclude.add(nextInLineRecords.partition);</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="comment">// 如果在缓存里，该分区已经有了消息，则不需要请求</span></span><br><span class="line">        <span class="keyword">for</span> (CompletedFetch completedFetch : completedFetches) &#123;</span><br><span class="line">            exclude.add(completedFetch.partition);</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="comment">// 剔除掉那些不需要请求的分区</span></span><br><span class="line">        fetchable.removeAll(exclude);</span><br><span class="line">        <span class="keyword">return</span> fetchable;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>对于请求，不仅有分区的限制，还有每次请求返回的数据大小限制。不然如果一次请求的数据过大，容易造成内存溢出。我们可以观察请求的格式，发现有多个值来限制请求大小。</p>
+<ul>
+<li>max_bytes，表示响应数据的最大长度。可以通过配置 fetch.max.bytes 来指定，默认为 50MB</li>
+<li>min_bytes，表示响应数据的最小长度。可以通过配置 fetch.min.bytes 来指定，默认为 1B</li>
+</ul>
+<p>每次请求还包含了多个分区，对于每个分区返回的数据大小，也有限制。通过配置 max.partition.fetch.bytes 来指定，默认为 1MB。这样我们能够粗略的计算出缓存的大小，分配的分区数量 * max.partition.fetch.bytes 。</p>
+
+      
+    </div>
+    
+    
+    
+
+    
+
+    
+
+    
+
+    <footer class="post-footer">
+      
+        <div class="post-tags">
+          
+            <a href="/tags/kafka-buffer/" rel="tag"># kafka, buffer</a>
+          
+        </div>
+      
+
+      
+      
+      
+
+      
+        <div class="post-nav">
+          <div class="post-nav-next post-nav-item">
+            
+              <a href="/2019/07/22/ycsb/" rel="next" title="基准测试框架 ycsb">
+                <i class="fa fa-chevron-left"></i> 基准测试框架 ycsb
+              </a>
+            
+          </div>
+
+          <span class="post-nav-divider"></span>
+
+          <div class="post-nav-prev post-nav-item">
+            
+          </div>
+        </div>
+      
+
+      
+      
+    </footer>
+  </div>
+  
+  
+  
+  </article>
+
+
+
+    <div class="post-spread">
+      
+    </div>
+  </div>
+
+
+          </div>
+          
+
+
+          
+
+  
+    <div class="comments" id="comments">
+    </div>
+  
+
+
+
+        </div>
+        
+          
+  
+  <div class="sidebar-toggle">
+    <div class="sidebar-toggle-line-wrap">
+      <span class="sidebar-toggle-line sidebar-toggle-line-first"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-middle"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-last"></span>
+    </div>
+  </div>
+
+  <aside id="sidebar" class="sidebar">
+    
+    <div class="sidebar-inner">
+
+      
+
+      
+        <ul class="sidebar-nav motion-element">
+          <li class="sidebar-nav-toc sidebar-nav-active" data-target="post-toc-wrap">
+            Table of Contents
+          </li>
+          <li class="sidebar-nav-overview" data-target="site-overview-wrap">
+            Overview
+          </li>
+        </ul>
+      
+
+      <section class="site-overview-wrap sidebar-panel">
+        <div class="site-overview">
+          <div class="site-author motion-element" itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+            
+              <p class="site-author-name" itemprop="name">zhmin</p>
+              <p class="site-description motion-element" itemprop="description"></p>
+          </div>
+
+          <nav class="site-state motion-element">
+
+            
+              <div class="site-state-item site-state-posts">
+              
+                <a href="/archives/">
+              
+                  <span class="site-state-item-count">45</span>
+                  <span class="site-state-item-name">posts</span>
+                </a>
+              </div>
+            
+
+            
+              
+              
+              <div class="site-state-item site-state-categories">
+                <a href="/categories/index.html">
+                  <span class="site-state-item-count">9</span>
+                  <span class="site-state-item-name">categories</span>
+                </a>
+              </div>
+            
+
+            
+              
+              
+              <div class="site-state-item site-state-tags">
+                
+                  <span class="site-state-item-count">42</span>
+                  <span class="site-state-item-name">tags</span>
+                
+              </div>
+            
+
+          </nav>
+
+          
+
+          
+            <div class="links-of-author motion-element">
+                
+                  <span class="links-of-author-item">
+                    <a href="https://github.com/zhmin" target="_blank" title="GitHub">
+                      
+                        <i class="fa fa-fw fa-github"></i>GitHub</a>
+                  </span>
+                
+            </div>
+          
+
+          
+          
+
+          
+          
+
+          
+
+        </div>
+      </section>
+
+      
+      <!--noindex-->
+        <section class="post-toc-wrap motion-element sidebar-panel sidebar-panel-active">
+          <div class="post-toc">
+
+            
+              
+            
+
+            
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#前言"><span class="nav-number">1.</span> <span class="nav-text">前言</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Producer-缓存"><span class="nav-number">2.</span> <span class="nav-text">Producer 缓存</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#内存池使用"><span class="nav-number">2.1.</span> <span class="nav-text">内存池使用</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#内存池结构"><span class="nav-number">2.2.</span> <span class="nav-text">内存池结构</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#内存池实现"><span class="nav-number">2.3.</span> <span class="nav-text">内存池实现</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Consumer-缓存"><span class="nav-number">3.</span> <span class="nav-text">Consumer 缓存</span></a></li></ol></div>
+            
+
+          </div>
+        </section>
+      <!--/noindex-->
+      
+
+      
+
+    </div>
+  </aside>
+
+
+        
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="footer-inner">
+        <div class="copyright">&copy; <span itemprop="copyrightYear">2019</span>
+  <span class="with-love">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">zhmin</span>
+
+  
+</div>
+
+
+
+
+
+
+
+
+
+
+
+  <script src="https://unpkg.com/mermaid@7.1.2/dist/mermaid.min.js"></script>
+  <script>
+    if (window.mermaid) {
+      mermaid.initialize({"startOnload":true,"theme":"forest"});
+    }
+  </script>
+
+
+
+<script async src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+<span id="busuanzi_container_site_pv">
+    访问量<span id="busuanzi_value_site_pv"></span>
+</span>
+<span class="post-meta-divider">|</span>
+<span id="busuanzi_container_site_uv">
+  访客数<span id="busuanzi_value_site_uv"></span>
+</span>
+
+        
+
+
+
+
+
+
+
+        
+      </div>
+    </footer>
+
+    
+      <div class="back-to-top">
+        <i class="fa fa-arrow-up"></i>
+        
+      </div>
+    
+
+    
+
+  </div>
+
+  
+
+<script type="text/javascript">
+  if (Object.prototype.toString.call(window.Promise) !== '[object Function]') {
+    window.Promise = null;
+  }
+</script>
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery/index.js?v=2.1.3"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fastclick/lib/fastclick.min.js?v=1.0.6"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery_lazyload/jquery.lazyload.js?v=1.9.7"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.ui.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fancybox/source/jquery.fancybox.pack.js?v=2.1.5"></script>
+  
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/utils.js?v=5.1.4"></script>
+
+  <script type="text/javascript" src="/js/src/motion.js?v=5.1.4"></script>
+
+
+
+  
+  
+
+  
+  <script type="text/javascript" src="/js/src/scrollspy.js?v=5.1.4"></script>
+<script type="text/javascript" src="/js/src/post-details.js?v=5.1.4"></script>
+
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/bootstrap.js?v=5.1.4"></script>
+
+
+
+  
+
+
+  
+
+
+
+
+	
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+  <script src="//cdn1.lncld.net/static/js/3.0.4/av-min.js"></script>
+  <script src="//unpkg.com/valine/dist/Valine.min.js"></script>
+  
+  <script type="text/javascript">
+    var GUEST = ['nick','mail','link'];
+    var guest = 'nick';
+    guest = guest.split(',').filter(item=>{
+      return GUEST.indexOf(item)>-1;
+    });
+    new Valine({
+        el: '#comments' ,
+        verify: false,
+        notify: false,
+        appId: 'iYiPQlDR2X2zg2QIql2UEe2o-gzGzoHsz',
+        appKey: 'EW8G4sftwX1pef1zS9EsOeKE',
+        placeholder: 'comment here',
+        avatar:'mm',
+        guest_info:guest,
+        pageSize:'10' || 10,
+    });
+  </script>
+
+
+
+  
+
+
+
+
+
+  
+
+  
+  <script src="https://cdn1.lncld.net/static/js/av-core-mini-0.6.4.js"></script>
+  <script>AV.initialize("iYiPQlDR2X2zg2QIql2UEe2o-gzGzoHsz", "EW8G4sftwX1pef1zS9EsOeKE");</script>
+  <script>
+    function showTime(Counter) {
+      var query = new AV.Query(Counter);
+      var entries = [];
+      var $visitors = $(".leancloud_visitors");
+
+      $visitors.each(function () {
+        entries.push( $(this).attr("id").trim() );
+      });
+
+      query.containedIn('url', entries);
+      query.find()
+        .done(function (results) {
+          var COUNT_CONTAINER_REF = '.leancloud-visitors-count';
+
+          if (results.length === 0) {
+            $visitors.find(COUNT_CONTAINER_REF).text(0);
+            return;
+          }
+
+          for (var i = 0; i < results.length; i++) {
+            var item = results[i];
+            var url = item.get('url');
+            var time = item.get('time');
+            var element = document.getElementById(url);
+
+            $(element).find(COUNT_CONTAINER_REF).text(time);
+          }
+          for(var i = 0; i < entries.length; i++) {
+            var url = entries[i];
+            var element = document.getElementById(url);
+            var countSpan = $(element).find(COUNT_CONTAINER_REF);
+            if( countSpan.text() == '') {
+              countSpan.text(0);
+            }
+          }
+        })
+        .fail(function (object, error) {
+          console.log("Error: " + error.code + " " + error.message);
+        });
+    }
+
+    function addCount(Counter) {
+      var $visitors = $(".leancloud_visitors");
+      var url = $visitors.attr('id').trim();
+      var title = $visitors.attr('data-flag-title').trim();
+      var query = new AV.Query(Counter);
+
+      query.equalTo("url", url);
+      query.find({
+        success: function(results) {
+          if (results.length > 0) {
+            var counter = results[0];
+            counter.fetchWhenSave(true);
+            counter.increment("time");
+            counter.save(null, {
+              success: function(counter) {
+                var $element = $(document.getElementById(url));
+                $element.find('.leancloud-visitors-count').text(counter.get('time'));
+              },
+              error: function(counter, error) {
+                console.log('Failed to save Visitor num, with error message: ' + error.message);
+              }
+            });
+          } else {
+            var newcounter = new Counter();
+            /* Set ACL */
+            var acl = new AV.ACL();
+            acl.setPublicReadAccess(true);
+            acl.setPublicWriteAccess(true);
+            newcounter.setACL(acl);
+            /* End Set ACL */
+            newcounter.set("title", title);
+            newcounter.set("url", url);
+            newcounter.set("time", 1);
+            newcounter.save(null, {
+              success: function(newcounter) {
+                var $element = $(document.getElementById(url));
+                $element.find('.leancloud-visitors-count').text(newcounter.get('time'));
+              },
+              error: function(newcounter, error) {
+                console.log('Failed to create');
+              }
+            });
+          }
+        },
+        error: function(error) {
+          console.log('Error:' + error.code + " " + error.message);
+        }
+      });
+    }
+
+    $(function() {
+      var Counter = AV.Object.extend("Counter");
+      if ($('.leancloud_visitors').length == 1) {
+        addCount(Counter);
+      } else if ($('.post-title-link').length > 1) {
+        showTime(Counter);
+      }
+    });
+  </script>
+
+
+
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+</body>
+</html>

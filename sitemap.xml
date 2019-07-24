@@ -2,6 +2,13 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   
   <url>
+    <loc>https://zhmin.github.io/2019/07/24/kafka-client-buffer-manage/</loc>
+    
+    <lastmod>2019-07-24T12:56:15.860Z</lastmod>
+    
+  </url>
+  
+  <url>
     <loc>https://zhmin.github.io/2019/07/22/ycsb/</loc>
     
     <lastmod>2019-07-23T12:58:06.287Z</lastmod>
