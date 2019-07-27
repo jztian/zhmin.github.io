@@ -1545,11 +1545,7 @@ NettyR
       
         
           
-          Spark 运行在 Yarn 上的原理Rpc 服务Spark运行在Yarn上，会涉及到下列Rpc 服务。
-
-YarnDriverEndpoint， 继承DriverEndpoint，主要负责与Executor的通信
-YarnSchedulerEndpoint， 负责与AMEndpoint沟通
-AME
+          前言为了更好的管理集群资源，一般都会有资源管理调度器，所有的服务都需要服从调度器的安排才能运行。Hadoop 集群内置了 Yarn 资源管理器，而 Spark 处理的数据一般存储在 Hadoop 里，所以 Spark 也支持运行在 Yarn 上面。本篇会介绍 Spark 是如何运行在 Yarn 上的
           ...
           <!--noindex-->
           <div class="post-button text-center">

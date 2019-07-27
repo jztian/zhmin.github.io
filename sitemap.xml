@@ -2,6 +2,13 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   
   <url>
+    <loc>https://zhmin.github.io/2019/01/02/spark-on-yarn/</loc>
+    
+    <lastmod>2019-07-27T15:44:53.432Z</lastmod>
+    
+  </url>
+  
+  <url>
     <loc>https://zhmin.github.io/2019/07/24/kafka-client-buffer-manage/</loc>
     
     <lastmod>2019-07-24T12:56:15.860Z</lastmod>
@@ -149,13 +156,6 @@
   </url>
   
   <url>
-    <loc>https://zhmin.github.io/2019/01/26/spark-shuffle-writer/</loc>
-    
-    <lastmod>2019-03-06T13:14:41.931Z</lastmod>
-    
-  </url>
-  
-  <url>
     <loc>https://zhmin.github.io/2019/01/03/spark-rdd-dependency/</loc>
     
     <lastmod>2019-03-06T13:14:41.931Z</lastmod>
@@ -163,9 +163,9 @@
   </url>
   
   <url>
-    <loc>https://zhmin.github.io/2019/01/02/spark-on-yarn/</loc>
+    <loc>https://zhmin.github.io/2019/01/26/spark-shuffle-writer/</loc>
     
-    <lastmod>2019-03-06T13:14:41.930Z</lastmod>
+    <lastmod>2019-03-06T13:14:41.931Z</lastmod>
     
   </url>
   
