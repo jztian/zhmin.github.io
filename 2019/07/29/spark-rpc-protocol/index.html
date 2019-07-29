@@ -68,7 +68,7 @@
 
 
 
-  <meta name="keywords" content="spark, yarn,">
+  <meta name="keywords" content="spark, netty, protocol,">
 
 
 
@@ -79,21 +79,21 @@
 
 
 
-<meta name="description" content="前言为了更好的管理集群资源，一般都会有资源管理调度器，所有的服务都需要服从调度器的安排才能运行。Hadoop 集群内置了 Yarn 资源管理器，而 Spark 处理的数据一般存储在 Hadoop 里，所以 Spark 也支持运行在 Yarn 上面。本篇会介绍 Spark 是如何运行在 Yarn 上的。 Yarn 运行程序Yarn 作为一个框架，包含了多个组件。如果想在 Yarn 上运行程序，需要先">
-<meta name="keywords" content="spark, yarn">
+<meta name="description" content="前言Spark Rpc 所有的请求或响应统称为消息，它们都有着共同的格式。本篇文章会先介绍消息格式，然后介绍基于 Netty 框架，如何解析和处理消息，并且还介绍了如何处理数据大的请求。 消息格式12345----------------------------------------------------------frame size |   type   |  header  |">
+<meta name="keywords" content="spark, netty, protocol">
 <meta property="og:type" content="article">
-<meta property="og:title" content="Spark 运行在Yarn上的原理">
-<meta property="og:url" content="https://zhmin.github.io/2019/01/02/spark-on-yarn/index.html">
+<meta property="og:title" content="Spark  Rpc 消息处理">
+<meta property="og:url" content="https://zhmin.github.io/2019/07/29/spark-rpc-protocol/index.html">
 <meta property="og:site_name" content="学习笔记">
-<meta property="og:description" content="前言为了更好的管理集群资源，一般都会有资源管理调度器，所有的服务都需要服从调度器的安排才能运行。Hadoop 集群内置了 Yarn 资源管理器，而 Spark 处理的数据一般存储在 Hadoop 里，所以 Spark 也支持运行在 Yarn 上面。本篇会介绍 Spark 是如何运行在 Yarn 上的。 Yarn 运行程序Yarn 作为一个框架，包含了多个组件。如果想在 Yarn 上运行程序，需要先">
+<meta property="og:description" content="前言Spark Rpc 所有的请求或响应统称为消息，它们都有着共同的格式。本篇文章会先介绍消息格式，然后介绍基于 Netty 框架，如何解析和处理消息，并且还介绍了如何处理数据大的请求。 消息格式12345----------------------------------------------------------frame size |   type   |  header  |">
 <meta property="og:locale" content="default">
-<meta property="og:image" content="https://zhmin.github.io/2019/01/02/spark-on-yarn/yarn-application-flow.svg">
-<meta property="og:image" content="https://zhmin.github.io/2019/01/02/spark-on-yarn/spark-on-yarn-rpc.svg">
-<meta property="og:updated_time" content="2019-07-27T15:44:53.432Z">
+<meta property="og:image" content="https://zhmin.github.io/2019/07/29/spark-rpc-protocol/spark-netty-handler.svg">
+<meta property="og:image" content="https://zhmin.github.io/2019/07/29/spark-rpc-protocol/spark-netty-request-handler.svg">
+<meta property="og:updated_time" content="2019-07-29T14:10:15.749Z">
 <meta name="twitter:card" content="summary">
-<meta name="twitter:title" content="Spark 运行在Yarn上的原理">
-<meta name="twitter:description" content="前言为了更好的管理集群资源，一般都会有资源管理调度器，所有的服务都需要服从调度器的安排才能运行。Hadoop 集群内置了 Yarn 资源管理器，而 Spark 处理的数据一般存储在 Hadoop 里，所以 Spark 也支持运行在 Yarn 上面。本篇会介绍 Spark 是如何运行在 Yarn 上的。 Yarn 运行程序Yarn 作为一个框架，包含了多个组件。如果想在 Yarn 上运行程序，需要先">
-<meta name="twitter:image" content="https://zhmin.github.io/2019/01/02/spark-on-yarn/yarn-application-flow.svg">
+<meta name="twitter:title" content="Spark  Rpc 消息处理">
+<meta name="twitter:description" content="前言Spark Rpc 所有的请求或响应统称为消息，它们都有着共同的格式。本篇文章会先介绍消息格式，然后介绍基于 Netty 框架，如何解析和处理消息，并且还介绍了如何处理数据大的请求。 消息格式12345----------------------------------------------------------frame size |   type   |  header  |">
+<meta name="twitter:image" content="https://zhmin.github.io/2019/07/29/spark-rpc-protocol/spark-netty-handler.svg">
 
 
 
@@ -123,13 +123,13 @@
 
 
 
-  <link rel="canonical" href="https://zhmin.github.io/2019/01/02/spark-on-yarn/">
+  <link rel="canonical" href="https://zhmin.github.io/2019/07/29/spark-rpc-protocol/">
 
 
 
 
 
-  <title>Spark 运行在Yarn上的原理 | 学习笔记</title>
+  <title>Spark  Rpc 消息处理 | 学习笔记</title>
   
 
 
@@ -246,7 +246,7 @@
   
   
   <div class="post-block">
-    <link itemprop="mainEntityOfPage" href="https://zhmin.github.io/2019/01/02/spark-on-yarn/">
+    <link itemprop="mainEntityOfPage" href="https://zhmin.github.io/2019/07/29/spark-rpc-protocol/">
 
     <span hidden itemprop="author" itemscope="" itemtype="http://schema.org/Person">
       <meta itemprop="name" content="zhmin">
@@ -263,7 +263,7 @@
 
         
         
-          <h2 class="post-title" itemprop="name headline">Spark 运行在Yarn上的原理</h2>
+          <h2 class="post-title" itemprop="name headline">Spark  Rpc 消息处理</h2>
         
 
         <div class="post-meta">
@@ -275,8 +275,8 @@
               
                 <span class="post-meta-item-text">Posted on</span>
               
-              <time title="Post created" itemprop="dateCreated datePublished" datetime="2019-01-02T20:10:01+08:00">
-                2019-01-02
+              <time title="Post created" itemprop="dateCreated datePublished" datetime="2019-07-29T22:06:14+08:00">
+                2019-07-29
               </time>
             
 
@@ -316,8 +316,8 @@
                 <span class="post-meta-item-icon">
                   <i class="fa fa-comment-o"></i>
                 </span>
-                <a href="/2019/01/02/spark-on-yarn/#comments" itemprop="discussionUrl">
-                  <span class="post-comments-count valine-comment-count" data-xid="/2019/01/02/spark-on-yarn/" itemprop="commentCount"></span>
+                <a href="/2019/07/29/spark-rpc-protocol/#comments" itemprop="discussionUrl">
+                  <span class="post-comments-count valine-comment-count" data-xid="/2019/07/29/spark-rpc-protocol/" itemprop="commentCount"></span>
                 </a>
               </span>
             
@@ -325,7 +325,7 @@
 
           
           
-             <span id="/2019/01/02/spark-on-yarn/" class="leancloud_visitors" data-flag-title="Spark 运行在Yarn上的原理">
+             <span id="/2019/07/29/spark-rpc-protocol/" class="leancloud_visitors" data-flag-title="Spark  Rpc 消息处理">
                <span class="post-meta-divider">|</span>
                <span class="post-meta-item-icon">
                  <i class="fa fa-eye"></i>
@@ -356,35 +356,34 @@
       
 
       
-        <h2 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h2><p>为了更好的管理集群资源，一般都会有资源管理调度器，所有的服务都需要服从调度器的安排才能运行。Hadoop 集群内置了 Yarn 资源管理器，而 Spark 处理的数据一般存储在 Hadoop 里，所以 Spark 也支持运行在 Yarn 上面。本篇会介绍 Spark 是如何运行在 Yarn 上的。</p>
-<h2 id="Yarn-运行程序"><a href="#Yarn-运行程序" class="headerlink" title="Yarn 运行程序"></a>Yarn 运行程序</h2><p>Yarn 作为一个框架，包含了多个组件。如果想在 Yarn 上运行程序，需要先了解它的运行流程。</p>
-<p><img src="/2019/01/02/spark-on-yarn/yarn-application-flow.svg"></p>
-<h2 id="Spark-Rpc-服务"><a href="#Spark-Rpc-服务" class="headerlink" title="Spark Rpc 服务"></a>Spark Rpc 服务</h2><p>Spark运行在Yarn上，会涉及到下列Rpc 服务</p>
-<p><img src="/2019/01/02/spark-on-yarn/spark-on-yarn-rpc.svg"></p>
-<ul>
-<li>YarnDriverEndpoint， 代表着 driver 端，它继承 DriverEndpoint， 负责分配任务和日志收集。</li>
-<li>CoarseGrainedExecutorBackend， 表示 Executor 进程，负责执行由 Driver 端分配的任务。</li>
-<li>YarnSchedulerEndpoint， DriverEndpoint 和 AMEndpoint沟通的桥梁</li>
-<li>AMEndpoint， 运行在 ApplicationMaster 进程上，主要负责 Yarn 的资源请求</li>
-</ul>
-<p>注意到 YarnDriverEndpoint 和 YarnSchedulerEndpoint 总是运行在同一个进程里，这里简称为 driver 端。根据进程所在的位置，分为两种运行模式：</p>
-<ul>
-<li>client 模式，此进程运行在 Client。</li>
-<li>cluster 模式，此进程运行在 ApplicationMaster 。</li>
-</ul>
-<h2 id="ApplicationMaster-运行原理"><a href="#ApplicationMaster-运行原理" class="headerlink" title="ApplicationMaster 运行原理"></a>ApplicationMaster 运行原理</h2><h3 id="AMEndpoint-启动"><a href="#AMEndpoint-启动" class="headerlink" title="AMEndpoint 启动"></a>AMEndpoint 启动</h3><p>因为 ApplicationMaster 进程运行的所在 Container 是随机分配的，所以 driver 端并不知道 AMEndpoint 的地址。AMEndpoint 在启动之后，会主动发送自己的地址给 YarnSchedulerEndpoint，两者之间就可以通过顺利通信了。</p>
-<h3 id="client模式"><a href="#client模式" class="headerlink" title="client模式"></a>client模式</h3><p>client模式下，ApplicationMaster 进程仅仅运行 AMEndpoint 的服务。因为 driver 端服务在 Client 进程上，所以 AMEndpoint 必须远程请求。在启动 ApplicationMaster 进程时候，Spark 已经将 driver 端的地址，通过 Main 函数的参数传递过来了。AMEndpoint 会不停的重试连接driver 端，才会进行下一步操作。</p>
-<h3 id="cluster模式"><a href="#cluster模式" class="headerlink" title="cluster模式"></a>cluster模式</h3><p>cluster模式下，ApplicationMaster 进程运行多个服务，dirver 服务和 AMEndpoint 服务。ApplicationMaster 进程会先启动 driver 服务完成 SparkContext 的初始化后，才会启动 AMEndpoint 服务。</p>
-<h2 id="Container-启动"><a href="#Container-启动" class="headerlink" title="Container 启动"></a>Container 启动</h2><h3 id="请求资源大小"><a href="#请求资源大小" class="headerlink" title="请求资源大小"></a>请求资源大小</h3><p> AMEndpoint 启动后，当接收到了 driver 端的请求，就会向 ResourceManager 申请资源。每个 Container 申请的资源分为 cpu 和内存大小：</p>
-<p> cpu 的数量由配置项 spark.executor.cores 指定。</p>
-<p>内存大小 = 初始内存 + 额外内存。初始内存由配置项spark.executor.memory指定。 额外内存由 spark.yarn.executor.memoryOverhead 配置项指定，如果没有指定，那么就取值为初始内存大小的 10%，但是大小必须大于 384MB。</p>
-<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 初始内存，由配置项spark.executor.memory指定，默认为1GB</span></span><br><span class="line"><span class="keyword">protected</span> <span class="keyword">val</span> executorMemory = sparkConf.get(<span class="type">EXECUTOR_MEMORY</span>).toInt</span><br><span class="line"></span><br><span class="line"><span class="comment">// 计算额外内存大小</span></span><br><span class="line"><span class="comment">// EXECUTOR_MEMORY_OVERHEAD 表示配置项 spark.yarn.executor.memoryOverhead</span></span><br><span class="line"><span class="comment">// MEMORY_OVERHEAD_FACTOR 等于 0.1</span></span><br><span class="line"><span class="comment">// MEMORY_OVERHEAD_MIN 等于 384</span></span><br><span class="line"><span class="keyword">protected</span> <span class="keyword">val</span> memoryOverhead: <span class="type">Int</span> = sparkConf.get(<span class="type">EXECUTOR_MEMORY_OVERHEAD</span>).getOrElse(</span><br><span class="line">  math.max((<span class="type">MEMORY_OVERHEAD_FACTOR</span> * executorMemory).toInt, <span class="type">MEMORY_OVERHEAD_MIN</span>)).toInt</span><br><span class="line"></span><br><span class="line"><span class="comment">// 内存大小等于初始内存加上额外内存</span></span><br><span class="line"><span class="keyword">private</span>[yarn] <span class="keyword">val</span> resource = <span class="type">Resource</span>.newInstance(executorMemory + memoryOverhead, executorCores)</span><br></pre></td></tr></table></figure>
-<p>这里需要注意下，Yarn 的资源分配有最小单位。假设 spark 申请的 container 资源为 初始内存 1GB + 额外内存 384MB，并且 Yarn 的最小单位为1GB，那么Yarn 会分配两个单位的资源，也就是2GB 的内存。所以我们在优化资源分配时，必须考虑到额外内存，避免内存的浪费（虽然多余的内存都会被用于本地内存，但是也许我们不会用到这么多本地内存）。关于为什么会需要额外内存，这和 jvm 内存模型有关，下面会详细介绍。</p>
-<h3 id="启动命令"><a href="#启动命令" class="headerlink" title="启动命令"></a>启动命令</h3><p>负责生成命令的源码简略如下：</p>
-<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">private</span> <span class="function"><span class="keyword">def</span> <span class="title">prepareCommand</span></span>(): <span class="type">List</span>[<span class="type">String</span>] = &#123;</span><br><span class="line"></span><br><span class="line">  <span class="keyword">val</span> commands = prefixEnv ++</span><br><span class="line">      <span class="type">Seq</span>(<span class="type">Environment</span>.<span class="type">JAVA_HOME</span>.$$() + <span class="string">"/bin/java"</span>, <span class="string">"-server"</span>) ++</span><br><span class="line">      <span class="comment">// java运行的jvm参数</span></span><br><span class="line">      javaOpts ++</span><br><span class="line">      <span class="comment">// java运行的Main函数所在的类</span></span><br><span class="line">      <span class="type">Seq</span>(<span class="string">"org.apache.spark.executor.CoarseGrainedExecutorBackend"</span>,</span><br><span class="line">        <span class="string">"--driver-url"</span>, masterAddress,</span><br><span class="line">        <span class="string">"--executor-id"</span>, executorId,</span><br><span class="line">        <span class="string">"--hostname"</span>, hostname,</span><br><span class="line">        <span class="string">"--cores"</span>, executorCores.toString,</span><br><span class="line">        <span class="string">"--app-id"</span>, appId) ++</span><br><span class="line">      <span class="comment">// 用户指定的jar包</span></span><br><span class="line">      userClassPath ++</span><br><span class="line">      <span class="comment">// 指定标准输出和错误输出</span></span><br><span class="line">      <span class="type">Seq</span>(</span><br><span class="line">        <span class="string">s"1&gt;<span class="subst">$&#123;ApplicationConstants.LOG_DIR_EXPANSION_VAR&#125;</span>/stdout"</span>,</span><br><span class="line">        <span class="string">s"2&gt;<span class="subst">$&#123;ApplicationConstants.LOG_DIR_EXPANSION_VAR&#125;</span>/stderr"</span>)</span><br><span class="line"></span><br><span class="line">    commands.map(s =&gt; <span class="keyword">if</span> (s == <span class="literal">null</span>) <span class="string">"null"</span> <span class="keyword">else</span> s).toList</span><br><span class="line">  &#125;</span><br></pre></td></tr></table></figure>
-<p>这里可以看到container的启动，是运行了 java 命令，启动类是org.apache.spark.executor.CoarseGrainedExecutorBackend，启动参数包含了 driver 端的地址，execuor id 等等，还指定了 jvm 运行参数。</p>
-<p>我们知道 jvm 运行时，将该进程的内存分为 jvm 管理的内存和不受管理的本地内存。而 jvm 管理的内存分为堆，栈等多块，其中很大部分是由堆占用，jvm 支持堆内存的大小限制。而本地内存不受 jvm 控制，它属于操作系统管理，操作系统一般不对进程使用的内存做限制，除非超过了物理机的容量。但是它受到 Yarn 的控制，如果进程用的内存超标，就会被 Yarn 杀死。</p>
-<p>spark 申请的初始内存只被用在堆上，所以还需要额外内存来用于其他地方，比如 jvm 管理的栈，和本地内存。spark 会用到本地内存来存储数据，或接收远端传来的 shuffle 数据。所以当 shuffle 数据较大时，可能造成本地内存过大，造成被 Yarn 杀死。这时你可以看到一条日志，意思是让你提高额外内存的大小，其实也就是提高本地内存的原理。</p>
+        <h2 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h2><p>Spark Rpc 所有的请求或响应统称为消息，它们都有着共同的格式。本篇文章会先介绍消息格式，然后介绍基于 Netty 框架，如何解析和处理消息，并且还介绍了如何处理数据大的请求。</p>
+<h2 id="消息格式"><a href="#消息格式" class="headerlink" title="消息格式"></a>消息格式</h2><figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">----------------------------------------------------------</span><br><span class="line">frame size |   type   |  header  |     body</span><br><span class="line">----------------------------------------------------------</span><br><span class="line">8 byte     |  1 byte  |   变长   |      变长</span><br><span class="line">----------------------------------------------------------</span><br></pre></td></tr></table></figure>
+<p>frame size 表示后面的数据长度，至少包括 type 和 header，有些消息还会包含 body。</p>
+<p>header 根据消息种类的不同，格式也不一样。一般 header 数据都比较小。</p>
+<p>body 根据消息种类的不同，格式也不一样。有的消息的 body 比较大，而有些消息甚至没有 body 。</p>
+<p>比如 RpcRequest 消息, 它的 frame size 表示 type，header 和 body 三部分的总长度。StreamResponse 消息，它的 frame size 只表示 type 和 header 两部分的长度。而RpcFailure  消息，只有 header 部分。</p>
+<h2 id="Netty-处理管道"><a href="#Netty-处理管道" class="headerlink" title="Netty 处理管道"></a>Netty 处理管道</h2><p>Netty 的 处理消息，都是依靠 ChannelHandler 链来处理的。它的调用链如图所示：</p>
+<p><img src="/2019/07/29/spark-rpc-protocol/spark-netty-handler.svg"></p>
+<h2 id="Channel-Handler-介绍"><a href="#Channel-Handler-介绍" class="headerlink" title="Channel Handler 介绍"></a>Channel Handler 介绍</h2><h3 id="TransportFrameDecoder"><a href="#TransportFrameDecoder" class="headerlink" title="TransportFrameDecoder"></a>TransportFrameDecoder</h3><p>Netty 在解析消息时，必须至少读取到 frame size 长度的数据，才能处理消息。</p>
+<p>TransportFrameDecoder 负责解析消息。它会先解析出 frame size 的值，然后继续等待数据，直到读取的数据长度至少等于 frame size ，才会进一步传递给下个 Handler 处理。它会将这些数据存到缓存里，所以使用这种方式，必须要能保证 frame size 较小。所以对于 body 数据比较大的情况，比如对于 StreamResponse 消息表示 shuffle 数据传输，一般都比较大 它的 frame size 是不包括 body 的。</p>
+<p>处理这种大消息，也是和 TransportFrameDecoder 有关。 它有一个特殊的 Interceptor 实例，用来处理这种消息。</p>
+<ol>
+<li>TransportFrameDecoder 负责读取完 type 和 header 数据，然后传递给下个 Handler 处理</li>
+<li>当最终的 TransportChannelHandler 接收到上一部传来的数据后，它会根据消息类型，实例化出 Interceptor 对象，存放到 TransportFrameDecoder，负责处理 body 数据。</li>
+<li>当 body 数据处理完后，就把 Interceptor 实例设置为 null。</li>
+</ol>
+<h3 id="MessageDecoder"><a href="#MessageDecoder" class="headerlink" title="MessageDecoder"></a>MessageDecoder</h3><p>MessageDecoder 接收上一步传来的数据，负责根据 type 字段，实例化对应的消息。之后传递 TransportChannelHandler处理。消息类型如下：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">enum</span> Type implements Encodable &#123;</span><br><span class="line">  ChunkFetchRequest(<span class="number">0</span>), ChunkFetchSuccess(<span class="number">1</span>), ChunkFetchFailure(<span class="number">2</span>),</span><br><span class="line">  RpcRequest(<span class="number">3</span>), RpcResponse(<span class="number">4</span>), RpcFailure(<span class="number">5</span>),</span><br><span class="line">  StreamRequest(<span class="number">6</span>), StreamResponse(<span class="number">7</span>), StreamFailure(<span class="number">8</span>),</span><br><span class="line">  OneWayMessage(<span class="number">9</span>);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h3 id="MessageEncoder"><a href="#MessageEncoder" class="headerlink" title="MessageEncoder"></a>MessageEncoder</h3><p>它负责将消息编码成上述格式，因为MessageEncoder原理比较简单，所以不做详细介绍。</p>
+<h3 id="IdleStateHandler"><a href="#IdleStateHandler" class="headerlink" title="IdleStateHandler"></a>IdleStateHandler</h3><p>这个 Handler 是 netty 内置的，用于长连接中，客户端和服务端发送心跳包，表示自身还存活。</p>
+<h2 id="核心-ChannelHandler"><a href="#核心-ChannelHandler" class="headerlink" title="核心 ChannelHandler"></a>核心 ChannelHandler</h2><p>TransportChannelHandler 是最为核心的 Handler，前面的 Handler 只是用来解析消息，而它负责最核心的处理程序。根据消息是客户端发送的请求消息，还是服务端发送的响应消息，分为两种处理方式。</p>
+<h2 id="请求消息处理"><a href="#请求消息处理" class="headerlink" title="请求消息处理"></a>请求消息处理</h2><p>服务端会负责处理请求消息，由 TransportRequestHandler 类负责。根据消息类型不同，处理的程序也不一样。</p>
+<p><img src="/2019/07/29/spark-rpc-protocol/spark-netty-request-handler.svg"></p>
+<h2 id="响应消息处理"><a href="#响应消息处理" class="headerlink" title="响应消息处理"></a>响应消息处理</h2><p>客户端负责处理响应消息，由 TransportResponseHandler 类负责。根据消息类型不同，处理的程序也不一样。</p>
+<h3 id="Rpc-响应消息"><a href="#Rpc-响应消息" class="headerlink" title="Rpc 响应消息"></a>Rpc 响应消息</h3><p>这类消息是客户端发起 rpc 请求返回的响应，它有一个 requestId 来标识自己。客户端发起请求时，会生成一个唯一的 requestId，并且还会保存回调函数。这样当收到响应时，就根据 requestId 执行对应的回调函数。</p>
+<h3 id="Chunk-响应消息"><a href="#Chunk-响应消息" class="headerlink" title="Chunk 响应消息"></a>Chunk 响应消息</h3><p>Chunk 消息用来传输数据用的，它有一个 StreamChunkId 用来标识自己。客户端在发起Chunk 请求消息时，会保存这个消息的回调函数。这样当收到响应时，就根据 StreamChunkId 执行对应的回调函数。</p>
+<h3 id="Stream-响应消息"><a href="#Stream-响应消息" class="headerlink" title="Stream 响应消息"></a>Stream 响应消息</h3><p>Stream 消息用来传输大数据。它发送请求时，必须按照顺序发送。因为存储 Stream 响应消息的回调函数，是用队列存储的。</p>
+<p>StreamResponse 消息的 frame size 是不包括 body 数据的，所以它在读取完 header 数据的时候，生成了 StreamInterceptor 实例负责处理 body 数据。然后把 StreamInterceptor 实例保存到 TransportFrameDecoder 里，等待调用。</p>
 
       
     </div>
@@ -402,7 +401,7 @@
       
         <div class="post-tags">
           
-            <a href="/tags/spark-yarn/" rel="tag"># spark, yarn</a>
+            <a href="/tags/spark-netty-protocol/" rel="tag"># spark, netty, protocol</a>
           
         </div>
       
@@ -415,8 +414,8 @@
         <div class="post-nav">
           <div class="post-nav-next post-nav-item">
             
-              <a href="/2018/12/28/datax-job/" rel="next" title="Datax 任务分配原理">
-                <i class="fa fa-chevron-left"></i> Datax 任务分配原理
+              <a href="/2019/07/24/kafka-client-buffer-manage/" rel="next" title="Kafka 客户端的缓存管理">
+                <i class="fa fa-chevron-left"></i> Kafka 客户端的缓存管理
               </a>
             
           </div>
@@ -424,10 +423,6 @@
           <span class="post-nav-divider"></span>
 
           <div class="post-nav-prev post-nav-item">
-            
-              <a href="/2019/01/03/spark-rdd-dependency/" rel="prev" title="Spark RDD之间的依赖">
-                Spark RDD之间的依赖 <i class="fa fa-chevron-right"></i>
-              </a>
             
           </div>
         </div>
@@ -572,7 +567,7 @@
             
 
             
-              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#前言"><span class="nav-number">1.</span> <span class="nav-text">前言</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Yarn-运行程序"><span class="nav-number">2.</span> <span class="nav-text">Yarn 运行程序</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Spark-Rpc-服务"><span class="nav-number">3.</span> <span class="nav-text">Spark Rpc 服务</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#ApplicationMaster-运行原理"><span class="nav-number">4.</span> <span class="nav-text">ApplicationMaster 运行原理</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#AMEndpoint-启动"><span class="nav-number">4.1.</span> <span class="nav-text">AMEndpoint 启动</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#client模式"><span class="nav-number">4.2.</span> <span class="nav-text">client模式</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#cluster模式"><span class="nav-number">4.3.</span> <span class="nav-text">cluster模式</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Container-启动"><span class="nav-number">5.</span> <span class="nav-text">Container 启动</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#请求资源大小"><span class="nav-number">5.1.</span> <span class="nav-text">请求资源大小</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#启动命令"><span class="nav-number">5.2.</span> <span class="nav-text">启动命令</span></a></li></ol></li></ol></div>
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#前言"><span class="nav-number">1.</span> <span class="nav-text">前言</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#消息格式"><span class="nav-number">2.</span> <span class="nav-text">消息格式</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Netty-处理管道"><span class="nav-number">3.</span> <span class="nav-text">Netty 处理管道</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Channel-Handler-介绍"><span class="nav-number">4.</span> <span class="nav-text">Channel Handler 介绍</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#TransportFrameDecoder"><span class="nav-number">4.1.</span> <span class="nav-text">TransportFrameDecoder</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#MessageDecoder"><span class="nav-number">4.2.</span> <span class="nav-text">MessageDecoder</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#MessageEncoder"><span class="nav-number">4.3.</span> <span class="nav-text">MessageEncoder</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#IdleStateHandler"><span class="nav-number">4.4.</span> <span class="nav-text">IdleStateHandler</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#核心-ChannelHandler"><span class="nav-number">5.</span> <span class="nav-text">核心 ChannelHandler</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#请求消息处理"><span class="nav-number">6.</span> <span class="nav-text">请求消息处理</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#响应消息处理"><span class="nav-number">7.</span> <span class="nav-text">响应消息处理</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#Rpc-响应消息"><span class="nav-number">7.1.</span> <span class="nav-text">Rpc 响应消息</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Chunk-响应消息"><span class="nav-number">7.2.</span> <span class="nav-text">Chunk 响应消息</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Stream-响应消息"><span class="nav-number">7.3.</span> <span class="nav-text">Stream 响应消息</span></a></li></ol></li></ol></div>
             
 
           </div>
