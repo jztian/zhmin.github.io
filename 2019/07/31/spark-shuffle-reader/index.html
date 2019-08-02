@@ -1,0 +1,1009 @@
+<!DOCTYPE html>
+
+
+
+  
+
+
+<html class="theme-next mist use-motion" lang="">
+<head><meta name="generator" content="Hexo 3.8.0">
+  <meta charset="UTF-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="theme-color" content="#222">
+
+
+
+
+
+
+
+
+
+<meta http-equiv="Cache-Control" content="no-transform">
+<meta http-equiv="Cache-Control" content="no-siteapp">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+  <link href="/lib/fancybox/source/jquery.fancybox.css?v=2.1.5" rel="stylesheet" type="text/css">
+
+
+
+
+
+
+
+<link href="/lib/font-awesome/css/font-awesome.min.css?v=4.6.2" rel="stylesheet" type="text/css">
+
+<link href="/css/main.css?v=5.1.4" rel="stylesheet" type="text/css">
+
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png?v=5.1.4">
+
+
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png?v=5.1.4">
+
+
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png?v=5.1.4">
+
+
+  <link rel="mask-icon" href="/images/logo.svg?v=5.1.4" color="#222">
+
+
+
+
+
+  <meta name="keywords" content="Hexo, NexT">
+
+
+
+
+
+
+
+
+
+
+<meta name="description" content="前言Shuffle 操作在 Spark 中很常见，往往用于聚合或重新分区等场景。Shuffle 操作特别费时，会造成极大的磁盘 IO 和网络 IO，经常是整个任务的性能瓶颈。所以了解下 shuffle 的原理很重要，可以根据其原理进行调优。本篇介绍 shuffle 数据读取的原理。 Shuffle 简介如下图展示了一个 shuffle 操作，有两个 Map 节点，为两个 Reduce 节点生成 s">
+<meta property="og:type" content="article">
+<meta property="og:title" content="学习笔记">
+<meta property="og:url" content="https://zhmin.github.io/2019/07/31/spark-shuffle-reader/index.html">
+<meta property="og:site_name" content="学习笔记">
+<meta property="og:description" content="前言Shuffle 操作在 Spark 中很常见，往往用于聚合或重新分区等场景。Shuffle 操作特别费时，会造成极大的磁盘 IO 和网络 IO，经常是整个任务的性能瓶颈。所以了解下 shuffle 的原理很重要，可以根据其原理进行调优。本篇介绍 shuffle 数据读取的原理。 Shuffle 简介如下图展示了一个 shuffle 操作，有两个 Map 节点，为两个 Reduce 节点生成 s">
+<meta property="og:locale" content="default">
+<meta property="og:image" content="https://zhmin.github.io/2019/07/31/spark-shuffle-reader/spark-shuffle-flow.svg">
+<meta property="og:image" content="http://www.plantuml.com/plantuml/svg/ut8eBaaiAYdDpU5AJ2ekAKfCBb58paaiBbO8pYXDIyj9TSx9JCqhuOA8EUNa9sU752Nc5QUb5WMd5fLb9gT2fVnIIqegySYxLfIa5kKbvc0prZUrEByOkm8k5Aw2JOskBdPNO1E4ACVjCYncOtS5Lb681dnkTqZDIm65B000">
+<meta property="og:updated_time" content="2019-08-02T14:59:32.507Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="学习笔记">
+<meta name="twitter:description" content="前言Shuffle 操作在 Spark 中很常见，往往用于聚合或重新分区等场景。Shuffle 操作特别费时，会造成极大的磁盘 IO 和网络 IO，经常是整个任务的性能瓶颈。所以了解下 shuffle 的原理很重要，可以根据其原理进行调优。本篇介绍 shuffle 数据读取的原理。 Shuffle 简介如下图展示了一个 shuffle 操作，有两个 Map 节点，为两个 Reduce 节点生成 s">
+<meta name="twitter:image" content="https://zhmin.github.io/2019/07/31/spark-shuffle-reader/spark-shuffle-flow.svg">
+
+
+
+<script type="text/javascript" id="hexo.configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '/',
+    scheme: 'Mist',
+    version: '5.1.4',
+    sidebar: {"position":"left","display":"hide","offset":12,"b2t":false,"scrollpercent":false,"onmobile":false},
+    fancybox: true,
+    tabs: true,
+    motion: {"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},
+    duoshuo: {
+      userId: '0',
+      author: 'Author'
+    },
+    algolia: {
+      applicationID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    }
+  };
+</script>
+
+
+
+  <link rel="canonical" href="https://zhmin.github.io/2019/07/31/spark-shuffle-reader/">
+
+
+
+
+
+  <title> | 学习笔记</title>
+  
+
+
+
+
+
+
+
+
+</head>
+
+<body itemscope="" itemtype="http://schema.org/WebPage" lang="default">
+
+  
+  
+    
+  
+
+  <div class="container sidebar-position-left page-post-detail">
+    <div class="headband"></div>
+
+    <header id="header" class="header" itemscope="" itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-wrapper">
+  <div class="site-meta ">
+    
+
+    <div class="custom-logo-site-title">
+      <a href="/" class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">学习笔记</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+      
+        <h1 class="site-subtitle" itemprop="description"></h1>
+      
+  </div>
+
+  <div class="site-nav-toggle">
+    <button>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+    </button>
+  </div>
+</div>
+
+<nav class="site-nav">
+  
+
+  
+    <ul id="menu" class="menu">
+      
+        
+        <li class="menu-item menu-item-home">
+          <a href="/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-home"></i> <br>
+            
+            Home
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-categories">
+          <a href="/categories/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-th"></i> <br>
+            
+            Categories
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-archives">
+          <a href="/archives/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-archive"></i> <br>
+            
+            Archives
+          </a>
+        </li>
+      
+
+      
+    </ul>
+  
+
+  
+</nav>
+
+
+
+ </div>
+    </header>
+
+    <main id="main" class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          <div id="content" class="content">
+            
+
+  <div id="posts" class="posts-expand">
+    
+
+  
+
+  
+  
+  
+
+  <article class="post post-type-normal" itemscope="" itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block">
+    <link itemprop="mainEntityOfPage" href="https://zhmin.github.io/2019/07/31/spark-shuffle-reader/">
+
+    <span hidden itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="zhmin">
+      <meta itemprop="description" content="">
+      <meta itemprop="image" content="/images/avatar.gif">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope="" itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="学习笔记">
+    </span>
+
+    
+      <header class="post-header">
+
+        
+        
+          <h2 class="post-title" itemprop="name headline"></h2>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">Posted on</span>
+              
+              <time title="Post created" itemprop="dateCreated datePublished" datetime="2019-07-31T22:27:17+08:00">
+                2019-07-31
+              </time>
+            
+
+            
+
+            
+          </span>
+
+          
+
+          
+            
+              <span class="post-comments-count">
+                <span class="post-meta-divider">|</span>
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-comment-o"></i>
+                </span>
+                <a href="/2019/07/31/spark-shuffle-reader/#comments" itemprop="discussionUrl">
+                  <span class="post-comments-count valine-comment-count" data-xid="/2019/07/31/spark-shuffle-reader/" itemprop="commentCount"></span>
+                </a>
+              </span>
+            
+          
+
+          
+          
+             <span id="/2019/07/31/spark-shuffle-reader/" class="leancloud_visitors" data-flag-title="">
+               <span class="post-meta-divider">|</span>
+               <span class="post-meta-item-icon">
+                 <i class="fa fa-eye"></i>
+               </span>
+               
+                 <span class="post-meta-item-text">Visitors&#58;</span>
+               
+                 <span class="leancloud-visitors-count"></span>
+             </span>
+          
+
+          
+
+          
+
+          
+
+        </div>
+      </header>
+    
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+      
+
+      
+        <h2 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h2><p>Shuffle 操作在 Spark 中很常见，往往用于聚合或重新分区等场景。Shuffle 操作特别费时，会造成极大的磁盘 IO 和网络 IO，经常是整个任务的性能瓶颈。所以了解下 shuffle 的原理很重要，可以根据其原理进行调优。本篇介绍 shuffle 数据读取的原理。</p>
+<h2 id="Shuffle-简介"><a href="#Shuffle-简介" class="headerlink" title="Shuffle 简介"></a>Shuffle 简介</h2><p>如下图展示了一个 shuffle 操作，有两个 Map 节点，为两个 Reduce 节点生成 shuffle 数据，数据保存在 Map 节点的磁盘上。这里共有四份数据，每份数据通过 mapId 和 reduceId 就可以唯一的确认。</p>
+<p><img src="/2019/07/31/spark-shuffle-reader/spark-shuffle-flow.svg"></p>
+<p>上图只是展示了一个 Shuffle 操作，如果一个任务有多个 Shuffle，还需要 shuffleId 才能唯一确认数据。ShuffleBlockId 包含 shuffleId，mapId 和 reduceId，在请求数据中会用到它。</p>
+<h2 id="读取流程"><a href="#读取流程" class="headerlink" title="读取流程"></a>读取流程</h2><p>reduce 端读取 shuffle 数据的流程，涉及到多个类，比较复杂。</p>
+<pre class="mermaid">sequenceDiagram
+    participant ShuffleReader
+    participant MapOutputTracker
+    participant ShuffleBlockFetcherIterator
+    participant OneForOneBlockFetcher
+    participant TransportChannelHandler
+    participant NettyBlockRpcServer
+    participant TransportRequestHandler
+
+    ShuffleReader->>+MapOutputTracker: 发送ShuffleID，获取数据位置
+    MapOutputTracker-->>-ShuffleReader: 返回位置信息
+    ShuffleReader->>+ShuffleBlockFetcherIterator: 根据数据位置和大小，构建请求
+    ShuffleBlockFetcherIterator->>+OneForOneBlockFetcher: 发送请求
+    OneForOneBlockFetcher->>+TransportChannelHandler: 发送OpenBlocks请求
+    TransportChannelHandler->>+NettyBlockRpcServer: 处理OpenBlocks请求
+    NettyBlockRpcServer-->>-TransportChannelHandler: 返回streamId
+    TransportChannelHandler-->>-OneForOneBlockFetcher: 返回StreamHandle响应
+
+    OneForOneBlockFetcher->>+TransportChannelHandler: 发送Stream或Chunk请求
+    TransportChannelHandler->>+TransportRequestHandler: 处理Stream或Chunk请求
+    TransportRequestHandler-->>-TransportChannelHandler: 返回数据
+    TransportChannelHandler-->>-OneForOneBlockFetcher: 返回数据
+
+    OneForOneBlockFetcher-->>-ShuffleBlockFetcherIterator: 返回数据
+    ShuffleBlockFetcherIterator-->>-ShuffleReader: 返回数据</pre>
+
+
+
+<ol>
+<li>shuffle 数据的位置获取，从MapOutputTracker获取数据所在的位置。</li>
+<li>ShuffleBlockFetcherIterator 根据 shuffle 数据的位置，分为本地和远程。远程数据需要构建请求。</li>
+<li>OneForOneBlockFetcher 负责发送远程请求，它需要向请求OpenBlocks，会收到StreamHandler响应。</li>
+<li>NettyBlockRpcServer 负责处理OpenBlocks请求，会根据 ShuffleBlockId 列表，找到对应的数据位置，准备好数据。最后生成streamId 和 chunkId 列表，这样客户端通过 streamId 和 chunkId 就可以获取数据了。</li>
+<li>OneForOneBlockFetcher 接收到StreamHandler响应后。如果指定了要将数据存储到文件，那么就发送Stream请求。否则发送Chunk请求，数据会保存在内存中。</li>
+<li>TransportRequestHandler 处理 Stream 或Chunk 请求，会通过 StreamManager 返回数据。</li>
+</ol>
+<h2 id="生成请求"><a href="#生成请求" class="headerlink" title="生成请求"></a>生成请求</h2><p>首先根据 shuffle 数据所在的位置，分为本地数据和远程数据。本地数据直接从文件中即可读取，而远程数据需要通过网络传输。ShuffleBlockFetcherIterator 作为数据迭代器，会先返回本地数据，然后返回远程数据。这样也就减少了等待远程数据的传输时间。</p>
+<h3 id="生成远程请求"><a href="#生成远程请求" class="headerlink" title="生成远程请求"></a>生成远程请求</h3><p>因为数据可能分配在多个节点上，为了提高传输的效率，需要合并相同节点的数据请求，但是为了不影响稳定性，一次请求又不能返回太多数据。下面详细讲述了实现的原理。</p>
+<p>首先根据数据的所在节点进行分组。然后将组里的数据，根据大小进一步分组。一个请求包包含的数据总和，基本控制在一定大小。这里举个例子说明，假设有多份数据，并且控制大小为100MB。</p>
+<table>
+<thead>
+<tr>
+<th>数据名称</th>
+<th>位置</th>
+<th>大小</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>A1</td>
+<td>A</td>
+<td>80MB</td>
+</tr>
+<tr>
+<td>A2</td>
+<td>A</td>
+<td>40MB</td>
+</tr>
+<tr>
+<td>A3</td>
+<td>A</td>
+<td>50MB</td>
+</tr>
+<tr>
+<td>B1</td>
+<td>B</td>
+<td>120MB</td>
+</tr>
+</tbody>
+</table>
+<p>结果会生成下列三个请求，</p>
+<table>
+<thead>
+<tr>
+<th>请求ID</th>
+<th>数据列表</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0</td>
+<td>A1, A2</td>
+</tr>
+<tr>
+<td>1</td>
+<td>A3</td>
+</tr>
+<tr>
+<td>2</td>
+<td>B1</td>
+</tr>
+</tbody>
+</table>
+<p>过程解析：</p>
+<ol>
+<li>首先来看位置 A 的数据，依次遍历它的三份数据 A1，A2，A3，首先 A1 和 A2 的数据大小之和，大于 100MB，所以生成第一个请求。</li>
+<li>然后只剩下 A3 一份请求在位置 A上，所以生成第二个请求。</li>
+<li>B位置的数据同理，生成第三个请求。</li>
+</ol>
+<h3 id="并发请求"><a href="#并发请求" class="headerlink" title="并发请求"></a>并发请求</h3><p>上面已经生成了请求，现在如何将其高效率的发送出去。spark 基于 Netty 来实现异步传输的，但是同时还实现了并发的限制：</p>
+<ul>
+<li>正在发送的请求数，不能超过指定数量，由 spark.reducer.maxReqsInFlight 配置表示，默认 Int.MaxValue，可以认为无限制。</li>
+<li>正在请求的数据大小总和，不能超过指定数量，由spark.reducer.maxSizeInFlight 配置表示，默认为 48MB。</li>
+</ul>
+<p>对于每次请求的方式，也会根据数据的大小有所不同，阈值为 spark.reducer.maxReqSizeShuffleToMem 配置：</p>
+<ul>
+<li>如果请求的数据比阈值大，spark 会使用 stream 模式请求，也就是将数据存储到文件里。</li>
+<li>如果请求的数据比阈值小，spark 会使用 chunk 模式请求，也就是将数据存储到内存里。</li>
+</ul>
+<p>比较奇怪的，这个阈值默认是 Long.MaxValue，几乎是无限大。如果发生了shuffle 倾斜，这就很容易造成内存溢出了。建议修改配置的值大小，不要超过 Executor 的本地内存大小。如果使用 Yarn 资源调度，可以参考此篇博客 <a href="/2019/01/02/spark-on-yarn/" title="Spark 运行在Yarn上的原理">Spark 运行在Yarn上的原理</a> ，了解内存如何分配。</p>
+<h2 id="ShuffleClient-类图"><a href="#ShuffleClient-类图" class="headerlink" title="ShuffleClient 类图"></a>ShuffleClient 类图</h2><p>ShuffleClient 作为读取远程数据的基类，定义了重要的 fetchBlocks 接口。</p>
+<img src="http://www.plantuml.com/plantuml/svg/ut8eBaaiAYdDpU5AJ2ekAKfCBb58paaiBbO8pYXDIyj9TSx9JCqhuOA8EUNa9sU752Nc5QUb5WMd5fLb9gT2fVnIIqegySYxLfIa5kKbvc0prZUrEByOkm8k5Aw2JOskBdPNO1E4ACVjCYncOtS5Lb681dnkTqZDIm65B000">
+<p>ShuffleClient表示shuffle 数据的客户端，支持远程读取数据。</p>
+<p>BlockTransferService继承ShuffleClient，增加了上传数据。</p>
+<p>NettyBlockTransferService继承BlockTransferService， 实现了所有的接口 。</p>
+<p>ExternalShuffleClient 实现外部 ShuffleService 的连接，原理参见下篇博客。</p>
+<h2 id="发送请求"><a href="#发送请求" class="headerlink" title="发送请求"></a>发送请求</h2><p>Shuffle 数据的远程读取由 NettyBlockTransferService 负责，它使用 OneForOneBlockFetcher 实现远程获取。</p>
+<h3 id="数据初始化请求"><a href="#数据初始化请求" class="headerlink" title="数据初始化请求"></a>数据初始化请求</h3><p>OneForOneBlockFetcher 首先发送 OpenBlocks Rpc 请求，通知服务端。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">OpenBlocks</span> <span class="keyword">extends</span> <span class="title">BlockTransferMessage</span> </span>&#123;</span><br><span class="line">  <span class="keyword">public</span> <span class="keyword">final</span> String appId; <span class="comment">// spark app id</span></span><br><span class="line">  <span class="keyword">public</span> <span class="keyword">final</span> String execId;  <span class="comment">// executor id</span></span><br><span class="line">  <span class="keyword">public</span> <span class="keyword">final</span> String[] blockIds; <span class="comment">// 获取的block id列表</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>服务端为请求的数据生成 streamId 和 chunkId，并且做好数据准备，返回 StreamHandle 响应。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">StreamHandle</span> <span class="keyword">extends</span> <span class="title">BlockTransferMessage</span> </span>&#123;</span><br><span class="line">  <span class="keyword">public</span> <span class="keyword">final</span> <span class="keyword">long</span> streamId; <span class="comment">// 分配的stream id</span></span><br><span class="line">  <span class="keyword">public</span> <span class="keyword">final</span> <span class="keyword">int</span> numChunks; <span class="comment">// 多少块 </span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h3 id="读取数据"><a href="#读取数据" class="headerlink" title="读取数据"></a>读取数据</h3><p>读取数据分为两种模式：</p>
+<ol>
+<li>stream 模式，表示接收的数据会直接存储到文件。</li>
+<li>chunk 模式，表示数据会存到内存里。</li>
+</ol>
+<p>stream 模式下的回调函数如下所示，只要有接收到数据，那么就直接执行 onData 方法：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">private</span> <span class="class"><span class="keyword">class</span> <span class="title">DownloadCallback</span> <span class="keyword">implements</span> <span class="title">StreamCallback</span> </span>&#123;</span><br><span class="line">    <span class="keyword">private</span> WritableByteChannel channel = <span class="keyword">null</span>;</span><br><span class="line">    </span><br><span class="line">    <span class="comment">// 只要接收到数据，就会立马写入到文件中</span></span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">onData</span><span class="params">(String streamId, ByteBuffer buf)</span> <span class="keyword">throws</span> IOException </span>&#123;</span><br><span class="line">        channel.write(buf);</span><br><span class="line">    &#125;</span><br><span class="line">    </span><br><span class="line">    <span class="comment">// 获取数据完成后，会通知listener</span></span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">onComplete</span><span class="params">(String streamId)</span> <span class="keyword">throws</span> IOException </span>&#123;</span><br><span class="line">        channel.close();</span><br><span class="line">        <span class="comment">// 基于文件封装的buffer</span></span><br><span class="line">        ManagedBuffer buffer = <span class="keyword">new</span> FileSegmentManagedBuffer(transportConf, targetFile, <span class="number">0</span>, targetFile.length());</span><br><span class="line">        <span class="comment">// 执行listener回调函数</span></span><br><span class="line">        listener.onBlockFetchSuccess(blockIds[chunkIndex], buffer);</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>chunk 模式下的回调函数，它只有将数据全部存储到内存中，才会执行 onSuccess 方法。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">private</span> <span class="class"><span class="keyword">class</span> <span class="title">ChunkCallback</span> <span class="keyword">implements</span> <span class="title">ChunkReceivedCallback</span> </span>&#123;</span><br><span class="line">    <span class="comment">// buffer是netty分配的堆外内存</span></span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">onSuccess</span><span class="params">(<span class="keyword">int</span> chunkIndex, ManagedBuffer buffer)</span> </span>&#123;</span><br><span class="line">        listener.onBlockFetchSuccess(blockIds[chunkIndex], buffer);</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h2 id="服务端处理-Rpc-请求"><a href="#服务端处理-Rpc-请求" class="headerlink" title="服务端处理 Rpc 请求"></a>服务端处理 Rpc 请求</h2><p>服务端是基于 netty 框架实现的，它的核心处理 由 NettyBlockRpcServer 类负责。它继承了RpcHandler，负责处理 OpenBlocks  请求。服务端收到请求后会进行一些准备操作，找到数据的位置并且生成 streamId 和 chunkId 列表，这些都会保存起来。这样客户端下次根据 streamId 和 chunkId 请求数据，服务端就可以直接返回数据了。</p>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">class</span> <span class="title">NettyBlockRpcServer</span>(<span class="params">appId: <span class="type">String</span>, serializer: <span class="type">Serializer</span>, blockManager: <span class="type">BlockDataManager</span></span>) <span class="keyword">extends</span> <span class="title">RpcHandler</span> <span class="keyword">with</span> <span class="title">Logging</span> </span>&#123;</span><br><span class="line">  <span class="comment">// 数据读取请求管理</span></span><br><span class="line">  <span class="keyword">private</span> <span class="keyword">val</span> streamManager = <span class="keyword">new</span> <span class="type">OneForOneStreamManager</span>()    </span><br><span class="line">    </span><br><span class="line">    <span class="keyword">override</span> <span class="function"><span class="keyword">def</span> <span class="title">receive</span></span>(</span><br><span class="line">      client: <span class="type">TransportClient</span>, rpcMessage: <span class="type">ByteBuffer</span>, responseContext: <span class="type">RpcResponseCallback</span>): <span class="type">Unit</span> = &#123;</span><br><span class="line">    	<span class="keyword">val</span> message = <span class="type">BlockTransferMessage</span>.<span class="type">Decoder</span>.fromByteBuffer(rpcMessage)</span><br><span class="line">    	message <span class="keyword">match</span> &#123;</span><br><span class="line">            <span class="keyword">case</span> openBlocks: <span class="type">OpenBlocks</span> =&gt;</span><br><span class="line">                <span class="keyword">val</span> blocksNum = openBlocks.blockIds.length</span><br><span class="line">                <span class="comment">// 针对每个blockId，生成FileSegmentManagedBuffer</span></span><br><span class="line">                <span class="keyword">val</span> blocks = <span class="keyword">for</span> (i &lt;- (<span class="number">0</span> until blocksNum).view)</span><br><span class="line">                  <span class="keyword">yield</span> blockManager.getBlockData(<span class="type">BlockId</span>.apply(openBlocks.blockIds(i)))</span><br><span class="line">            	<span class="comment">// 生成streamId，并且在StreamManager注册</span></span><br><span class="line">            	<span class="keyword">val</span> streamId = streamManager.registerStream(appId, blocks.iterator.asJava)</span><br><span class="line">            	<span class="comment">// 响应StreamHandle结果</span></span><br><span class="line">            	responseContext.onSuccess(<span class="keyword">new</span> <span class="type">StreamHandle</span>(streamId, blocksNum).toByteBuffer)</span><br><span class="line">            </span><br><span class="line">            <span class="comment">// .....</span></span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br></pre></td></tr></table></figure>
+<p>从上面可以看到时调用了 blockManager 的方法，才找到了数据。我们知道 Map 端程序生成的 多份 shuffle 数据，最后都合并成了一个大文件，然后为了方便的找到每份数据的位置，生成了索引文件。blockManager 读取索引文件，根据 reduceId 就可以很快的找到位置。</p>
+<p>OneForOneStreamManager 负责数据读取的流管理。之前服务端找到的数据，都会存储到到它这里。然后 OneForOneStreamManager  负责生成唯一递增的 streamId，为每份数据生成唯一的 chunkId。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">OneForOneStreamManager</span> <span class="keyword">extends</span> <span class="title">StreamManager</span> </span>&#123;</span><br><span class="line">  <span class="comment">// 用来生成递增唯一的streamId</span></span><br><span class="line">  <span class="keyword">private</span> <span class="keyword">final</span> AtomicLong nextStreamId;</span><br><span class="line">  <span class="comment">// 根据streamId 找到对应的数据，数据由StreamState表示</span></span><br><span class="line">  <span class="keyword">private</span> <span class="keyword">final</span> ConcurrentHashMap&lt;Long, StreamState&gt; streams;</span><br><span class="line">  </span><br><span class="line">  <span class="comment">// 注册stream数据</span></span><br><span class="line">  <span class="function"><span class="keyword">public</span> <span class="keyword">long</span> <span class="title">registerStream</span><span class="params">(String appId, Iterator&lt;ManagedBuffer&gt; buffers)</span> </span>&#123;</span><br><span class="line">    <span class="comment">// 生成streamId</span></span><br><span class="line">    <span class="keyword">long</span> myStreamId = nextStreamId.getAndIncrement();</span><br><span class="line">    <span class="comment">// 保存数据到Map集合</span></span><br><span class="line">    streams.put(myStreamId, <span class="keyword">new</span> StreamState(appId, buffers));</span><br><span class="line">    <span class="keyword">return</span> myStreamId;</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h2 id="服务端处理流请求"><a href="#服务端处理流请求" class="headerlink" title="服务端处理流请求"></a>服务端处理流请求</h2><p>流请求由 TransportRequestHandler 负责处理，它也是基于 Netty 框架实现的，原理可以参考这篇博客 <a href="/2019/07/29/spark-rpc-protocol/" title="Spark  Rpc 消息处理">Spark  Rpc 消息处理</a> 。TransportRequestHandler 负责处理 chunk 或 stream 模式的请求，它的原理是调用 OneForOneStreamManager 返回数据。</p>
+<p>OneForOneStreamManager 的 openStream 方法处理 stream 请求，getChunk 方法处理 chunk 请求。这些请求都必须按照顺序读取数据。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">OneForOneStreamManager</span> <span class="keyword">extends</span> <span class="title">StreamManager</span> </span>&#123;</span><br><span class="line">    </span><br><span class="line">  <span class="keyword">private</span> <span class="keyword">final</span> ConcurrentHashMap&lt;Long, StreamState&gt; streams;</span><br><span class="line">   </span><br><span class="line">  <span class="comment">// 负责处理stream请求</span></span><br><span class="line">  <span class="function"><span class="keyword">public</span> ManagedBuffer <span class="title">openStream</span><span class="params">(String streamChunkId)</span> </span>&#123;</span><br><span class="line">    <span class="comment">// 解析字符串，分离streamId和chunkId</span></span><br><span class="line">    Tuple2&lt;Long, Integer&gt; streamIdAndChunkId = parseStreamChunkId(streamChunkId);</span><br><span class="line">    <span class="comment">// 最后也是调用了 getChunk 方法返回数据</span></span><br><span class="line">    <span class="keyword">return</span> getChunk(streamIdAndChunkId._1, streamIdAndChunkId._2);</span><br><span class="line">  &#125;</span><br><span class="line">    </span><br><span class="line">  <span class="comment">// 处理chunk请求</span></span><br><span class="line">  <span class="function"><span class="keyword">public</span> ManagedBuffer <span class="title">getChunk</span><span class="params">(<span class="keyword">long</span> streamId, <span class="keyword">int</span> chunkIndex)</span> </span>&#123;</span><br><span class="line">    <span class="comment">// 根据 streamId 找到对应的数据列表</span></span><br><span class="line">    StreamState state = streams.get(streamId);</span><br><span class="line">    <span class="comment">// 数据的读取必须按照顺序来，StreamState 存储了读取的位置，这里需要做校检</span></span><br><span class="line">    <span class="keyword">if</span> (chunkIndex != state.curChunk) &#123;</span><br><span class="line">      <span class="keyword">throw</span> <span class="keyword">new</span> IllegalStateException(String.format(<span class="string">"Received out-of-order chunk index %s (expected %s)"</span>, chunkIndex, state.curChunk));</span><br><span class="line">    &#125; <span class="keyword">else</span> <span class="keyword">if</span> (!state.buffers.hasNext()) &#123;</span><br><span class="line">      <span class="keyword">throw</span> <span class="keyword">new</span> IllegalStateException(String.format(<span class="string">"Requested chunk index beyond end %s"</span>, chunkIndex));</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">// 更新读取位置</span></span><br><span class="line">    state.curChunk += <span class="number">1</span>;</span><br><span class="line">    <span class="comment">// 返回数据</span></span><br><span class="line">    ManagedBuffer nextChunk = state.buffers.next();</span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span> (!state.buffers.hasNext()) &#123;</span><br><span class="line">      logger.trace(<span class="string">"Removing stream id &#123;&#125;"</span>, streamId);</span><br><span class="line">      streams.remove(streamId);</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> nextChunk;</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h2 id="客户端合并数据"><a href="#客户端合并数据" class="headerlink" title="客户端合并数据"></a>客户端合并数据</h2><p>客户端收到数据后，先会解析数据，然后合并这些多份数据，生成一个迭代器。合并的逻辑比较简单，分为下面三种：</p>
+<p>如果没有聚合操作，那么只是简单的合并成一个迭代器。</p>
+<p>如果有聚合操作，则调用 Aggregator 方法完成聚合操作。</p>
+<p>如果有排序要求，则调用 ExternalSorter 完成排序操作。</p>
+
+      
+    </div>
+    
+    
+    
+
+    
+
+    
+
+    
+
+    <footer class="post-footer">
+      
+
+      
+      
+      
+
+      
+        <div class="post-nav">
+          <div class="post-nav-next post-nav-item">
+            
+              <a href="/2019/07/29/spark-rpc-protocol/" rel="next" title="Spark  Rpc 消息处理">
+                <i class="fa fa-chevron-left"></i> Spark  Rpc 消息处理
+              </a>
+            
+          </div>
+
+          <span class="post-nav-divider"></span>
+
+          <div class="post-nav-prev post-nav-item">
+            
+          </div>
+        </div>
+      
+
+      
+      
+    </footer>
+  </div>
+  
+  
+  
+  </article>
+
+
+
+    <div class="post-spread">
+      
+    </div>
+  </div>
+
+
+          </div>
+          
+
+
+          
+
+  
+    <div class="comments" id="comments">
+    </div>
+  
+
+
+
+        </div>
+        
+          
+  
+  <div class="sidebar-toggle">
+    <div class="sidebar-toggle-line-wrap">
+      <span class="sidebar-toggle-line sidebar-toggle-line-first"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-middle"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-last"></span>
+    </div>
+  </div>
+
+  <aside id="sidebar" class="sidebar">
+    
+    <div class="sidebar-inner">
+
+      
+
+      
+        <ul class="sidebar-nav motion-element">
+          <li class="sidebar-nav-toc sidebar-nav-active" data-target="post-toc-wrap">
+            Table of Contents
+          </li>
+          <li class="sidebar-nav-overview" data-target="site-overview-wrap">
+            Overview
+          </li>
+        </ul>
+      
+
+      <section class="site-overview-wrap sidebar-panel">
+        <div class="site-overview">
+          <div class="site-author motion-element" itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+            
+              <p class="site-author-name" itemprop="name">zhmin</p>
+              <p class="site-description motion-element" itemprop="description"></p>
+          </div>
+
+          <nav class="site-state motion-element">
+
+            
+              <div class="site-state-item site-state-posts">
+              
+                <a href="/archives/">
+              
+                  <span class="site-state-item-count">47</span>
+                  <span class="site-state-item-name">posts</span>
+                </a>
+              </div>
+            
+
+            
+              
+              
+              <div class="site-state-item site-state-categories">
+                <a href="/categories/index.html">
+                  <span class="site-state-item-count">9</span>
+                  <span class="site-state-item-name">categories</span>
+                </a>
+              </div>
+            
+
+            
+              
+              
+              <div class="site-state-item site-state-tags">
+                
+                  <span class="site-state-item-count">43</span>
+                  <span class="site-state-item-name">tags</span>
+                
+              </div>
+            
+
+          </nav>
+
+          
+
+          
+            <div class="links-of-author motion-element">
+                
+                  <span class="links-of-author-item">
+                    <a href="https://github.com/zhmin" target="_blank" title="GitHub">
+                      
+                        <i class="fa fa-fw fa-github"></i>GitHub</a>
+                  </span>
+                
+            </div>
+          
+
+          
+          
+
+          
+          
+
+          
+
+        </div>
+      </section>
+
+      
+      <!--noindex-->
+        <section class="post-toc-wrap motion-element sidebar-panel sidebar-panel-active">
+          <div class="post-toc">
+
+            
+              
+            
+
+            
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#前言"><span class="nav-number">1.</span> <span class="nav-text">前言</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Shuffle-简介"><span class="nav-number">2.</span> <span class="nav-text">Shuffle 简介</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#读取流程"><span class="nav-number">3.</span> <span class="nav-text">读取流程</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#生成请求"><span class="nav-number">4.</span> <span class="nav-text">生成请求</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#生成远程请求"><span class="nav-number">4.1.</span> <span class="nav-text">生成远程请求</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#并发请求"><span class="nav-number">4.2.</span> <span class="nav-text">并发请求</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#ShuffleClient-类图"><span class="nav-number">5.</span> <span class="nav-text">ShuffleClient 类图</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#发送请求"><span class="nav-number">6.</span> <span class="nav-text">发送请求</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#数据初始化请求"><span class="nav-number">6.1.</span> <span class="nav-text">数据初始化请求</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#读取数据"><span class="nav-number">6.2.</span> <span class="nav-text">读取数据</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#服务端处理-Rpc-请求"><span class="nav-number">7.</span> <span class="nav-text">服务端处理 Rpc 请求</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#服务端处理流请求"><span class="nav-number">8.</span> <span class="nav-text">服务端处理流请求</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#客户端合并数据"><span class="nav-number">9.</span> <span class="nav-text">客户端合并数据</span></a></li></ol></div>
+            
+
+          </div>
+        </section>
+      <!--/noindex-->
+      
+
+      
+
+    </div>
+  </aside>
+
+
+        
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="footer-inner">
+        <div class="copyright">&copy; <span itemprop="copyrightYear">2019</span>
+  <span class="with-love">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">zhmin</span>
+
+  
+</div>
+
+
+
+
+
+
+
+
+
+
+
+  <script src="https://unpkg.com/mermaid@7.1.2/dist/mermaid.min.js"></script>
+  <script>
+    if (window.mermaid) {
+      mermaid.initialize({"startOnload":true,"theme":"forest"});
+    }
+  </script>
+
+
+
+<script async src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+<span id="busuanzi_container_site_pv">
+    访问量<span id="busuanzi_value_site_pv"></span>
+</span>
+<span class="post-meta-divider">|</span>
+<span id="busuanzi_container_site_uv">
+  访客数<span id="busuanzi_value_site_uv"></span>
+</span>
+
+        
+
+
+
+
+
+
+
+        
+      </div>
+    </footer>
+
+    
+      <div class="back-to-top">
+        <i class="fa fa-arrow-up"></i>
+        
+      </div>
+    
+
+    
+
+  </div>
+
+  
+
+<script type="text/javascript">
+  if (Object.prototype.toString.call(window.Promise) !== '[object Function]') {
+    window.Promise = null;
+  }
+</script>
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery/index.js?v=2.1.3"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fastclick/lib/fastclick.min.js?v=1.0.6"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery_lazyload/jquery.lazyload.js?v=1.9.7"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.ui.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fancybox/source/jquery.fancybox.pack.js?v=2.1.5"></script>
+  
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/utils.js?v=5.1.4"></script>
+
+  <script type="text/javascript" src="/js/src/motion.js?v=5.1.4"></script>
+
+
+
+  
+  
+
+  
+  <script type="text/javascript" src="/js/src/scrollspy.js?v=5.1.4"></script>
+<script type="text/javascript" src="/js/src/post-details.js?v=5.1.4"></script>
+
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/bootstrap.js?v=5.1.4"></script>
+
+
+
+  
+
+
+  
+
+
+
+
+	
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+  <script src="//cdn1.lncld.net/static/js/3.0.4/av-min.js"></script>
+  <script src="//unpkg.com/valine/dist/Valine.min.js"></script>
+  
+  <script type="text/javascript">
+    var GUEST = ['nick','mail','link'];
+    var guest = 'nick';
+    guest = guest.split(',').filter(item=>{
+      return GUEST.indexOf(item)>-1;
+    });
+    new Valine({
+        el: '#comments' ,
+        verify: false,
+        notify: false,
+        appId: 'iYiPQlDR2X2zg2QIql2UEe2o-gzGzoHsz',
+        appKey: 'EW8G4sftwX1pef1zS9EsOeKE',
+        placeholder: 'comment here',
+        avatar:'mm',
+        guest_info:guest,
+        pageSize:'10' || 10,
+    });
+  </script>
+
+
+
+  
+
+
+
+
+
+  
+
+  
+  <script src="https://cdn1.lncld.net/static/js/av-core-mini-0.6.4.js"></script>
+  <script>AV.initialize("iYiPQlDR2X2zg2QIql2UEe2o-gzGzoHsz", "EW8G4sftwX1pef1zS9EsOeKE");</script>
+  <script>
+    function showTime(Counter) {
+      var query = new AV.Query(Counter);
+      var entries = [];
+      var $visitors = $(".leancloud_visitors");
+
+      $visitors.each(function () {
+        entries.push( $(this).attr("id").trim() );
+      });
+
+      query.containedIn('url', entries);
+      query.find()
+        .done(function (results) {
+          var COUNT_CONTAINER_REF = '.leancloud-visitors-count';
+
+          if (results.length === 0) {
+            $visitors.find(COUNT_CONTAINER_REF).text(0);
+            return;
+          }
+
+          for (var i = 0; i < results.length; i++) {
+            var item = results[i];
+            var url = item.get('url');
+            var time = item.get('time');
+            var element = document.getElementById(url);
+
+            $(element).find(COUNT_CONTAINER_REF).text(time);
+          }
+          for(var i = 0; i < entries.length; i++) {
+            var url = entries[i];
+            var element = document.getElementById(url);
+            var countSpan = $(element).find(COUNT_CONTAINER_REF);
+            if( countSpan.text() == '') {
+              countSpan.text(0);
+            }
+          }
+        })
+        .fail(function (object, error) {
+          console.log("Error: " + error.code + " " + error.message);
+        });
+    }
+
+    function addCount(Counter) {
+      var $visitors = $(".leancloud_visitors");
+      var url = $visitors.attr('id').trim();
+      var title = $visitors.attr('data-flag-title').trim();
+      var query = new AV.Query(Counter);
+
+      query.equalTo("url", url);
+      query.find({
+        success: function(results) {
+          if (results.length > 0) {
+            var counter = results[0];
+            counter.fetchWhenSave(true);
+            counter.increment("time");
+            counter.save(null, {
+              success: function(counter) {
+                var $element = $(document.getElementById(url));
+                $element.find('.leancloud-visitors-count').text(counter.get('time'));
+              },
+              error: function(counter, error) {
+                console.log('Failed to save Visitor num, with error message: ' + error.message);
+              }
+            });
+          } else {
+            var newcounter = new Counter();
+            /* Set ACL */
+            var acl = new AV.ACL();
+            acl.setPublicReadAccess(true);
+            acl.setPublicWriteAccess(true);
+            newcounter.setACL(acl);
+            /* End Set ACL */
+            newcounter.set("title", title);
+            newcounter.set("url", url);
+            newcounter.set("time", 1);
+            newcounter.save(null, {
+              success: function(newcounter) {
+                var $element = $(document.getElementById(url));
+                $element.find('.leancloud-visitors-count').text(newcounter.get('time'));
+              },
+              error: function(newcounter, error) {
+                console.log('Failed to create');
+              }
+            });
+          }
+        },
+        error: function(error) {
+          console.log('Error:' + error.code + " " + error.message);
+        }
+      });
+    }
+
+    $(function() {
+      var Counter = AV.Object.extend("Counter");
+      if ($('.leancloud_visitors').length == 1) {
+        addCount(Counter);
+      } else if ($('.post-title-link').length > 1) {
+        showTime(Counter);
+      }
+    });
+  </script>
+
+
+
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+</body>
+</html>

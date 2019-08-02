@@ -89,7 +89,7 @@
 <meta property="og:locale" content="default">
 <meta property="og:image" content="https://zhmin.github.io/2019/01/02/spark-on-yarn/yarn-application-flow.svg">
 <meta property="og:image" content="https://zhmin.github.io/2019/01/02/spark-on-yarn/spark-on-yarn-rpc.svg">
-<meta property="og:updated_time" content="2019-07-27T15:44:53.432Z">
+<meta property="og:updated_time" content="2019-07-31T14:42:49.370Z">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="Spark 运行在Yarn上的原理">
 <meta name="twitter:description" content="前言为了更好的管理集群资源，一般都会有资源管理调度器，所有的服务都需要服从调度器的安排才能运行。Hadoop 集群内置了 Yarn 资源管理器，而 Spark 处理的数据一般存储在 Hadoop 里，所以 Spark 也支持运行在 Yarn 上面。本篇会介绍 Spark 是如何运行在 Yarn 上的。 Yarn 运行程序Yarn 作为一个框架，包含了多个组件。如果想在 Yarn 上运行程序，需要先">
@@ -382,7 +382,7 @@
 <p>这里需要注意下，Yarn 的资源分配有最小单位。假设 spark 申请的 container 资源为 初始内存 1GB + 额外内存 384MB，并且 Yarn 的最小单位为1GB，那么Yarn 会分配两个单位的资源，也就是2GB 的内存。所以我们在优化资源分配时，必须考虑到额外内存，避免内存的浪费（虽然多余的内存都会被用于本地内存，但是也许我们不会用到这么多本地内存）。关于为什么会需要额外内存，这和 jvm 内存模型有关，下面会详细介绍。</p>
 <h3 id="启动命令"><a href="#启动命令" class="headerlink" title="启动命令"></a>启动命令</h3><p>负责生成命令的源码简略如下：</p>
 <figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">private</span> <span class="function"><span class="keyword">def</span> <span class="title">prepareCommand</span></span>(): <span class="type">List</span>[<span class="type">String</span>] = &#123;</span><br><span class="line"></span><br><span class="line">  <span class="keyword">val</span> commands = prefixEnv ++</span><br><span class="line">      <span class="type">Seq</span>(<span class="type">Environment</span>.<span class="type">JAVA_HOME</span>.$$() + <span class="string">"/bin/java"</span>, <span class="string">"-server"</span>) ++</span><br><span class="line">      <span class="comment">// java运行的jvm参数</span></span><br><span class="line">      javaOpts ++</span><br><span class="line">      <span class="comment">// java运行的Main函数所在的类</span></span><br><span class="line">      <span class="type">Seq</span>(<span class="string">"org.apache.spark.executor.CoarseGrainedExecutorBackend"</span>,</span><br><span class="line">        <span class="string">"--driver-url"</span>, masterAddress,</span><br><span class="line">        <span class="string">"--executor-id"</span>, executorId,</span><br><span class="line">        <span class="string">"--hostname"</span>, hostname,</span><br><span class="line">        <span class="string">"--cores"</span>, executorCores.toString,</span><br><span class="line">        <span class="string">"--app-id"</span>, appId) ++</span><br><span class="line">      <span class="comment">// 用户指定的jar包</span></span><br><span class="line">      userClassPath ++</span><br><span class="line">      <span class="comment">// 指定标准输出和错误输出</span></span><br><span class="line">      <span class="type">Seq</span>(</span><br><span class="line">        <span class="string">s"1&gt;<span class="subst">$&#123;ApplicationConstants.LOG_DIR_EXPANSION_VAR&#125;</span>/stdout"</span>,</span><br><span class="line">        <span class="string">s"2&gt;<span class="subst">$&#123;ApplicationConstants.LOG_DIR_EXPANSION_VAR&#125;</span>/stderr"</span>)</span><br><span class="line"></span><br><span class="line">    commands.map(s =&gt; <span class="keyword">if</span> (s == <span class="literal">null</span>) <span class="string">"null"</span> <span class="keyword">else</span> s).toList</span><br><span class="line">  &#125;</span><br></pre></td></tr></table></figure>
-<p>这里可以看到container的启动，是运行了 java 命令，启动类是org.apache.spark.executor.CoarseGrainedExecutorBackend，启动参数包含了 driver 端的地址，execuor id 等等，还指定了 jvm 运行参数。</p>
+<p>这里可以看到container的启动，是运行了 java 命令，启动类是org.apache.spark.executor.CoarseGrainedExecutorBackend，启动参数包含了 driver 端的地址，execuor id 等等，还指定了 jvm 运行参数。jvm 运行参数包括使用 server 模式的 gc 回收器，并且指定了堆的最大值。</p>
 <p>我们知道 jvm 运行时，将该进程的内存分为 jvm 管理的内存和不受管理的本地内存。而 jvm 管理的内存分为堆，栈等多块，其中很大部分是由堆占用，jvm 支持堆内存的大小限制。而本地内存不受 jvm 控制，它属于操作系统管理，操作系统一般不对进程使用的内存做限制，除非超过了物理机的容量。但是它受到 Yarn 的控制，如果进程用的内存超标，就会被 Yarn 杀死。</p>
 <p>spark 申请的初始内存只被用在堆上，所以还需要额外内存来用于其他地方，比如 jvm 管理的栈，和本地内存。spark 会用到本地内存来存储数据，或接收远端传来的 shuffle 数据。所以当 shuffle 数据较大时，可能造成本地内存过大，造成被 Yarn 杀死。这时你可以看到一条日志，意思是让你提高额外内存的大小，其实也就是提高本地内存的原理。</p>
 
@@ -507,7 +507,7 @@
               
                 <a href="/archives/">
               
-                  <span class="site-state-item-count">46</span>
+                  <span class="site-state-item-count">47</span>
                   <span class="site-state-item-name">posts</span>
                 </a>
               </div>
