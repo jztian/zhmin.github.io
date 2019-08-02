@@ -88,7 +88,7 @@
 <meta property="og:locale" content="default">
 <meta property="og:image" content="https://zhmin.github.io/2019/07/31/spark-shuffle-reader/spark-shuffle-flow.svg">
 <meta property="og:image" content="http://www.plantuml.com/plantuml/svg/ut8eBaaiAYdDpU5AJ2ekAKfCBb58paaiBbO8pYXDIyj9TSx9JCqhuOA8EUNa9sU752Nc5QUb5WMd5fLb9gT2fVnIIqegySYxLfIa5kKbvc0prZUrEByOkm8k5Aw2JOskBdPNO1E4ACVjCYncOtS5Lb681dnkTqZDIm65B000">
-<meta property="og:updated_time" content="2019-08-02T14:59:32.507Z">
+<meta property="og:updated_time" content="2019-08-02T15:01:27.148Z">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="学习笔记">
 <meta name="twitter:description" content="前言Shuffle 操作在 Spark 中很常见，往往用于聚合或重新分区等场景。Shuffle 操作特别费时，会造成极大的磁盘 IO 和网络 IO，经常是整个任务的性能瓶颈。所以了解下 shuffle 的原理很重要，可以根据其原理进行调优。本篇介绍 shuffle 数据读取的原理。 Shuffle 简介如下图展示了一个 shuffle 操作，有两个 Map 节点，为两个 Reduce 节点生成 s">
