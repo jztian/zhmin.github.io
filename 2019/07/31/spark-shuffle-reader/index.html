@@ -68,7 +68,7 @@
 
 
 
-  <meta name="keywords" content="Hexo, NexT">
+  <meta name="keywords" content="spark, shuffle, reader,">
 
 
 
@@ -80,17 +80,18 @@
 
 
 <meta name="description" content="前言Shuffle 操作在 Spark 中很常见，往往用于聚合或重新分区等场景。Shuffle 操作特别费时，会造成极大的磁盘 IO 和网络 IO，经常是整个任务的性能瓶颈。所以了解下 shuffle 的原理很重要，可以根据其原理进行调优。本篇介绍 shuffle 数据读取的原理。 Shuffle 简介如下图展示了一个 shuffle 操作，有两个 Map 节点，为两个 Reduce 节点生成 s">
+<meta name="keywords" content="spark, shuffle, reader">
 <meta property="og:type" content="article">
-<meta property="og:title" content="学习笔记">
+<meta property="og:title" content="Spark 读取 Shuffle 数据">
 <meta property="og:url" content="https://zhmin.github.io/2019/07/31/spark-shuffle-reader/index.html">
 <meta property="og:site_name" content="学习笔记">
 <meta property="og:description" content="前言Shuffle 操作在 Spark 中很常见，往往用于聚合或重新分区等场景。Shuffle 操作特别费时，会造成极大的磁盘 IO 和网络 IO，经常是整个任务的性能瓶颈。所以了解下 shuffle 的原理很重要，可以根据其原理进行调优。本篇介绍 shuffle 数据读取的原理。 Shuffle 简介如下图展示了一个 shuffle 操作，有两个 Map 节点，为两个 Reduce 节点生成 s">
 <meta property="og:locale" content="default">
 <meta property="og:image" content="https://zhmin.github.io/2019/07/31/spark-shuffle-reader/spark-shuffle-flow.svg">
 <meta property="og:image" content="http://www.plantuml.com/plantuml/svg/ut8eBaaiAYdDpU5AJ2ekAKfCBb58paaiBbO8pYXDIyj9TSx9JCqhuOA8EUNa9sU752Nc5QUb5WMd5fLb9gT2fVnIIqegySYxLfIa5kKbvc0prZUrEByOkm8k5Aw2JOskBdPNO1E4ACVjCYncOtS5Lb681dnkTqZDIm65B000">
-<meta property="og:updated_time" content="2019-08-02T15:01:27.148Z">
+<meta property="og:updated_time" content="2019-08-05T14:23:30.085Z">
 <meta name="twitter:card" content="summary">
-<meta name="twitter:title" content="学习笔记">
+<meta name="twitter:title" content="Spark 读取 Shuffle 数据">
 <meta name="twitter:description" content="前言Shuffle 操作在 Spark 中很常见，往往用于聚合或重新分区等场景。Shuffle 操作特别费时，会造成极大的磁盘 IO 和网络 IO，经常是整个任务的性能瓶颈。所以了解下 shuffle 的原理很重要，可以根据其原理进行调优。本篇介绍 shuffle 数据读取的原理。 Shuffle 简介如下图展示了一个 shuffle 操作，有两个 Map 节点，为两个 Reduce 节点生成 s">
 <meta name="twitter:image" content="https://zhmin.github.io/2019/07/31/spark-shuffle-reader/spark-shuffle-flow.svg">
 
@@ -128,7 +129,7 @@
 
 
 
-  <title> | 学习笔记</title>
+  <title>Spark 读取 Shuffle 数据 | 学习笔记</title>
   
 
 
@@ -262,7 +263,7 @@
 
         
         
-          <h2 class="post-title" itemprop="name headline"></h2>
+          <h2 class="post-title" itemprop="name headline">Spark 读取 Shuffle 数据</h2>
         
 
         <div class="post-meta">
@@ -274,7 +275,7 @@
               
                 <span class="post-meta-item-text">Posted on</span>
               
-              <time title="Post created" itemprop="dateCreated datePublished" datetime="2019-07-31T22:27:17+08:00">
+              <time title="Post created" itemprop="dateCreated datePublished" datetime="2019-07-31T23:03:02+08:00">
                 2019-07-31
               </time>
             
@@ -284,6 +285,28 @@
             
           </span>
 
+          
+            <span class="post-category">
+            
+              <span class="post-meta-divider">|</span>
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">In</span>
+              
+              
+                <span itemprop="about" itemscope="" itemtype="http://schema.org/Thing">
+                  <a href="/categories/spark/" itemprop="url" rel="index">
+                    <span itemprop="name">spark</span>
+                  </a>
+                </span>
+
+                
+                
+              
+            </span>
           
 
           
@@ -302,7 +325,7 @@
 
           
           
-             <span id="/2019/07/31/spark-shuffle-reader/" class="leancloud_visitors" data-flag-title="">
+             <span id="/2019/07/31/spark-shuffle-reader/" class="leancloud_visitors" data-flag-title="Spark 读取 Shuffle 数据">
                <span class="post-meta-divider">|</span>
                <span class="post-meta-item-icon">
                  <i class="fa fa-eye"></i>
@@ -495,6 +518,12 @@
 
     <footer class="post-footer">
       
+        <div class="post-tags">
+          
+            <a href="/tags/spark-shuffle-reader/" rel="tag"># spark, shuffle, reader</a>
+          
+        </div>
+      
 
       
       
@@ -513,6 +542,10 @@
           <span class="post-nav-divider"></span>
 
           <div class="post-nav-prev post-nav-item">
+            
+              <a href="/2019/08/05/spark-external-shuffle-service/" rel="prev" title="Spark ExternalShuffleService 运行原理">
+                Spark ExternalShuffleService 运行原理 <i class="fa fa-chevron-right"></i>
+              </a>
             
           </div>
         </div>
@@ -592,7 +625,7 @@
               
                 <a href="/archives/">
               
-                  <span class="site-state-item-count">47</span>
+                  <span class="site-state-item-count">48</span>
                   <span class="site-state-item-name">posts</span>
                 </a>
               </div>
@@ -614,7 +647,7 @@
               
               <div class="site-state-item site-state-tags">
                 
-                  <span class="site-state-item-count">43</span>
+                  <span class="site-state-item-count">45</span>
                   <span class="site-state-item-name">tags</span>
                 
               </div>

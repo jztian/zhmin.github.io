@@ -2,9 +2,16 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   
   <url>
+    <loc>https://zhmin.github.io/2019/08/05/spark-external-shuffle-service/</loc>
+    
+    <lastmod>2019-08-05T14:35:37.569Z</lastmod>
+    
+  </url>
+  
+  <url>
     <loc>https://zhmin.github.io/2019/07/31/spark-shuffle-reader/</loc>
     
-    <lastmod>2019-08-02T15:01:27.148Z</lastmod>
+    <lastmod>2019-08-05T14:23:30.085Z</lastmod>
     
   </url>
   

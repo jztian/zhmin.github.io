@@ -1,0 +1,916 @@
+<!DOCTYPE html>
+
+
+
+  
+
+
+<html class="theme-next mist use-motion" lang="">
+<head><meta name="generator" content="Hexo 3.8.0">
+  <meta charset="UTF-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="theme-color" content="#222">
+
+
+
+
+
+
+
+
+
+<meta http-equiv="Cache-Control" content="no-transform">
+<meta http-equiv="Cache-Control" content="no-siteapp">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+  <link href="/lib/fancybox/source/jquery.fancybox.css?v=2.1.5" rel="stylesheet" type="text/css">
+
+
+
+
+
+
+
+<link href="/lib/font-awesome/css/font-awesome.min.css?v=4.6.2" rel="stylesheet" type="text/css">
+
+<link href="/css/main.css?v=5.1.4" rel="stylesheet" type="text/css">
+
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png?v=5.1.4">
+
+
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png?v=5.1.4">
+
+
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png?v=5.1.4">
+
+
+  <link rel="mask-icon" href="/images/logo.svg?v=5.1.4" color="#222">
+
+
+
+
+
+  <meta name="keywords" content="spark, external-shuffle-service,">
+
+
+
+
+
+
+
+
+
+
+<meta name="description" content="前言Spark 的 Executor 节点不仅负责数据的计算，还涉及到数据的管理。如果发生了 shuffle 操作，Executor 节点不仅需要生成 shuffle 数据，还需要负责处理读取请求。如果 一个 Executor 节点挂掉了，那么它也就无法处理 shuffle 的数据读取请求了，它之前生成的数据都没有意义了。 为了解耦数据计算和数据读取服务，Spark 支持单独的服务来处理读取请求。">
+<meta name="keywords" content="spark, external-shuffle-service">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Spark ExternalShuffleService 运行原理">
+<meta property="og:url" content="https://zhmin.github.io/2019/08/05/spark-external-shuffle-service/index.html">
+<meta property="og:site_name" content="学习笔记">
+<meta property="og:description" content="前言Spark 的 Executor 节点不仅负责数据的计算，还涉及到数据的管理。如果发生了 shuffle 操作，Executor 节点不仅需要生成 shuffle 数据，还需要负责处理读取请求。如果 一个 Executor 节点挂掉了，那么它也就无法处理 shuffle 的数据读取请求了，它之前生成的数据都没有意义了。 为了解耦数据计算和数据读取服务，Spark 支持单独的服务来处理读取请求。">
+<meta property="og:locale" content="default">
+<meta property="og:image" content="https://zhmin.github.io/2019/08/05/spark-external-shuffle-service/spark-external-shuffle-service.svg">
+<meta property="og:updated_time" content="2019-08-05T14:35:37.569Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Spark ExternalShuffleService 运行原理">
+<meta name="twitter:description" content="前言Spark 的 Executor 节点不仅负责数据的计算，还涉及到数据的管理。如果发生了 shuffle 操作，Executor 节点不仅需要生成 shuffle 数据，还需要负责处理读取请求。如果 一个 Executor 节点挂掉了，那么它也就无法处理 shuffle 的数据读取请求了，它之前生成的数据都没有意义了。 为了解耦数据计算和数据读取服务，Spark 支持单独的服务来处理读取请求。">
+<meta name="twitter:image" content="https://zhmin.github.io/2019/08/05/spark-external-shuffle-service/spark-external-shuffle-service.svg">
+
+
+
+<script type="text/javascript" id="hexo.configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '/',
+    scheme: 'Mist',
+    version: '5.1.4',
+    sidebar: {"position":"left","display":"hide","offset":12,"b2t":false,"scrollpercent":false,"onmobile":false},
+    fancybox: true,
+    tabs: true,
+    motion: {"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},
+    duoshuo: {
+      userId: '0',
+      author: 'Author'
+    },
+    algolia: {
+      applicationID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    }
+  };
+</script>
+
+
+
+  <link rel="canonical" href="https://zhmin.github.io/2019/08/05/spark-external-shuffle-service/">
+
+
+
+
+
+  <title>Spark ExternalShuffleService 运行原理 | 学习笔记</title>
+  
+
+
+
+
+
+
+
+
+</head>
+
+<body itemscope="" itemtype="http://schema.org/WebPage" lang="default">
+
+  
+  
+    
+  
+
+  <div class="container sidebar-position-left page-post-detail">
+    <div class="headband"></div>
+
+    <header id="header" class="header" itemscope="" itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-wrapper">
+  <div class="site-meta ">
+    
+
+    <div class="custom-logo-site-title">
+      <a href="/" class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">学习笔记</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+      
+        <h1 class="site-subtitle" itemprop="description"></h1>
+      
+  </div>
+
+  <div class="site-nav-toggle">
+    <button>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+    </button>
+  </div>
+</div>
+
+<nav class="site-nav">
+  
+
+  
+    <ul id="menu" class="menu">
+      
+        
+        <li class="menu-item menu-item-home">
+          <a href="/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-home"></i> <br>
+            
+            Home
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-categories">
+          <a href="/categories/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-th"></i> <br>
+            
+            Categories
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-archives">
+          <a href="/archives/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-archive"></i> <br>
+            
+            Archives
+          </a>
+        </li>
+      
+
+      
+    </ul>
+  
+
+  
+</nav>
+
+
+
+ </div>
+    </header>
+
+    <main id="main" class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          <div id="content" class="content">
+            
+
+  <div id="posts" class="posts-expand">
+    
+
+  
+
+  
+  
+  
+
+  <article class="post post-type-normal" itemscope="" itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block">
+    <link itemprop="mainEntityOfPage" href="https://zhmin.github.io/2019/08/05/spark-external-shuffle-service/">
+
+    <span hidden itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="zhmin">
+      <meta itemprop="description" content="">
+      <meta itemprop="image" content="/images/avatar.gif">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope="" itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="学习笔记">
+    </span>
+
+    
+      <header class="post-header">
+
+        
+        
+          <h2 class="post-title" itemprop="name headline">Spark ExternalShuffleService 运行原理</h2>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">Posted on</span>
+              
+              <time title="Post created" itemprop="dateCreated datePublished" datetime="2019-08-05T22:18:00+08:00">
+                2019-08-05
+              </time>
+            
+
+            
+
+            
+          </span>
+
+          
+            <span class="post-category">
+            
+              <span class="post-meta-divider">|</span>
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">In</span>
+              
+              
+                <span itemprop="about" itemscope="" itemtype="http://schema.org/Thing">
+                  <a href="/categories/spark/" itemprop="url" rel="index">
+                    <span itemprop="name">spark</span>
+                  </a>
+                </span>
+
+                
+                
+              
+            </span>
+          
+
+          
+            
+              <span class="post-comments-count">
+                <span class="post-meta-divider">|</span>
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-comment-o"></i>
+                </span>
+                <a href="/2019/08/05/spark-external-shuffle-service/#comments" itemprop="discussionUrl">
+                  <span class="post-comments-count valine-comment-count" data-xid="/2019/08/05/spark-external-shuffle-service/" itemprop="commentCount"></span>
+                </a>
+              </span>
+            
+          
+
+          
+          
+             <span id="/2019/08/05/spark-external-shuffle-service/" class="leancloud_visitors" data-flag-title="Spark ExternalShuffleService 运行原理">
+               <span class="post-meta-divider">|</span>
+               <span class="post-meta-item-icon">
+                 <i class="fa fa-eye"></i>
+               </span>
+               
+                 <span class="post-meta-item-text">Visitors&#58;</span>
+               
+                 <span class="leancloud-visitors-count"></span>
+             </span>
+          
+
+          
+
+          
+
+          
+
+        </div>
+      </header>
+    
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+      
+
+      
+        <h2 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h2><p>Spark 的 Executor 节点不仅负责数据的计算，还涉及到数据的管理。如果发生了 shuffle 操作，Executor 节点不仅需要生成 shuffle 数据，还需要负责处理读取请求。如果 一个 Executor 节点挂掉了，那么它也就无法处理 shuffle 的数据读取请求了，它之前生成的数据都没有意义了。</p>
+<p>为了解耦数据计算和数据读取服务，Spark 支持单独的服务来处理读取请求。这个单独的服务叫做 ExternalShuffleService，运行在每台主机上，管理该主机的所有 Executor 节点生成的 shuffle 数据。有读者可能会想到性能问题，因为之前是由多个 Executor 负责处理读取请求，而现在一台主机只有一个 ExternalShuffleService 处理请求，其实性能问题不必担心，因为它主要消耗磁盘和网络，而且采用的是异步读取，所以并不会有性能影响。</p>
+<p>解耦之后，如果 Executor 在数据计算时不小心挂掉，也不会影响 shuffle 数据的读取。而且Spark 还可以实现动态分配，动态分配是指空闲的 Executor 可以及时释放掉。</p>
+<h2 id="架构图"><a href="#架构图" class="headerlink" title="架构图"></a>架构图</h2><p>下图展示了一个 shuffle 操作，有两台主机分别运行了三个 Map 节点。Map 节点生成完 shuffle 数据后，会将数据的文件路径告诉给 ExternalShuffleService。之后的 Reduce 节点读取数据，就只和 ExternalShuffleService 交互。</p>
+<p><img src="/2019/08/05/spark-external-shuffle-service/spark-external-shuffle-service.svg"></p>
+<h2 id="Yarn-AuxServices"><a href="#Yarn-AuxServices" class="headerlink" title="Yarn AuxServices"></a>Yarn AuxServices</h2><p>本篇主要是讲 Spark 运行在 Yarn 的场景，ExternalShuffleService 是作为 Yan 的辅助服务运行的，这里先讲讲 Yarn 的辅助服务。</p>
+<p>Yarn NodeManager 服务启动的时候，会启动一些额外的辅助服务，这些辅助服务的运行周期同 NodeManager 相同。每个辅助服务由 AuxiliaryService 类表示，用户需要继承并实现 AuxiliaryService 类，并且还需要配置 Yarn 的 yarn.nodemanager.aux-services选项，这样才能被 NodeManager 发现。下面添加了 spark_shuffle 名称的服务，并且指定了实现的类名和端口号。</p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="tag">&lt;<span class="name">property</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">name</span>&gt;</span>yarn.nodemanager.aux-services<span class="tag">&lt;/<span class="name">name</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">value</span>&gt;</span>mapreduce_shuffle, spark_shuffle<span class="tag">&lt;/<span class="name">value</span>&gt;</span></span><br><span class="line"><span class="tag">&lt;/<span class="name">property</span>&gt;</span></span><br><span class="line"></span><br><span class="line"><span class="tag">&lt;<span class="name">property</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">name</span>&gt;</span>yarn.nodemanager.aux-services.spark_shuffle.class<span class="tag">&lt;/<span class="name">name</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">value</span>&gt;</span>org.apache.spark.network.yarn.YarnShuffleService<span class="tag">&lt;/<span class="name">value</span>&gt;</span></span><br><span class="line"><span class="tag">&lt;/<span class="name">property</span>&gt;</span></span><br><span class="line"></span><br><span class="line"><span class="tag">&lt;<span class="name">property</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">name</span>&gt;</span>spark.shuffle.service.port<span class="tag">&lt;/<span class="name">name</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">value</span>&gt;</span>7337<span class="tag">&lt;/<span class="name">value</span>&gt;</span></span><br><span class="line"><span class="tag">&lt;/<span class="name">property</span>&gt;</span></span><br></pre></td></tr></table></figure>
+<h2 id="YarnShuffleService"><a href="#YarnShuffleService" class="headerlink" title="YarnShuffleService"></a>YarnShuffleService</h2><p>从上面的配置中，可以看到实现类 是 YarnShuffleService。它本质是运行了一个 Spark Rpc 服务，只处理来自 Map 节点和来自 Reduce 节点的请求。 </p>
+<ol>
+<li>Map 节点会将生成好的 shuffle 文件路径通知给 ExternalShuffleService ，请求由 RegisterExecutor 表示。</li>
+<li>Reduce 节点读取数据的流程，先发送 OpenBlocks 请求获取 streamId，然后通过 streamId 来请求数据。</li>
+</ol>
+<p>解析来依次来看看这些请求的原理。</p>
+<h2 id="RegisterExecutor-请求"><a href="#RegisterExecutor-请求" class="headerlink" title="RegisterExecutor 请求"></a>RegisterExecutor 请求</h2><p>首先看看 RegisterExecutor 请求的格式：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">RegisterExecutor</span> <span class="keyword">extends</span> <span class="title">BlockTransferMessage</span> </span>&#123;</span><br><span class="line">    <span class="keyword">public</span> <span class="keyword">final</span> String appId;         <span class="comment">// spark application id</span></span><br><span class="line">    <span class="keyword">public</span> <span class="keyword">final</span> String execId;        <span class="comment">// executor id</span></span><br><span class="line">    <span class="keyword">public</span> <span class="keyword">final</span> ExecutorShuffleInfo executorInfo;    <span class="comment">// 文件路径</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>因为 ExternalShuffleService 是为同个主机上所有 Executor 服务的，而这台主机上可能同时运行多个 spark 程序，所以需要 appId 用来区分。execId 是用来区分 Executor 节点的。executorInfo 是用来指定数据存储的目录。</p>
+<p>继续看看文件路径是怎么定义的</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">ExecutorShuffleInfo</span> <span class="keyword">implements</span> <span class="title">Encodable</span> </span>&#123;</span><br><span class="line">    </span><br><span class="line">    <span class="keyword">public</span> <span class="keyword">final</span> String[] localDirs;         <span class="comment">// 第一级目录列表</span></span><br><span class="line">    <span class="keyword">public</span> <span class="keyword">final</span> <span class="keyword">int</span> subDirsPerLocalDir;     <span class="comment">// 第二级目录列表</span></span><br><span class="line">    <span class="keyword">public</span> <span class="keyword">final</span> String shuffleManager;      <span class="comment">// shuffleManager的类型，目前只有一种类型 SortShuffleManager</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>上面只是定义了两级目录，如果想要了解它的含义，就必须了解 shuffle 数据存储位置的规则。</p>
+<p>Executor 在 存储 shuffle 数据时，是将它存放在分散的目录，分散的目录是根据文件名的哈希值来确定的。我们知道 shuffle 的数据文件名是有着固定的格式的，<code>shuffle_{shuffleId}_{mapId}_{reduceId}.data</code>，因为目前 shuffle 实现的时候，为了减少文件数过多造成的性能差，会将多份数据合并成一个大文件，对应的最终文件名 <code>shuffle_{shuffleId}_{mapId}_0.data</code>,并且为了快速查找 reduceId 对应的数据位置，还生成了一份索引文件 <code>shuffle_{shuffleId}_{mapId}_0.index</code>。</p>
+<p>YarnShuffleService 服务会将这些位置信息存储到内存中，如果指定了持久化，会保存到 leveldb 中。</p>
+<h2 id="客户端读取"><a href="#客户端读取" class="headerlink" title="客户端读取"></a>客户端读取</h2><p>客户端会根据数据的所在节点，流程同普通的一样，只不过普通是向 Executor 进程发送请求，而这里是向 YarnShuffleService 发出读取请求。它分为两部请求：OpenBlocks 请求 和数据传输请求。</p>
+<h3 id="OpenBlocks-请求"><a href="#OpenBlocks-请求" class="headerlink" title="OpenBlocks 请求"></a>OpenBlocks 请求</h3><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">OpenBlocks</span> <span class="keyword">extends</span> <span class="title">BlockTransferMessage</span> </span>&#123;</span><br><span class="line">    <span class="keyword">public</span> <span class="keyword">final</span> String appId;    <span class="comment">// spark application id</span></span><br><span class="line">    <span class="keyword">public</span> <span class="keyword">final</span> String execId;   <span class="comment">// executor id</span></span><br><span class="line">    <span class="keyword">public</span> <span class="keyword">final</span> String[] blockIds;    <span class="comment">// 包含shuffleId，mapId，reduceId 的字符串列表</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>YarnShuffleService 会根据请求的数据，找到对应的文件路径，并且根据 reduceId 从索引文件中，找到数据所在的文件偏移值。</p>
+<h3 id="数据传输请求"><a href="#数据传输请求" class="headerlink" title="数据传输请求"></a>数据传输请求</h3><p>客户端根据第一步返回的streamId 和 chunkId 列表，向 YarnShuffleService 发送数据传输请求。</p>
+
+      
+    </div>
+    
+    
+    
+
+    
+
+    
+
+    
+
+    <footer class="post-footer">
+      
+        <div class="post-tags">
+          
+            <a href="/tags/spark-external-shuffle-service/" rel="tag"># spark, external-shuffle-service</a>
+          
+        </div>
+      
+
+      
+      
+      
+
+      
+        <div class="post-nav">
+          <div class="post-nav-next post-nav-item">
+            
+              <a href="/2019/07/31/spark-shuffle-reader/" rel="next" title="Spark 读取 Shuffle 数据">
+                <i class="fa fa-chevron-left"></i> Spark 读取 Shuffle 数据
+              </a>
+            
+          </div>
+
+          <span class="post-nav-divider"></span>
+
+          <div class="post-nav-prev post-nav-item">
+            
+          </div>
+        </div>
+      
+
+      
+      
+    </footer>
+  </div>
+  
+  
+  
+  </article>
+
+
+
+    <div class="post-spread">
+      
+    </div>
+  </div>
+
+
+          </div>
+          
+
+
+          
+
+  
+    <div class="comments" id="comments">
+    </div>
+  
+
+
+
+        </div>
+        
+          
+  
+  <div class="sidebar-toggle">
+    <div class="sidebar-toggle-line-wrap">
+      <span class="sidebar-toggle-line sidebar-toggle-line-first"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-middle"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-last"></span>
+    </div>
+  </div>
+
+  <aside id="sidebar" class="sidebar">
+    
+    <div class="sidebar-inner">
+
+      
+
+      
+        <ul class="sidebar-nav motion-element">
+          <li class="sidebar-nav-toc sidebar-nav-active" data-target="post-toc-wrap">
+            Table of Contents
+          </li>
+          <li class="sidebar-nav-overview" data-target="site-overview-wrap">
+            Overview
+          </li>
+        </ul>
+      
+
+      <section class="site-overview-wrap sidebar-panel">
+        <div class="site-overview">
+          <div class="site-author motion-element" itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+            
+              <p class="site-author-name" itemprop="name">zhmin</p>
+              <p class="site-description motion-element" itemprop="description"></p>
+          </div>
+
+          <nav class="site-state motion-element">
+
+            
+              <div class="site-state-item site-state-posts">
+              
+                <a href="/archives/">
+              
+                  <span class="site-state-item-count">48</span>
+                  <span class="site-state-item-name">posts</span>
+                </a>
+              </div>
+            
+
+            
+              
+              
+              <div class="site-state-item site-state-categories">
+                <a href="/categories/index.html">
+                  <span class="site-state-item-count">9</span>
+                  <span class="site-state-item-name">categories</span>
+                </a>
+              </div>
+            
+
+            
+              
+              
+              <div class="site-state-item site-state-tags">
+                
+                  <span class="site-state-item-count">45</span>
+                  <span class="site-state-item-name">tags</span>
+                
+              </div>
+            
+
+          </nav>
+
+          
+
+          
+            <div class="links-of-author motion-element">
+                
+                  <span class="links-of-author-item">
+                    <a href="https://github.com/zhmin" target="_blank" title="GitHub">
+                      
+                        <i class="fa fa-fw fa-github"></i>GitHub</a>
+                  </span>
+                
+            </div>
+          
+
+          
+          
+
+          
+          
+
+          
+
+        </div>
+      </section>
+
+      
+      <!--noindex-->
+        <section class="post-toc-wrap motion-element sidebar-panel sidebar-panel-active">
+          <div class="post-toc">
+
+            
+              
+            
+
+            
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#前言"><span class="nav-number">1.</span> <span class="nav-text">前言</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#架构图"><span class="nav-number">2.</span> <span class="nav-text">架构图</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Yarn-AuxServices"><span class="nav-number">3.</span> <span class="nav-text">Yarn AuxServices</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#YarnShuffleService"><span class="nav-number">4.</span> <span class="nav-text">YarnShuffleService</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#RegisterExecutor-请求"><span class="nav-number">5.</span> <span class="nav-text">RegisterExecutor 请求</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#客户端读取"><span class="nav-number">6.</span> <span class="nav-text">客户端读取</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#OpenBlocks-请求"><span class="nav-number">6.1.</span> <span class="nav-text">OpenBlocks 请求</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#数据传输请求"><span class="nav-number">6.2.</span> <span class="nav-text">数据传输请求</span></a></li></ol></li></ol></div>
+            
+
+          </div>
+        </section>
+      <!--/noindex-->
+      
+
+      
+
+    </div>
+  </aside>
+
+
+        
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="footer-inner">
+        <div class="copyright">&copy; <span itemprop="copyrightYear">2019</span>
+  <span class="with-love">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">zhmin</span>
+
+  
+</div>
+
+
+
+
+
+
+
+
+
+
+
+  <script src="https://unpkg.com/mermaid@7.1.2/dist/mermaid.min.js"></script>
+  <script>
+    if (window.mermaid) {
+      mermaid.initialize({"startOnload":true,"theme":"forest"});
+    }
+  </script>
+
+
+
+<script async src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+<span id="busuanzi_container_site_pv">
+    访问量<span id="busuanzi_value_site_pv"></span>
+</span>
+<span class="post-meta-divider">|</span>
+<span id="busuanzi_container_site_uv">
+  访客数<span id="busuanzi_value_site_uv"></span>
+</span>
+
+        
+
+
+
+
+
+
+
+        
+      </div>
+    </footer>
+
+    
+      <div class="back-to-top">
+        <i class="fa fa-arrow-up"></i>
+        
+      </div>
+    
+
+    
+
+  </div>
+
+  
+
+<script type="text/javascript">
+  if (Object.prototype.toString.call(window.Promise) !== '[object Function]') {
+    window.Promise = null;
+  }
+</script>
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery/index.js?v=2.1.3"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fastclick/lib/fastclick.min.js?v=1.0.6"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery_lazyload/jquery.lazyload.js?v=1.9.7"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.ui.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fancybox/source/jquery.fancybox.pack.js?v=2.1.5"></script>
+  
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/utils.js?v=5.1.4"></script>
+
+  <script type="text/javascript" src="/js/src/motion.js?v=5.1.4"></script>
+
+
+
+  
+  
+
+  
+  <script type="text/javascript" src="/js/src/scrollspy.js?v=5.1.4"></script>
+<script type="text/javascript" src="/js/src/post-details.js?v=5.1.4"></script>
+
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/bootstrap.js?v=5.1.4"></script>
+
+
+
+  
+
+
+  
+
+
+
+
+	
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+  <script src="//cdn1.lncld.net/static/js/3.0.4/av-min.js"></script>
+  <script src="//unpkg.com/valine/dist/Valine.min.js"></script>
+  
+  <script type="text/javascript">
+    var GUEST = ['nick','mail','link'];
+    var guest = 'nick';
+    guest = guest.split(',').filter(item=>{
+      return GUEST.indexOf(item)>-1;
+    });
+    new Valine({
+        el: '#comments' ,
+        verify: false,
+        notify: false,
+        appId: 'iYiPQlDR2X2zg2QIql2UEe2o-gzGzoHsz',
+        appKey: 'EW8G4sftwX1pef1zS9EsOeKE',
+        placeholder: 'comment here',
+        avatar:'mm',
+        guest_info:guest,
+        pageSize:'10' || 10,
+    });
+  </script>
+
+
+
+  
+
+
+
+
+
+  
+
+  
+  <script src="https://cdn1.lncld.net/static/js/av-core-mini-0.6.4.js"></script>
+  <script>AV.initialize("iYiPQlDR2X2zg2QIql2UEe2o-gzGzoHsz", "EW8G4sftwX1pef1zS9EsOeKE");</script>
+  <script>
+    function showTime(Counter) {
+      var query = new AV.Query(Counter);
+      var entries = [];
+      var $visitors = $(".leancloud_visitors");
+
+      $visitors.each(function () {
+        entries.push( $(this).attr("id").trim() );
+      });
+
+      query.containedIn('url', entries);
+      query.find()
+        .done(function (results) {
+          var COUNT_CONTAINER_REF = '.leancloud-visitors-count';
+
+          if (results.length === 0) {
+            $visitors.find(COUNT_CONTAINER_REF).text(0);
+            return;
+          }
+
+          for (var i = 0; i < results.length; i++) {
+            var item = results[i];
+            var url = item.get('url');
+            var time = item.get('time');
+            var element = document.getElementById(url);
+
+            $(element).find(COUNT_CONTAINER_REF).text(time);
+          }
+          for(var i = 0; i < entries.length; i++) {
+            var url = entries[i];
+            var element = document.getElementById(url);
+            var countSpan = $(element).find(COUNT_CONTAINER_REF);
+            if( countSpan.text() == '') {
+              countSpan.text(0);
+            }
+          }
+        })
+        .fail(function (object, error) {
+          console.log("Error: " + error.code + " " + error.message);
+        });
+    }
+
+    function addCount(Counter) {
+      var $visitors = $(".leancloud_visitors");
+      var url = $visitors.attr('id').trim();
+      var title = $visitors.attr('data-flag-title').trim();
+      var query = new AV.Query(Counter);
+
+      query.equalTo("url", url);
+      query.find({
+        success: function(results) {
+          if (results.length > 0) {
+            var counter = results[0];
+            counter.fetchWhenSave(true);
+            counter.increment("time");
+            counter.save(null, {
+              success: function(counter) {
+                var $element = $(document.getElementById(url));
+                $element.find('.leancloud-visitors-count').text(counter.get('time'));
+              },
+              error: function(counter, error) {
+                console.log('Failed to save Visitor num, with error message: ' + error.message);
+              }
+            });
+          } else {
+            var newcounter = new Counter();
+            /* Set ACL */
+            var acl = new AV.ACL();
+            acl.setPublicReadAccess(true);
+            acl.setPublicWriteAccess(true);
+            newcounter.setACL(acl);
+            /* End Set ACL */
+            newcounter.set("title", title);
+            newcounter.set("url", url);
+            newcounter.set("time", 1);
+            newcounter.save(null, {
+              success: function(newcounter) {
+                var $element = $(document.getElementById(url));
+                $element.find('.leancloud-visitors-count').text(newcounter.get('time'));
+              },
+              error: function(newcounter, error) {
+                console.log('Failed to create');
+              }
+            });
+          }
+        },
+        error: function(error) {
+          console.log('Error:' + error.code + " " + error.message);
+        }
+      });
+    }
+
+    $(function() {
+      var Counter = AV.Object.extend("Counter");
+      if ($('.leancloud_visitors').length == 1) {
+        addCount(Counter);
+      } else if ($('.post-title-link').length > 1) {
+        showTime(Counter);
+      }
+    });
+  </script>
+
+
+
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+</body>
+</html>
