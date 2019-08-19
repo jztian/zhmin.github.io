@@ -88,7 +88,7 @@
 <meta property="og:description" content="前言Spark 的 Executor 节点不仅负责数据的计算，还涉及到数据的管理。如果发生了 shuffle 操作，Executor 节点不仅需要生成 shuffle 数据，还需要负责处理读取请求。如果 一个 Executor 节点挂掉了，那么它也就无法处理 shuffle 的数据读取请求了，它之前生成的数据都没有意义了。 为了解耦数据计算和数据读取服务，Spark 支持单独的服务来处理读取请求。">
 <meta property="og:locale" content="default">
 <meta property="og:image" content="https://zhmin.github.io/2019/08/05/spark-external-shuffle-service/spark-external-shuffle-service.svg">
-<meta property="og:updated_time" content="2019-08-05T14:35:37.569Z">
+<meta property="og:updated_time" content="2019-08-07T13:57:30.266Z">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="Spark ExternalShuffleService 运行原理">
 <meta name="twitter:description" content="前言Spark 的 Executor 节点不仅负责数据的计算，还涉及到数据的管理。如果发生了 shuffle 操作，Executor 节点不仅需要生成 shuffle 数据，还需要负责处理读取请求。如果 一个 Executor 节点挂掉了，那么它也就无法处理 shuffle 的数据读取请求了，它之前生成的数据都没有意义了。 为了解耦数据计算和数据读取服务，Spark 支持单独的服务来处理读取请求。">
@@ -375,7 +375,8 @@
 <p>继续看看文件路径是怎么定义的</p>
 <figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">ExecutorShuffleInfo</span> <span class="keyword">implements</span> <span class="title">Encodable</span> </span>&#123;</span><br><span class="line">    </span><br><span class="line">    <span class="keyword">public</span> <span class="keyword">final</span> String[] localDirs;         <span class="comment">// 第一级目录列表</span></span><br><span class="line">    <span class="keyword">public</span> <span class="keyword">final</span> <span class="keyword">int</span> subDirsPerLocalDir;     <span class="comment">// 第二级目录列表</span></span><br><span class="line">    <span class="keyword">public</span> <span class="keyword">final</span> String shuffleManager;      <span class="comment">// shuffleManager的类型，目前只有一种类型 SortShuffleManager</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
 <p>上面只是定义了两级目录，如果想要了解它的含义，就必须了解 shuffle 数据存储位置的规则。</p>
-<p>Executor 在 存储 shuffle 数据时，是将它存放在分散的目录，分散的目录是根据文件名的哈希值来确定的。我们知道 shuffle 的数据文件名是有着固定的格式的，<code>shuffle_{shuffleId}_{mapId}_{reduceId}.data</code>，因为目前 shuffle 实现的时候，为了减少文件数过多造成的性能差，会将多份数据合并成一个大文件，对应的最终文件名 <code>shuffle_{shuffleId}_{mapId}_0.data</code>,并且为了快速查找 reduceId 对应的数据位置，还生成了一份索引文件 <code>shuffle_{shuffleId}_{mapId}_0.index</code>。</p>
+<p>Executor 在 存储 shuffle 数据时，是将它存放在分散的目录，分散的目录是根据文件名的哈希值来确定的。分散的目的是防止单个目录下文件数目过大，造成寻找文件的延迟增大。</p>
+<p>我们知道 shuffle 的数据文件名是有着固定的格式的，<code>shuffle_{shuffleId}_{mapId}_{reduceId}.data</code>，因为目前 shuffle 实现的时候，为了减少文件数过多造成的性能差，会将多份数据合并成一个大文件，对应的最终文件名 <code>shuffle_{shuffleId}_{mapId}_0.data</code>,并且为了快速查找 reduceId 对应的数据位置，还生成了一份索引文件 <code>shuffle_{shuffleId}_{mapId}_0.index</code>。</p>
 <p>YarnShuffleService 服务会将这些位置信息存储到内存中，如果指定了持久化，会保存到 leveldb 中。</p>
 <h2 id="客户端读取"><a href="#客户端读取" class="headerlink" title="客户端读取"></a>客户端读取</h2><p>客户端会根据数据的所在节点，流程同普通的一样，只不过普通是向 Executor 进程发送请求，而这里是向 YarnShuffleService 发出读取请求。它分为两部请求：OpenBlocks 请求 和数据传输请求。</p>
 <h3 id="OpenBlocks-请求"><a href="#OpenBlocks-请求" class="headerlink" title="OpenBlocks 请求"></a>OpenBlocks 请求</h3><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">OpenBlocks</span> <span class="keyword">extends</span> <span class="title">BlockTransferMessage</span> </span>&#123;</span><br><span class="line">    <span class="keyword">public</span> <span class="keyword">final</span> String appId;    <span class="comment">// spark application id</span></span><br><span class="line">    <span class="keyword">public</span> <span class="keyword">final</span> String execId;   <span class="comment">// executor id</span></span><br><span class="line">    <span class="keyword">public</span> <span class="keyword">final</span> String[] blockIds;    <span class="comment">// 包含shuffleId，mapId，reduceId 的字符串列表</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
@@ -420,6 +421,10 @@
           <span class="post-nav-divider"></span>
 
           <div class="post-nav-prev post-nav-item">
+            
+              <a href="/2019/08/19/leveldb-thought/" rel="prev" title="Levedb 设计感想">
+                Levedb 设计感想 <i class="fa fa-chevron-right"></i>
+              </a>
             
           </div>
         </div>
@@ -499,7 +504,7 @@
               
                 <a href="/archives/">
               
-                  <span class="site-state-item-count">48</span>
+                  <span class="site-state-item-count">49</span>
                   <span class="site-state-item-name">posts</span>
                 </a>
               </div>
@@ -510,7 +515,7 @@
               
               <div class="site-state-item site-state-categories">
                 <a href="/categories/index.html">
-                  <span class="site-state-item-count">9</span>
+                  <span class="site-state-item-count">10</span>
                   <span class="site-state-item-name">categories</span>
                 </a>
               </div>
@@ -521,7 +526,7 @@
               
               <div class="site-state-item site-state-tags">
                 
-                  <span class="site-state-item-count">45</span>
+                  <span class="site-state-item-count">46</span>
                   <span class="site-state-item-name">tags</span>
                 
               </div>
