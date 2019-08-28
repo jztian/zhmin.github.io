@@ -1,0 +1,947 @@
+<!DOCTYPE html>
+
+
+
+  
+
+
+<html class="theme-next mist use-motion" lang="">
+<head><meta name="generator" content="Hexo 3.8.0">
+  <meta charset="UTF-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="theme-color" content="#222">
+
+
+
+
+
+
+
+
+
+<meta http-equiv="Cache-Control" content="no-transform">
+<meta http-equiv="Cache-Control" content="no-siteapp">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+  <link href="/lib/fancybox/source/jquery.fancybox.css?v=2.1.5" rel="stylesheet" type="text/css">
+
+
+
+
+
+
+
+<link href="/lib/font-awesome/css/font-awesome.min.css?v=4.6.2" rel="stylesheet" type="text/css">
+
+<link href="/css/main.css?v=5.1.4" rel="stylesheet" type="text/css">
+
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png?v=5.1.4">
+
+
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png?v=5.1.4">
+
+
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png?v=5.1.4">
+
+
+  <link rel="mask-icon" href="/images/logo.svg?v=5.1.4" color="#222">
+
+
+
+
+
+  <meta name="keywords" content="zookeeper, client,">
+
+
+
+
+
+
+
+
+
+
+<meta name="description" content="架构图首先给出一张简单的架构图，初步的了解下流程。  客户端创建请求，将它放入到一个队列里。如果客户端采用了同步请求，那么它会等待响应。如果采用了异步请求，它会传递回调函数，立刻返回。 队列采用先进先出的方式，SendThread 线程会从队列中取出请求，通过底层的 socket 发送到服务端。当客户端收到响应后，SendThread 会负责解析响应。如果客户端采用了同步请求，那么它会通知客户端。">
+<meta name="keywords" content="zookeeper, client">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Zookeeper 原生客户端原理">
+<meta property="og:url" content="https://zhmin.github.io/2019/08/28/zookeeper-client/index.html">
+<meta property="og:site_name" content="学习笔记">
+<meta property="og:description" content="架构图首先给出一张简单的架构图，初步的了解下流程。  客户端创建请求，将它放入到一个队列里。如果客户端采用了同步请求，那么它会等待响应。如果采用了异步请求，它会传递回调函数，立刻返回。 队列采用先进先出的方式，SendThread 线程会从队列中取出请求，通过底层的 socket 发送到服务端。当客户端收到响应后，SendThread 会负责解析响应。如果客户端采用了同步请求，那么它会通知客户端。">
+<meta property="og:locale" content="default">
+<meta property="og:image" content="https://zhmin.github.io/2019/08/28/zookeeper-client/zookeeper-client-thread.svg">
+<meta property="og:updated_time" content="2019-08-28T13:16:27.901Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Zookeeper 原生客户端原理">
+<meta name="twitter:description" content="架构图首先给出一张简单的架构图，初步的了解下流程。  客户端创建请求，将它放入到一个队列里。如果客户端采用了同步请求，那么它会等待响应。如果采用了异步请求，它会传递回调函数，立刻返回。 队列采用先进先出的方式，SendThread 线程会从队列中取出请求，通过底层的 socket 发送到服务端。当客户端收到响应后，SendThread 会负责解析响应。如果客户端采用了同步请求，那么它会通知客户端。">
+<meta name="twitter:image" content="https://zhmin.github.io/2019/08/28/zookeeper-client/zookeeper-client-thread.svg">
+
+
+
+<script type="text/javascript" id="hexo.configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '/',
+    scheme: 'Mist',
+    version: '5.1.4',
+    sidebar: {"position":"left","display":"hide","offset":12,"b2t":false,"scrollpercent":false,"onmobile":false},
+    fancybox: true,
+    tabs: true,
+    motion: {"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},
+    duoshuo: {
+      userId: '0',
+      author: 'Author'
+    },
+    algolia: {
+      applicationID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    }
+  };
+</script>
+
+
+
+  <link rel="canonical" href="https://zhmin.github.io/2019/08/28/zookeeper-client/">
+
+
+
+
+
+  <title>Zookeeper 原生客户端原理 | 学习笔记</title>
+  
+
+
+
+
+
+
+
+
+</head>
+
+<body itemscope="" itemtype="http://schema.org/WebPage" lang="default">
+
+  
+  
+    
+  
+
+  <div class="container sidebar-position-left page-post-detail">
+    <div class="headband"></div>
+
+    <header id="header" class="header" itemscope="" itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-wrapper">
+  <div class="site-meta ">
+    
+
+    <div class="custom-logo-site-title">
+      <a href="/" class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">学习笔记</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+      
+        <h1 class="site-subtitle" itemprop="description"></h1>
+      
+  </div>
+
+  <div class="site-nav-toggle">
+    <button>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+    </button>
+  </div>
+</div>
+
+<nav class="site-nav">
+  
+
+  
+    <ul id="menu" class="menu">
+      
+        
+        <li class="menu-item menu-item-home">
+          <a href="/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-home"></i> <br>
+            
+            Home
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-categories">
+          <a href="/categories/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-th"></i> <br>
+            
+            Categories
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-archives">
+          <a href="/archives/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-archive"></i> <br>
+            
+            Archives
+          </a>
+        </li>
+      
+
+      
+    </ul>
+  
+
+  
+</nav>
+
+
+
+ </div>
+    </header>
+
+    <main id="main" class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          <div id="content" class="content">
+            
+
+  <div id="posts" class="posts-expand">
+    
+
+  
+
+  
+  
+  
+
+  <article class="post post-type-normal" itemscope="" itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block">
+    <link itemprop="mainEntityOfPage" href="https://zhmin.github.io/2019/08/28/zookeeper-client/">
+
+    <span hidden itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="zhmin">
+      <meta itemprop="description" content="">
+      <meta itemprop="image" content="/images/avatar.gif">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope="" itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="学习笔记">
+    </span>
+
+    
+      <header class="post-header">
+
+        
+        
+          <h2 class="post-title" itemprop="name headline">Zookeeper 原生客户端原理</h2>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">Posted on</span>
+              
+              <time title="Post created" itemprop="dateCreated datePublished" datetime="2019-08-28T20:59:24+08:00">
+                2019-08-28
+              </time>
+            
+
+            
+
+            
+          </span>
+
+          
+            <span class="post-category">
+            
+              <span class="post-meta-divider">|</span>
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">In</span>
+              
+              
+                <span itemprop="about" itemscope="" itemtype="http://schema.org/Thing">
+                  <a href="/categories/zookeeper/" itemprop="url" rel="index">
+                    <span itemprop="name">zookeeper</span>
+                  </a>
+                </span>
+
+                
+                
+              
+            </span>
+          
+
+          
+            
+              <span class="post-comments-count">
+                <span class="post-meta-divider">|</span>
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-comment-o"></i>
+                </span>
+                <a href="/2019/08/28/zookeeper-client/#comments" itemprop="discussionUrl">
+                  <span class="post-comments-count valine-comment-count" data-xid="/2019/08/28/zookeeper-client/" itemprop="commentCount"></span>
+                </a>
+              </span>
+            
+          
+
+          
+          
+             <span id="/2019/08/28/zookeeper-client/" class="leancloud_visitors" data-flag-title="Zookeeper 原生客户端原理">
+               <span class="post-meta-divider">|</span>
+               <span class="post-meta-item-icon">
+                 <i class="fa fa-eye"></i>
+               </span>
+               
+                 <span class="post-meta-item-text">Visitors&#58;</span>
+               
+                 <span class="leancloud-visitors-count"></span>
+             </span>
+          
+
+          
+
+          
+
+          
+
+        </div>
+      </header>
+    
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+      
+
+      
+        <h2 id="架构图"><a href="#架构图" class="headerlink" title="架构图"></a>架构图</h2><p>首先给出一张简单的架构图，初步的了解下流程。</p>
+<p><img src="/2019/08/28/zookeeper-client/zookeeper-client-thread.svg"></p>
+<p>客户端创建请求，将它放入到一个队列里。如果客户端采用了同步请求，那么它会等待响应。如果采用了异步请求，它会传递回调函数，立刻返回。</p>
+<p>队列采用先进先出的方式，SendThread 线程会从队列中取出请求，通过底层的 socket 发送到服务端。当客户端收到响应后，SendThread 会负责解析响应。如果客户端采用了同步请求，那么它会通知客户端。如果客户端采用异步请求，那么会将响应传递给 EventThread 线程，由它负责执行回调。</p>
+<h2 id="Packet"><a href="#Packet" class="headerlink" title="Packet"></a>Packet</h2><p>zookeeper 对于请求和响应，它使用 Packet 类封装在一起。zookeeper 还支持异步，所以 Packet 还包含了回调函数。这个类很简单，只是这些成员的集合。</p>
+<h2 id="通信线程"><a href="#通信线程" class="headerlink" title="通信线程"></a>通信线程</h2><p>SendThread 有两个 Packet 队列，一个是存储等待发送的请求（称作为 outgoingQueue），另一个是已经发送但还没响应的请求（称作为 pendingQueue）。SendThread 从 outgoingQueue 中提取请求，序列化，通过 socket 通信发送出去后，就将这个请求放进 pendingQueue。</p>
+<p>SendThread 提供了 readResponse 方法，用于解析响应。根据响应头部的 xid，它有下面三种特殊类型的响应。</p>
+<table>
+<thead>
+<tr>
+<th>xid</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>-1</td>
+<td>用于 Watch 通知</td>
+</tr>
+<tr>
+<td>-2</td>
+<td>用于 Ping 响应</td>
+</tr>
+<tr>
+<td>-4</td>
+<td>用于 认证响应</td>
+</tr>
+</tbody>
+</table>
+<p>如果是 Watch 通知，会生成 WatchEvent 放入到队列里，由 EventThread 线程单独处理。</p>
+<p>在解析完响应后，对于同步请求执行通知操作，对于异步请求，将其放入队列里，由 EventThread 线程单独处理。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">private</span> <span class="keyword">void</span> <span class="title">finishPacket</span><span class="params">(Packet p)</span> </span>&#123;</span><br><span class="line">    ......</span><br><span class="line">    </span><br><span class="line">    <span class="comment">// cb属性代表着回调函数，如果为空则是同步请求，否则为异步请求</span></span><br><span class="line">    <span class="keyword">if</span> (p.cb == <span class="keyword">null</span>) &#123;</span><br><span class="line">        <span class="keyword">synchronized</span> (p) &#123;</span><br><span class="line">            <span class="comment">// 设置 finished 属性</span></span><br><span class="line">            p.finished = <span class="keyword">true</span>;</span><br><span class="line">            <span class="comment">// 执行通知</span></span><br><span class="line">            p.notifyAll();</span><br><span class="line">        &#125;</span><br><span class="line">    &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">        <span class="comment">// 设置 finished 属性</span></span><br><span class="line">        p.finished = <span class="keyword">true</span>;</span><br><span class="line">        <span class="comment">// 添加到队列里</span></span><br><span class="line">        eventThread.queuePacket(p);</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h2 id="后台线程"><a href="#后台线程" class="headerlink" title="后台线程"></a>后台线程</h2><p>EventThread 负责执行回调函数，还包含处理 Watch 事件。EventThread 的原理很简单，只是维护了一个队列，不停的取出任务执行。对于 Watch 事件需要额外说一下，用户注册的 Watch 回调，只能用一次。我们通过 ZKWatchManager 的源码就可以看出原因，它的 materialize 方法负责获取 Watch 回调。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">static</span> <span class="class"><span class="keyword">class</span> <span class="title">ZKWatchManager</span> <span class="keyword">implements</span> <span class="title">ClientWatchManager</span> </span>&#123;</span><br><span class="line">    </span><br><span class="line">    <span class="comment">// 保存节点数据变化的回调</span></span><br><span class="line">    <span class="keyword">private</span> <span class="keyword">final</span> Map&lt;String, Set&lt;Watcher&gt;&gt; dataWatches = <span class="keyword">new</span> HashMap&lt;String, Set&lt;Watcher&gt;&gt;();</span><br><span class="line">    <span class="comment">// 保存节点删除或创建的回调</span></span><br><span class="line">    <span class="keyword">private</span> <span class="keyword">final</span> Map&lt;String, Set&lt;Watcher&gt;&gt; existWatches = <span class="keyword">new</span> HashMap&lt;String, Set&lt;Watcher&gt;&gt;();</span><br><span class="line">    <span class="comment">// 保存子节点变化的回调</span></span><br><span class="line">    <span class="keyword">private</span> <span class="keyword">final</span> Map&lt;String, Set&lt;Watcher&gt;&gt; childWatches = <span class="keyword">new</span> HashMap&lt;String, Set&lt;Watcher&gt;&gt;();</span><br><span class="line">    </span><br><span class="line">    <span class="function"><span class="keyword">public</span> Set&lt;Watcher&gt; <span class="title">materialize</span><span class="params">(Watcher.Event.KeeperState state, Watcher.Event.EventType type, String clientPath)</span> </span>&#123;</span><br><span class="line">        Set&lt;Watcher&gt; result = <span class="keyword">new</span> HashSet&lt;Watcher&gt;();</span><br><span class="line">        <span class="keyword">switch</span> (type) &#123;</span><br><span class="line">            <span class="comment">// 这里以节点变化的情况为例</span></span><br><span class="line">            <span class="keyword">case</span> NodeDataChanged:</span><br><span class="line">            <span class="keyword">case</span> NodeCreated:</span><br><span class="line">                <span class="keyword">synchronized</span> (dataWatches) &#123;</span><br><span class="line">                    <span class="comment">// 从dataWatches列表删除</span></span><br><span class="line">                    addTo(dataWatches.remove(clientPath), result);</span><br><span class="line">                &#125;</span><br><span class="line">                <span class="keyword">synchronized</span> (existWatches) &#123;</span><br><span class="line">                    <span class="comment">// 从existWatches列表删除</span></span><br><span class="line">                    addTo(existWatches.remove(clientPath), result);</span><br><span class="line">                &#125;</span><br><span class="line">                <span class="keyword">break</span>;</span><br><span class="line"></span><br><span class="line">                .......</span><br><span class="line">                <span class="comment">// 其余变化情况</span></span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>可以看到 ZKWatchManager 每次获取 Watch 回调时，都是从集合中删除掉。所以用户想持续性的注册 Watch，需要在回调函数中重新注册自身。</p>
+<h2 id="Socket-通信"><a href="#Socket-通信" class="headerlink" title="Socket 通信"></a>Socket 通信</h2><p>负责与服务端进行 socket 通信的类是 ClientCnxnSocket，它都是异步的方式，由 ClientCnxnSocket 类表示。ClientCnxnSocket  是一个抽象类，有两个子类 ClientCnxnSocketNIO 和 ClientCnxnSocketNetty，分别基于 selector 和 基于 netty 实现。这里主要讲讲 selector 的实现原理。</p>
+<p>它的 doTransport 方法负责处理 socket 事件，比如OP_CONNECT，OP_READ，OP_WRITE。</p>
+<ul>
+<li>对于 OP_CONNECT 事件，表示 socket 连接创建，接下来会发送 ConnectRequest 请求，来获取 sessionId。</li>
+<li>对于 OP_READ 事件，表示有响应数据，然后解析响应。</li>
+<li>对于 OP_WRITE 事件，表示 socket 可写，然后从队列中提取请求发送。</li>
+</ul>
+<h2 id="创建连接"><a href="#创建连接" class="headerlink" title="创建连接"></a>创建连接</h2><p>接下来看看连接创建的过程，zookeeper 支持 SASL 框架（用来认证和安全的）。创建连接分为两个步骤，socket 连接和初始化请求。</p>
+<p>socket 的连接由 ClientCnxnSocket 负责，它使用异步连接的方式。当 socket 连接成功后，如果开启 sasl 认证，那么会发送认证请求。最后发送 ConnectRequest 请求，当收到响应后，需要提取出 sessionId。这个 sessionId 由服务端分配，标识此次连接。</p>
+<h2 id="客户端请求"><a href="#客户端请求" class="headerlink" title="客户端请求"></a>客户端请求</h2><p>ZooKeeper 客户端为每种请求提供了两种阻塞方式，异步和同步。我们以 create 请求为例，分别介绍同步方式和异步方式。</p>
+<h3 id="同步请求"><a href="#同步请求" class="headerlink" title="同步请求"></a>同步请求</h3><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">ZooKeeper</span> <span class="keyword">implements</span> <span class="title">AutoCloseable</span> </span>&#123;</span><br><span class="line">    </span><br><span class="line">    <span class="keyword">protected</span> <span class="keyword">final</span> ClientCnxn cnxn;    </span><br><span class="line">    <span class="function"><span class="keyword">public</span> String <span class="title">create</span><span class="params">(<span class="keyword">final</span> String path, <span class="keyword">byte</span> data[], List&lt;ACL&gt; acl,</span></span></span><br><span class="line"><span class="function"><span class="params">                         CreateMode createMode)</span> </span>&#123;</span><br><span class="line">        <span class="comment">// 创建请求</span></span><br><span class="line">        RequestHeader h = <span class="keyword">new</span> RequestHeader();</span><br><span class="line">        .....</span><br><span class="line">        <span class="comment">// 提交请求并且等待响应</span></span><br><span class="line">        ReplyHeader r = cnxn.submitRequest(h, request, response, <span class="keyword">null</span>);</span><br><span class="line">        <span class="keyword">return</span> response.getPath();</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">ClientCnxn</span> </span>&#123;</span><br><span class="line">        <span class="function"><span class="keyword">public</span> ReplyHeader <span class="title">submitRequest</span><span class="params">(...)</span> </span>&#123;</span><br><span class="line">        ReplyHeader r = <span class="keyword">new</span> ReplyHeader();</span><br><span class="line">        <span class="comment">// 将请求放入队列中</span></span><br><span class="line">        Packet packet = queuePacket(h, r, request, response, <span class="keyword">null</span>, <span class="keyword">null</span>, <span class="keyword">null</span>,</span><br><span class="line">                <span class="keyword">null</span>, watchRegistration, watchDeregistration);</span><br><span class="line">        <span class="comment">// 使用 packet 实例的监视锁</span></span><br><span class="line">        <span class="keyword">synchronized</span> (packet) &#123;</span><br><span class="line">            <span class="comment">// 判断条件是finished属性</span></span><br><span class="line">            <span class="keyword">while</span> (!packet.finished) &#123;</span><br><span class="line">                packet.wait();</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="keyword">return</span> r;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>回顾下 SendThread 在解析完请求，都会调用 finishPacket 方法，这里面会设置 finished 属性为 true，并且执行通知。</p>
+<h3 id="异步请求"><a href="#异步请求" class="headerlink" title="异步请求"></a>异步请求</h3><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">ZooKeeper</span> <span class="keyword">implements</span> <span class="title">AutoCloseable</span> </span>&#123;</span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">create</span><span class="params">(<span class="keyword">final</span> String path, <span class="keyword">byte</span> data[], List&lt;ACL&gt; acl,</span></span></span><br><span class="line"><span class="function"><span class="params">            CreateMode createMode, StringCallback cb, Object ctx)</span> </span>&#123;</span><br><span class="line">        <span class="comment">// 创建请求</span></span><br><span class="line">        RequestHeader h = <span class="keyword">new</span> RequestHeader();</span><br><span class="line">        ......</span><br><span class="line">        <span class="comment">// 将请求放入队列中</span></span><br><span class="line">        cnxn.queuePacket(h, r, request, response, cb, clientPath,</span><br><span class="line">                serverPath, ctx, <span class="keyword">null</span>);</span><br><span class="line">    &#125;</span><br></pre></td></tr></table></figure>
+<p>异步请求需要传递回调函数 StringCallback， 和自定义的回调参数 Object。后台 EventThread 线程会执行回调函数。</p>
+<h2 id="异常处理"><a href="#异常处理" class="headerlink" title="异常处理"></a>异常处理</h2><p>zookeeper 客户端是通过网络与服务端通信的，而网络也是最不稳定的一环，接下来看看 zookeeper 客户端是如何处理网络异常的。</p>
+<p>java 在网络异常时会抛出 IOException，通过 ClientCnxnSocket 抽象类的 doTransport 接口声明就可以看出来。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">abstract</span> <span class="class"><span class="keyword">class</span> <span class="title">ClientCnxnSocket</span> </span>&#123;</span><br><span class="line">    <span class="function"><span class="keyword">abstract</span> <span class="keyword">void</span> <span class="title">doTransport</span><span class="params">(<span class="keyword">int</span> waitTimeOut, List&lt;Packet&gt; pendingQueue, ClientCnxn cnxn)</span></span></span><br><span class="line"><span class="function">            <span class="keyword">throws</span> IOException, InterruptedException</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>doTransport 接口负责处理 socket 的连接，读写事件，在 SendThread 线程中被循环调用。继续看 SendThread 是如何处理这些异常的，下面代码做了部分简化。</p>
+<p>这里还要额外说下 zookeeper 集群，从 3.4.0 版本开始，支持只读模式，默认是关闭的。如果开启了只读模式，那么这个节点即使与集群的连接断开，仍能提供读操作。客户端如果连接的节点是只读模式，那么它会试图找到正常模式的节点。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">class</span> <span class="title">SendThread</span> <span class="keyword">extends</span> <span class="title">ZooKeeperThread</span> </span>&#123;</span><br><span class="line">    <span class="comment">// 正常模式的服务端地址</span></span><br><span class="line">    <span class="keyword">private</span> InetSocketAddress rwServerAddress = <span class="keyword">null</span>;</span><br><span class="line">    </span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">run</span><span class="params">()</span> </span>&#123;</span><br><span class="line">        <span class="keyword">int</span> to;</span><br><span class="line">        InetSocketAddress serverAddress = <span class="keyword">null</span>;</span><br><span class="line">        <span class="keyword">while</span> (state.isAlive()) &#123;</span><br><span class="line">            <span class="keyword">try</span> &#123;</span><br><span class="line">                <span class="comment">// 检查连接是否正常，否则可能需要重新建立</span></span><br><span class="line">                <span class="keyword">if</span> (!clientCnxnSocket.isConnected()) &#123;</span><br><span class="line">                    <span class="comment">// 如果指定了closing，那么表示需要退出循环</span></span><br><span class="line">                    <span class="keyword">if</span> (closing) &#123;</span><br><span class="line">                        <span class="keyword">break</span>;</span><br><span class="line">                    &#125;</span><br><span class="line">                    <span class="keyword">if</span> (rwServerAddress != <span class="keyword">null</span>) &#123;</span><br><span class="line">                        <span class="comment">// 如果发现集群是正常模式</span></span><br><span class="line">                        serverAddress = rwServerAddress;</span><br><span class="line">                        rwServerAddress = <span class="keyword">null</span>;</span><br><span class="line">                    &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">                        <span class="comment">// 挑选下一个地址进行连接</span></span><br><span class="line">                        serverAddress = hostProvider.next(<span class="number">1000</span>);</span><br><span class="line">                    &#125;</span><br><span class="line">                    <span class="comment">// 连接服务端</span></span><br><span class="line">                    startConnect(serverAddress);</span><br><span class="line">                &#125;</span><br><span class="line">                </span><br><span class="line">                <span class="comment">// 计算是否超时</span></span><br><span class="line">                <span class="keyword">if</span> (state.isConnected()) &#123;</span><br><span class="line">                    to = readTimeout - clientCnxnSocket.getIdleRecv();</span><br><span class="line">                &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">                    to = connectTimeout - clientCnxnSocket.getIdleRecv();</span><br><span class="line">                &#125;</span><br><span class="line">                <span class="comment">// 如果超时，则抛出异常</span></span><br><span class="line">                <span class="keyword">if</span> (to &lt;= <span class="number">0</span>) &#123;</span><br><span class="line">                    <span class="keyword">throw</span> <span class="keyword">new</span> SessionTimeoutException(warnInfo);</span><br><span class="line">                &#125;</span><br><span class="line">                </span><br><span class="line">                <span class="keyword">if</span> (state == States.CONNECTEDREADONLY) &#123;</span><br><span class="line">                    <span class="comment">// 当前是只读模式，那么向其他节点发送ping请求，检查集群是否为正常模式</span></span><br><span class="line">                    <span class="comment">// 如果是正常模式，那么抛出异常 RWServerFoundException</span></span><br><span class="line">                    pingRwServer();</span><br><span class="line">                &#125;</span><br><span class="line">                </span><br><span class="line">                <span class="comment">// 处理socket事件</span></span><br><span class="line">                clientCnxnSocket.doTransport(to, pendingQueue, ClientCnxn.<span class="keyword">this</span>);</span><br><span class="line">            &#125; <span class="keyword">catch</span> (Throwable e) &#123;</span><br><span class="line">                <span class="keyword">if</span> (closing) &#123;</span><br><span class="line">                    <span class="keyword">break</span>;</span><br><span class="line">                &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">                    <span class="comment">// 这里的cleanup方法，首先重置了底层的socket，然后对于队列里的请求都立即响应ConnectionLost 异常</span></span><br><span class="line">                    cleanup();</span><br><span class="line">                &#125;</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>这里简单说下上面代码的流程，首先它最外层是一个循坏，循环里面处理着创建连接，读写通信。首先是从提供的地址列表中，选出一个地址创建连接，然后根据 ConnectRequest 请求的响应，可以判断出该节点是否处于只读模式。如果处于只读模式，那么 state 属性值为 CONNECTEDREADONLY。它会试图调用 pingRwServer 方法向别的节点发送请求，查看是否处于正常模式，如果发现是正常模式，那么会抛出异常，然后调用 cleanup 方法重置 socket 。</p>
+<p>如果底层的 socket 通信断开抛出异常，那么同样会被捕获到，触发 cleanup 方法重置 socket，然后从地址列表中挑选出另外一个进行连接。</p>
+
+      
+    </div>
+    
+    
+    
+
+    
+
+    
+
+    
+
+    <footer class="post-footer">
+      
+        <div class="post-tags">
+          
+            <a href="/tags/zookeeper-client/" rel="tag"># zookeeper, client</a>
+          
+        </div>
+      
+
+      
+      
+      
+
+      
+        <div class="post-nav">
+          <div class="post-nav-next post-nav-item">
+            
+              <a href="/2019/08/19/leveldb-thought/" rel="next" title="Levedb 设计感想">
+                <i class="fa fa-chevron-left"></i> Levedb 设计感想
+              </a>
+            
+          </div>
+
+          <span class="post-nav-divider"></span>
+
+          <div class="post-nav-prev post-nav-item">
+            
+          </div>
+        </div>
+      
+
+      
+      
+    </footer>
+  </div>
+  
+  
+  
+  </article>
+
+
+
+    <div class="post-spread">
+      
+    </div>
+  </div>
+
+
+          </div>
+          
+
+
+          
+
+  
+    <div class="comments" id="comments">
+    </div>
+  
+
+
+
+        </div>
+        
+          
+  
+  <div class="sidebar-toggle">
+    <div class="sidebar-toggle-line-wrap">
+      <span class="sidebar-toggle-line sidebar-toggle-line-first"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-middle"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-last"></span>
+    </div>
+  </div>
+
+  <aside id="sidebar" class="sidebar">
+    
+    <div class="sidebar-inner">
+
+      
+
+      
+        <ul class="sidebar-nav motion-element">
+          <li class="sidebar-nav-toc sidebar-nav-active" data-target="post-toc-wrap">
+            Table of Contents
+          </li>
+          <li class="sidebar-nav-overview" data-target="site-overview-wrap">
+            Overview
+          </li>
+        </ul>
+      
+
+      <section class="site-overview-wrap sidebar-panel">
+        <div class="site-overview">
+          <div class="site-author motion-element" itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+            
+              <p class="site-author-name" itemprop="name">zhmin</p>
+              <p class="site-description motion-element" itemprop="description"></p>
+          </div>
+
+          <nav class="site-state motion-element">
+
+            
+              <div class="site-state-item site-state-posts">
+              
+                <a href="/archives/">
+              
+                  <span class="site-state-item-count">50</span>
+                  <span class="site-state-item-name">posts</span>
+                </a>
+              </div>
+            
+
+            
+              
+              
+              <div class="site-state-item site-state-categories">
+                <a href="/categories/index.html">
+                  <span class="site-state-item-count">11</span>
+                  <span class="site-state-item-name">categories</span>
+                </a>
+              </div>
+            
+
+            
+              
+              
+              <div class="site-state-item site-state-tags">
+                
+                  <span class="site-state-item-count">47</span>
+                  <span class="site-state-item-name">tags</span>
+                
+              </div>
+            
+
+          </nav>
+
+          
+
+          
+            <div class="links-of-author motion-element">
+                
+                  <span class="links-of-author-item">
+                    <a href="https://github.com/zhmin" target="_blank" title="GitHub">
+                      
+                        <i class="fa fa-fw fa-github"></i>GitHub</a>
+                  </span>
+                
+            </div>
+          
+
+          
+          
+
+          
+          
+
+          
+
+        </div>
+      </section>
+
+      
+      <!--noindex-->
+        <section class="post-toc-wrap motion-element sidebar-panel sidebar-panel-active">
+          <div class="post-toc">
+
+            
+              
+            
+
+            
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#架构图"><span class="nav-number">1.</span> <span class="nav-text">架构图</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Packet"><span class="nav-number">2.</span> <span class="nav-text">Packet</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#通信线程"><span class="nav-number">3.</span> <span class="nav-text">通信线程</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#后台线程"><span class="nav-number">4.</span> <span class="nav-text">后台线程</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Socket-通信"><span class="nav-number">5.</span> <span class="nav-text">Socket 通信</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#创建连接"><span class="nav-number">6.</span> <span class="nav-text">创建连接</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#客户端请求"><span class="nav-number">7.</span> <span class="nav-text">客户端请求</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#同步请求"><span class="nav-number">7.1.</span> <span class="nav-text">同步请求</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#异步请求"><span class="nav-number">7.2.</span> <span class="nav-text">异步请求</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#异常处理"><span class="nav-number">8.</span> <span class="nav-text">异常处理</span></a></li></ol></div>
+            
+
+          </div>
+        </section>
+      <!--/noindex-->
+      
+
+      
+
+    </div>
+  </aside>
+
+
+        
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="footer-inner">
+        <div class="copyright">&copy; <span itemprop="copyrightYear">2019</span>
+  <span class="with-love">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">zhmin</span>
+
+  
+</div>
+
+
+
+
+
+
+
+
+
+
+
+  <script src="https://unpkg.com/mermaid@7.1.2/dist/mermaid.min.js"></script>
+  <script>
+    if (window.mermaid) {
+      mermaid.initialize({"startOnload":true,"theme":"forest"});
+    }
+  </script>
+
+
+
+<script async src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+<span id="busuanzi_container_site_pv">
+    访问量<span id="busuanzi_value_site_pv"></span>
+</span>
+<span class="post-meta-divider">|</span>
+<span id="busuanzi_container_site_uv">
+  访客数<span id="busuanzi_value_site_uv"></span>
+</span>
+
+        
+
+
+
+
+
+
+
+        
+      </div>
+    </footer>
+
+    
+      <div class="back-to-top">
+        <i class="fa fa-arrow-up"></i>
+        
+      </div>
+    
+
+    
+
+  </div>
+
+  
+
+<script type="text/javascript">
+  if (Object.prototype.toString.call(window.Promise) !== '[object Function]') {
+    window.Promise = null;
+  }
+</script>
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery/index.js?v=2.1.3"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fastclick/lib/fastclick.min.js?v=1.0.6"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery_lazyload/jquery.lazyload.js?v=1.9.7"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.ui.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fancybox/source/jquery.fancybox.pack.js?v=2.1.5"></script>
+  
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/utils.js?v=5.1.4"></script>
+
+  <script type="text/javascript" src="/js/src/motion.js?v=5.1.4"></script>
+
+
+
+  
+  
+
+  
+  <script type="text/javascript" src="/js/src/scrollspy.js?v=5.1.4"></script>
+<script type="text/javascript" src="/js/src/post-details.js?v=5.1.4"></script>
+
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/bootstrap.js?v=5.1.4"></script>
+
+
+
+  
+
+
+  
+
+
+
+
+	
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+  <script src="//cdn1.lncld.net/static/js/3.0.4/av-min.js"></script>
+  <script src="//unpkg.com/valine/dist/Valine.min.js"></script>
+  
+  <script type="text/javascript">
+    var GUEST = ['nick','mail','link'];
+    var guest = 'nick';
+    guest = guest.split(',').filter(item=>{
+      return GUEST.indexOf(item)>-1;
+    });
+    new Valine({
+        el: '#comments' ,
+        verify: false,
+        notify: false,
+        appId: 'iYiPQlDR2X2zg2QIql2UEe2o-gzGzoHsz',
+        appKey: 'EW8G4sftwX1pef1zS9EsOeKE',
+        placeholder: 'comment here',
+        avatar:'mm',
+        guest_info:guest,
+        pageSize:'10' || 10,
+    });
+  </script>
+
+
+
+  
+
+
+
+
+
+  
+
+  
+  <script src="https://cdn1.lncld.net/static/js/av-core-mini-0.6.4.js"></script>
+  <script>AV.initialize("iYiPQlDR2X2zg2QIql2UEe2o-gzGzoHsz", "EW8G4sftwX1pef1zS9EsOeKE");</script>
+  <script>
+    function showTime(Counter) {
+      var query = new AV.Query(Counter);
+      var entries = [];
+      var $visitors = $(".leancloud_visitors");
+
+      $visitors.each(function () {
+        entries.push( $(this).attr("id").trim() );
+      });
+
+      query.containedIn('url', entries);
+      query.find()
+        .done(function (results) {
+          var COUNT_CONTAINER_REF = '.leancloud-visitors-count';
+
+          if (results.length === 0) {
+            $visitors.find(COUNT_CONTAINER_REF).text(0);
+            return;
+          }
+
+          for (var i = 0; i < results.length; i++) {
+            var item = results[i];
+            var url = item.get('url');
+            var time = item.get('time');
+            var element = document.getElementById(url);
+
+            $(element).find(COUNT_CONTAINER_REF).text(time);
+          }
+          for(var i = 0; i < entries.length; i++) {
+            var url = entries[i];
+            var element = document.getElementById(url);
+            var countSpan = $(element).find(COUNT_CONTAINER_REF);
+            if( countSpan.text() == '') {
+              countSpan.text(0);
+            }
+          }
+        })
+        .fail(function (object, error) {
+          console.log("Error: " + error.code + " " + error.message);
+        });
+    }
+
+    function addCount(Counter) {
+      var $visitors = $(".leancloud_visitors");
+      var url = $visitors.attr('id').trim();
+      var title = $visitors.attr('data-flag-title').trim();
+      var query = new AV.Query(Counter);
+
+      query.equalTo("url", url);
+      query.find({
+        success: function(results) {
+          if (results.length > 0) {
+            var counter = results[0];
+            counter.fetchWhenSave(true);
+            counter.increment("time");
+            counter.save(null, {
+              success: function(counter) {
+                var $element = $(document.getElementById(url));
+                $element.find('.leancloud-visitors-count').text(counter.get('time'));
+              },
+              error: function(counter, error) {
+                console.log('Failed to save Visitor num, with error message: ' + error.message);
+              }
+            });
+          } else {
+            var newcounter = new Counter();
+            /* Set ACL */
+            var acl = new AV.ACL();
+            acl.setPublicReadAccess(true);
+            acl.setPublicWriteAccess(true);
+            newcounter.setACL(acl);
+            /* End Set ACL */
+            newcounter.set("title", title);
+            newcounter.set("url", url);
+            newcounter.set("time", 1);
+            newcounter.save(null, {
+              success: function(newcounter) {
+                var $element = $(document.getElementById(url));
+                $element.find('.leancloud-visitors-count').text(newcounter.get('time'));
+              },
+              error: function(newcounter, error) {
+                console.log('Failed to create');
+              }
+            });
+          }
+        },
+        error: function(error) {
+          console.log('Error:' + error.code + " " + error.message);
+        }
+      });
+    }
+
+    $(function() {
+      var Counter = AV.Object.extend("Counter");
+      if ($('.leancloud_visitors').length == 1) {
+        addCount(Counter);
+      } else if ($('.post-title-link').length > 1) {
+        showTime(Counter);
+      }
+    });
+  </script>
+
+
+
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+</body>
+</html>
