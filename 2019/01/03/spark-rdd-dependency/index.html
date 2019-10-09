@@ -79,22 +79,22 @@
 
 
 
-<meta name="description" content="Spark RDD之间的依赖RDD表示分布式的数据集，它是由多个分区组成。RDD封装了底层原理，使得我们编程更加抽象，更加方便。 当我们执行RDD的常见操作时(比如map，filter，groupby等transform类型的操作)，就会创造新的RDD，这样RDD之间就有着血统关系。这种关系可以分为两大类，窄依赖和宽依赖。 窄依赖当父RDD的每个分区只对应于子RDD的一个分区，这种情况是窄依赖。这">
+<meta name="description" content="Spark RDD之间的依赖RDD表示分布式的数据集，它是由多个分区组成。RDD封装了底层原理，使得我们编程更加抽象，更加方便。 当我们执行RDD的常见操作时(比如map，filter，groupby等transform类型的操作)，就会创造新的RDD，这样RDD之间就有着血统关系。这种关系可以分为两大类，窄依赖和宽依赖。 窄依赖当父RDD的每个分区只对应于子RDD的一个分区，这种情况是窄依赖。">
 <meta name="keywords" content="spark, rdd, dependency">
 <meta property="og:type" content="article">
 <meta property="og:title" content="Spark RDD之间的依赖">
 <meta property="og:url" content="https://zhmin.github.io/2019/01/03/spark-rdd-dependency/index.html">
 <meta property="og:site_name" content="学习笔记">
-<meta property="og:description" content="Spark RDD之间的依赖RDD表示分布式的数据集，它是由多个分区组成。RDD封装了底层原理，使得我们编程更加抽象，更加方便。 当我们执行RDD的常见操作时(比如map，filter，groupby等transform类型的操作)，就会创造新的RDD，这样RDD之间就有着血统关系。这种关系可以分为两大类，窄依赖和宽依赖。 窄依赖当父RDD的每个分区只对应于子RDD的一个分区，这种情况是窄依赖。这">
+<meta property="og:description" content="Spark RDD之间的依赖RDD表示分布式的数据集，它是由多个分区组成。RDD封装了底层原理，使得我们编程更加抽象，更加方便。 当我们执行RDD的常见操作时(比如map，filter，groupby等transform类型的操作)，就会创造新的RDD，这样RDD之间就有着血统关系。这种关系可以分为两大类，窄依赖和宽依赖。 窄依赖当父RDD的每个分区只对应于子RDD的一个分区，这种情况是窄依赖。">
 <meta property="og:locale" content="default">
 <meta property="og:image" content="https://zhmin.github.io/2019/01/03/spark-rdd-dependency/spark-rdd-dependency-one.svg">
 <meta property="og:image" content="https://zhmin.github.io/2019/01/03/spark-rdd-dependency/spark-rdd-dependency-range.svg">
 <meta property="og:image" content="https://zhmin.github.io/2019/01/03/spark-rdd-dependency/spark-rdd-dependency-prune.svg">
 <meta property="og:image" content="https://zhmin.github.io/2019/01/03/spark-rdd-dependency/spark-rdd-dependency-shuffle.svg">
-<meta property="og:updated_time" content="2019-03-06T13:14:41.931Z">
+<meta property="og:updated_time" content="2019-10-09T13:58:17.038Z">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="Spark RDD之间的依赖">
-<meta name="twitter:description" content="Spark RDD之间的依赖RDD表示分布式的数据集，它是由多个分区组成。RDD封装了底层原理，使得我们编程更加抽象，更加方便。 当我们执行RDD的常见操作时(比如map，filter，groupby等transform类型的操作)，就会创造新的RDD，这样RDD之间就有着血统关系。这种关系可以分为两大类，窄依赖和宽依赖。 窄依赖当父RDD的每个分区只对应于子RDD的一个分区，这种情况是窄依赖。这">
+<meta name="twitter:description" content="Spark RDD之间的依赖RDD表示分布式的数据集，它是由多个分区组成。RDD封装了底层原理，使得我们编程更加抽象，更加方便。 当我们执行RDD的常见操作时(比如map，filter，groupby等transform类型的操作)，就会创造新的RDD，这样RDD之间就有着血统关系。这种关系可以分为两大类，窄依赖和宽依赖。 窄依赖当父RDD的每个分区只对应于子RDD的一个分区，这种情况是窄依赖。">
 <meta name="twitter:image" content="https://zhmin.github.io/2019/01/03/spark-rdd-dependency/spark-rdd-dependency-one.svg">
 
 
@@ -359,7 +359,8 @@
 
       
         <h1 id="Spark-RDD之间的依赖"><a href="#Spark-RDD之间的依赖" class="headerlink" title="Spark RDD之间的依赖"></a>Spark RDD之间的依赖</h1><p>RDD表示分布式的数据集，它是由多个分区组成。RDD封装了底层原理，使得我们编程更加抽象，更加方便。 当我们执行RDD的常见操作时(比如map，filter，groupby等transform类型的操作)，就会创造新的RDD，这样RDD之间就有着血统关系。这种关系可以分为两大类，窄依赖和宽依赖。</p>
-<h2 id="窄依赖"><a href="#窄依赖" class="headerlink" title="窄依赖"></a>窄依赖</h2><p>当父RDD的每个分区只对应于子RDD的一个分区，这种情况是窄依赖。这里分为三种情形：</p>
+<h2 id="窄依赖"><a href="#窄依赖" class="headerlink" title="窄依赖"></a>窄依赖</h2><p>当父RDD的每个分区只对应于子RDD的一个分区，这种情况是窄依赖。</p>
+<p>这里分为三种情形：</p>
 <h3 id="OneToOneDependency"><a href="#OneToOneDependency" class="headerlink" title="OneToOneDependency"></a>OneToOneDependency</h3><p>父RDD的分区索引与子RDD的分区索引相同，比如map和filter操作, 如下图所示：</p>
 <p><img src="/2019/01/03/spark-rdd-dependency/spark-rdd-dependency-one.svg" alt="spark-rdd-dependency-one"></p>
 <p>代码原理如下：</p>
@@ -372,7 +373,7 @@
 <p><img src="/2019/01/03/spark-rdd-dependency/spark-rdd-dependency-prune.svg" alt="spark-rdd-dependency-prune"></p>
 <p>代码如下：</p>
 <figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// rdd表示父RDD</span></span><br><span class="line"><span class="comment">// partitionFilterFunc表示需要保留那些分区</span></span><br><span class="line"><span class="class"><span class="keyword">class</span> <span class="title">PruneDependency</span>[<span class="type">T</span>](<span class="params">rdd: <span class="type">RDD</span>[<span class="type">T</span>], partitionFilterFunc: <span class="type">Int</span> =&gt; <span class="type">Boolean</span></span>)</span></span><br><span class="line"><span class="class">  <span class="keyword">extends</span> <span class="title">NarrowDependency</span>[<span class="type">T</span>](<span class="params">rdd</span>) </span>&#123;</span><br><span class="line"></span><br><span class="line">  <span class="comment">// 从父RDD提取需要保留的分区</span></span><br><span class="line">  <span class="keyword">val</span> partitions: <span class="type">Array</span>[<span class="type">Partition</span>] = rdd.partitions</span><br><span class="line">    .filter(s =&gt; partitionFilterFunc(s.index)).zipWithIndex</span><br><span class="line">    <span class="comment">// split表示父RDD的分区索引</span></span><br><span class="line">    <span class="comment">// idx表示子RDD的分区索引</span></span><br><span class="line">    .map &#123; <span class="keyword">case</span>(split, idx) =&gt; <span class="keyword">new</span> <span class="type">PartitionPruningRDDPartition</span>(idx, split) : <span class="type">Partition</span> &#125;</span><br><span class="line"></span><br><span class="line">  <span class="keyword">override</span> <span class="function"><span class="keyword">def</span> <span class="title">getParents</span></span>(partitionId: <span class="type">Int</span>): <span class="type">List</span>[<span class="type">Int</span>] = &#123;</span><br><span class="line">    <span class="type">List</span>(partitions(partitionId).asInstanceOf[<span class="type">PartitionPruningRDDPartition</span>].parentSplit.index)</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-<h2 id="宽依赖"><a href="#宽依赖" class="headerlink" title="宽依赖"></a>宽依赖</h2><p>当子RDD的分区数据来源于父RDD的多个分区时，两者之间的依赖关系就是宽依赖。当触发shuffle操作时，两者Rdd的关系就是由宽依赖ShuffleDependency表示，它有以下属性：</p>
+<h2 id="宽依赖"><a href="#宽依赖" class="headerlink" title="宽依赖"></a>宽依赖</h2><p>当父RDD的分区对应于子RDD的多个分区时，两者之间的依赖关系就是宽依赖。当触发shuffle操作时，两者Rdd的关系就是由宽依赖ShuffleDependency表示，它有以下属性：</p>
 <ul>
 <li>rdd， 指向父RDD</li>
 <li>partitioner， 子RDD的分区器</li>
@@ -518,7 +519,7 @@
               
                 <a href="/archives/">
               
-                  <span class="site-state-item-count">53</span>
+                  <span class="site-state-item-count">54</span>
                   <span class="site-state-item-name">posts</span>
                 </a>
               </div>
@@ -529,7 +530,7 @@
               
               <div class="site-state-item site-state-categories">
                 <a href="/categories/index.html">
-                  <span class="site-state-item-count">11</span>
+                  <span class="site-state-item-count">12</span>
                   <span class="site-state-item-name">categories</span>
                 </a>
               </div>
@@ -540,7 +541,7 @@
               
               <div class="site-state-item site-state-tags">
                 
-                  <span class="site-state-item-count">50</span>
+                  <span class="site-state-item-count">51</span>
                   <span class="site-state-item-name">tags</span>
                 
               </div>
