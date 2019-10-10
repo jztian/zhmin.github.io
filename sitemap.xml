@@ -2,6 +2,13 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   
   <url>
+    <loc>https://zhmin.github.io/2019/10/10/postgresql-fsm-file/</loc>
+    
+    <lastmod>2019-10-10T13:03:20.379Z</lastmod>
+    
+  </url>
+  
+  <url>
     <loc>https://zhmin.github.io/2019/01/03/spark-rdd-dependency/</loc>
     
     <lastmod>2019-10-09T13:58:17.038Z</lastmod>
