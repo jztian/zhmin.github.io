@@ -1,0 +1,938 @@
+<!DOCTYPE html>
+
+
+
+  
+
+
+<html class="theme-next mist use-motion" lang="">
+<head><meta name="generator" content="Hexo 3.8.0">
+  <meta charset="UTF-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="theme-color" content="#222">
+
+
+
+
+
+
+
+
+
+<meta http-equiv="Cache-Control" content="no-transform">
+<meta http-equiv="Cache-Control" content="no-siteapp">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+  <link href="/lib/fancybox/source/jquery.fancybox.css?v=2.1.5" rel="stylesheet" type="text/css">
+
+
+
+
+
+
+
+<link href="/lib/font-awesome/css/font-awesome.min.css?v=4.6.2" rel="stylesheet" type="text/css">
+
+<link href="/css/main.css?v=5.1.4" rel="stylesheet" type="text/css">
+
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png?v=5.1.4">
+
+
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png?v=5.1.4">
+
+
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png?v=5.1.4">
+
+
+  <link rel="mask-icon" href="/images/logo.svg?v=5.1.4" color="#222">
+
+
+
+
+
+  <meta name="keywords" content="postgresql, page,">
+
+
+
+
+
+
+
+
+
+
+<meta name="description" content="前言buffer page 存储着真正的数据，它同磁盘的block是相同格式的。 内存结构page 可以简单划分为四块区域：  page 头部区域，描述整个 page 的情况，比如空闲空间，校检值等 数据指针区域，数据指针用来描述实际数据的存储信息 数据区域，用来存储实际数据 特殊区域，用来存储一些特殊数据   其中数据指针区域和数据区域是空间共享的，数据指针区域的区间是从上面开始的，向下扩展。而">
+<meta name="keywords" content="postgresql, page">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Postgresql Page 结构">
+<meta property="og:url" content="https://zhmin.github.io/2019/10/11/postgresql-buffer-page/index.html">
+<meta property="og:site_name" content="学习笔记">
+<meta property="og:description" content="前言buffer page 存储着真正的数据，它同磁盘的block是相同格式的。 内存结构page 可以简单划分为四块区域：  page 头部区域，描述整个 page 的情况，比如空闲空间，校检值等 数据指针区域，数据指针用来描述实际数据的存储信息 数据区域，用来存储实际数据 特殊区域，用来存储一些特殊数据   其中数据指针区域和数据区域是空间共享的，数据指针区域的区间是从上面开始的，向下扩展。而">
+<meta property="og:locale" content="default">
+<meta property="og:image" content="https://zhmin.github.io/2019/10/11/postgresql-buffer-page/pg-buffer-page-1.svg">
+<meta property="og:image" content="https://zhmin.github.io/2019/10/11/postgresql-buffer-page/pg-buffer-page-2.svg">
+<meta property="og:image" content="https://zhmin.github.io/2019/10/11/postgresql-buffer-page/pg-buffer-page-add.svg">
+<meta property="og:image" content="https://zhmin.github.io/2019/10/11/postgresql-buffer-page/pg-buffer-page-delete.svg">
+<meta property="og:updated_time" content="2019-10-11T12:34:15.830Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Postgresql Page 结构">
+<meta name="twitter:description" content="前言buffer page 存储着真正的数据，它同磁盘的block是相同格式的。 内存结构page 可以简单划分为四块区域：  page 头部区域，描述整个 page 的情况，比如空闲空间，校检值等 数据指针区域，数据指针用来描述实际数据的存储信息 数据区域，用来存储实际数据 特殊区域，用来存储一些特殊数据   其中数据指针区域和数据区域是空间共享的，数据指针区域的区间是从上面开始的，向下扩展。而">
+<meta name="twitter:image" content="https://zhmin.github.io/2019/10/11/postgresql-buffer-page/pg-buffer-page-1.svg">
+
+
+
+<script type="text/javascript" id="hexo.configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '/',
+    scheme: 'Mist',
+    version: '5.1.4',
+    sidebar: {"position":"left","display":"hide","offset":12,"b2t":false,"scrollpercent":false,"onmobile":false},
+    fancybox: true,
+    tabs: true,
+    motion: {"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},
+    duoshuo: {
+      userId: '0',
+      author: 'Author'
+    },
+    algolia: {
+      applicationID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    }
+  };
+</script>
+
+
+
+  <link rel="canonical" href="https://zhmin.github.io/2019/10/11/postgresql-buffer-page/">
+
+
+
+
+
+  <title>Postgresql Page 结构 | 学习笔记</title>
+  
+
+
+
+
+
+
+
+
+</head>
+
+<body itemscope="" itemtype="http://schema.org/WebPage" lang="default">
+
+  
+  
+    
+  
+
+  <div class="container sidebar-position-left page-post-detail">
+    <div class="headband"></div>
+
+    <header id="header" class="header" itemscope="" itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-wrapper">
+  <div class="site-meta ">
+    
+
+    <div class="custom-logo-site-title">
+      <a href="/" class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">学习笔记</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+      
+        <h1 class="site-subtitle" itemprop="description"></h1>
+      
+  </div>
+
+  <div class="site-nav-toggle">
+    <button>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+    </button>
+  </div>
+</div>
+
+<nav class="site-nav">
+  
+
+  
+    <ul id="menu" class="menu">
+      
+        
+        <li class="menu-item menu-item-home">
+          <a href="/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-home"></i> <br>
+            
+            Home
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-categories">
+          <a href="/categories/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-th"></i> <br>
+            
+            Categories
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-archives">
+          <a href="/archives/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-archive"></i> <br>
+            
+            Archives
+          </a>
+        </li>
+      
+
+      
+    </ul>
+  
+
+  
+</nav>
+
+
+
+ </div>
+    </header>
+
+    <main id="main" class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          <div id="content" class="content">
+            
+
+  <div id="posts" class="posts-expand">
+    
+
+  
+
+  
+  
+  
+
+  <article class="post post-type-normal" itemscope="" itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block">
+    <link itemprop="mainEntityOfPage" href="https://zhmin.github.io/2019/10/11/postgresql-buffer-page/">
+
+    <span hidden itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="zhmin">
+      <meta itemprop="description" content="">
+      <meta itemprop="image" content="/images/avatar.gif">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope="" itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="学习笔记">
+    </span>
+
+    
+      <header class="post-header">
+
+        
+        
+          <h2 class="post-title" itemprop="name headline">Postgresql Page 结构</h2>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">Posted on</span>
+              
+              <time title="Post created" itemprop="dateCreated datePublished" datetime="2019-10-11T19:41:37+08:00">
+                2019-10-11
+              </time>
+            
+
+            
+
+            
+          </span>
+
+          
+            <span class="post-category">
+            
+              <span class="post-meta-divider">|</span>
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">In</span>
+              
+              
+                <span itemprop="about" itemscope="" itemtype="http://schema.org/Thing">
+                  <a href="/categories/postgresql/" itemprop="url" rel="index">
+                    <span itemprop="name">postgresql</span>
+                  </a>
+                </span>
+
+                
+                
+              
+            </span>
+          
+
+          
+            
+              <span class="post-comments-count">
+                <span class="post-meta-divider">|</span>
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-comment-o"></i>
+                </span>
+                <a href="/2019/10/11/postgresql-buffer-page/#comments" itemprop="discussionUrl">
+                  <span class="post-comments-count valine-comment-count" data-xid="/2019/10/11/postgresql-buffer-page/" itemprop="commentCount"></span>
+                </a>
+              </span>
+            
+          
+
+          
+          
+             <span id="/2019/10/11/postgresql-buffer-page/" class="leancloud_visitors" data-flag-title="Postgresql Page 结构">
+               <span class="post-meta-divider">|</span>
+               <span class="post-meta-item-icon">
+                 <i class="fa fa-eye"></i>
+               </span>
+               
+                 <span class="post-meta-item-text">Visitors&#58;</span>
+               
+                 <span class="leancloud-visitors-count"></span>
+             </span>
+          
+
+          
+
+          
+
+          
+
+        </div>
+      </header>
+    
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+      
+
+      
+        <h2 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h2><p>buffer page 存储着真正的数据，它同磁盘的block是相同格式的。</p>
+<h2 id="内存结构"><a href="#内存结构" class="headerlink" title="内存结构"></a>内存结构</h2><p>page 可以简单划分为四块区域：</p>
+<ol>
+<li>page 头部区域，描述整个 page 的情况，比如空闲空间，校检值等</li>
+<li>数据指针区域，数据指针用来描述实际数据的存储信息</li>
+<li>数据区域，用来存储实际数据</li>
+<li>特殊区域，用来存储一些特殊数据</li>
+</ol>
+<p><img src="/2019/10/11/postgresql-buffer-page/pg-buffer-page-1.svg"></p>
+<p>其中数据指针区域和数据区域是空间共享的，数据指针区域的区间是从上面开始的，向下扩展。而数据区域的空间方向是相反的，从下面开始的，向上扩展。</p>
+<p>每条数据存储在 page 里，都对应一个数据指针和一个数据，数据指针记录了实际存储数据的位置。这种共享机制能够充分的利用空间，无论每条数据的是否过大或过小，都能几乎填满整个 page。</p>
+<h2 id="Page-头部"><a href="#Page-头部" class="headerlink" title="Page 头部"></a>Page 头部</h2><p>page 头部由结构体<code>PageHeaderData</code>来表示，</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> <span class="title">PageHeaderData</span></span></span><br><span class="line"><span class="class">&#123;</span></span><br><span class="line">	PageXLogRecPtr pd_lsn;		<span class="comment">/* LSN: next byte after last byte of xlog</span></span><br><span class="line"><span class="comment">								 * record for last change to this page */</span></span><br><span class="line">	uint16		pd_checksum;	<span class="comment">// 校检值</span></span><br><span class="line">	uint16		pd_flags;		<span class="comment">// 标记位</span></span><br><span class="line">	LocationIndex pd_lower;		<span class="comment">// 空闲空间的起始偏移量</span></span><br><span class="line">	LocationIndex pd_upper;		<span class="comment">// 空闲空间的结束偏移量</span></span><br><span class="line">	LocationIndex pd_special;	<span class="comment">// 特殊空间的结束偏移量</span></span><br><span class="line">	uint16		pd_pagesize_version;  <span class="comment">// page 格式版本号</span></span><br><span class="line">	TransactionId pd_prune_xid; <span class="comment">/* oldest prunable XID, or zero if none */</span></span><br><span class="line">	ItemIdData	pd_linp[FLEXIBLE_ARRAY_MEMBER]; <span class="comment">// 数据指针数组</span></span><br><span class="line">&#125; PageHeaderData;</span><br></pre></td></tr></table></figure>
+<p>当新添加一条数据到 page 里，需要快速判断是否有空闲空间。page 的 pd_flags 记录了 page 是否有空闲空间，它的标记位如下：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#<span class="meta-keyword">define</span> PD_HAS_FREE_LINES	0x0001	<span class="comment">// 是否有空闲的数据指针</span></span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">define</span> PD_PAGE_FULL		0x0002	<span class="comment">// 是否有空闲空间支持添加一条数据</span></span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">define</span> PD_ALL_VISIBLE		0x0004	<span class="comment">/* all tuples on page are visible to everyone */</span></span></span><br></pre></td></tr></table></figure>
+<p>注意到 pd_linp 成员，它是一个 ItemIdData 数组，这里需要把它看成一个指针。它并不属于头部，从计算头部的长度就可以看出</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#<span class="meta-keyword">define</span> SizeOfPageHeaderData (offsetof(PageHeaderData, pd_linp))</span></span><br></pre></td></tr></table></figure>
+<p>整个结构如下图所示：</p>
+<p><img src="/2019/10/11/postgresql-buffer-page/pg-buffer-page-2.svg"></p>
+<h2 id="数据指针"><a href="#数据指针" class="headerlink" title="数据指针"></a>数据指针</h2><p>ItemData 结构表示数据的指针，它描述了数据的位置和状态</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> <span class="title">ItemIdData</span></span></span><br><span class="line"><span class="class">&#123;</span></span><br><span class="line">	<span class="keyword">unsigned</span>	lp_off:<span class="number">15</span>,		<span class="comment">// 数据在page的偏移量</span></span><br><span class="line">				lp_flags:<span class="number">2</span>,		<span class="comment">// 状态值，有unused,normal,redirect,dead</span></span><br><span class="line">				lp_len:<span class="number">15</span>;		<span class="comment">// 数据长度</span></span><br><span class="line">&#125; ItemIdData;</span><br></pre></td></tr></table></figure>
+<p>lp_flags 只有2位，它有四种状态值：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#<span class="meta-keyword">define</span> LP_UNUSED		0		<span class="comment">// 表示此指针是空闲</span></span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">define</span> LP_NORMAL		1		<span class="comment">// 表示此指针正在被使用，且对应的数据已经存储</span></span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">define</span> LP_REDIRECT		2		<span class="comment">// HOT redirect (should have lp_len=0) */</span></span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">define</span> LP_DEAD			3		<span class="comment">// dead, may or may not have storage */</span></span></span><br></pre></td></tr></table></figure>
+<h2 id="插入数据"><a href="#插入数据" class="headerlink" title="插入数据"></a>插入数据</h2><p><code>PageAddItemExtended</code>函数负责插入数据，定义如下</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/*</span></span><br><span class="line"><span class="comment"> * 参数item是要写入的数据，参数size是数据的长度</span></span><br><span class="line"><span class="comment"> * 参数offsetNumber指定数据指针的位置，如果对于位置没有要求，值为InvalidOffsetNumber</span></span><br><span class="line"><span class="comment"> * 参数flags是标记位，可以指明数据类型是否是tuple类型，还可以指定是否覆盖已有数据</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line"><span class="function">OffsetNumber <span class="title">PageAddItemExtended</span><span class="params">(Page page, Item item, Size size, OffsetNumber offsetNumber, <span class="keyword">int</span> flags)</span></span>;</span><br></pre></td></tr></table></figure>
+<p>如下图所示，原来的 page 有三条数据 data0、data2、data3，而 data 1 数据已经被删除，所以数据指针 ItemIdData 1 的位置是空闲的，现在要插入 data4 数据。</p>
+<p>中间的图片展示了两种插入情况，没有指定数据指针的位置，和指定了数据指针位置为第2个（也就是原有的 ItemData 1 空闲位置）并且指定了覆盖选项。</p>
+<p>后面的图片展示了指定数据指针的位置第三个（也就是为原有 ItemData2 的位置）。</p>
+<p><img src="/2019/10/11/postgresql-buffer-page/pg-buffer-page-add.svg"></p>
+<p>插入数据的原理总结如下：</p>
+<ol>
+<li>如果没有指定数据指针的位置，那么会尽量使用空闲位置的，通过检查 <code>PD_HAS_FREE_LINES</code> 标记位，就可以判断page 是否有空闲数据指针。如果有空闲位置，那么就从头开始遍历，直到找到一个空闲位置。如果没有前面空闲位置，只能使用 pd_lower 指向的位置。</li>
+<li>如果指定了数据指针位置，并且设置了覆盖选项，那么首先会去检查该位置的指针是否已经被使用，如果没有被使用则直接修改指针属性和插入数据，否则就会报错。</li>
+<li>如果指定了数据指针位置，但没有指定覆盖，那么不管此位置是否空闲，都需要将后面的指针后移一位。</li>
+</ol>
+<h2 id="删除数据"><a href="#删除数据" class="headerlink" title="删除数据"></a>删除数据</h2><p><code>PageIndexTupleDelete</code>负责删除指定位置的数据，删除数据后，会将需要将空闲的数据指针和数据进行压缩合并。</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">void</span> <span class="title">PageIndexTupleDelete</span><span class="params">(Page page, OffsetNumber offnum)</span></span>;</span><br></pre></td></tr></table></figure>
+<p>下图展示了数据删除的过程，这里需要删除数据 data 2：</p>
+<p><img src="/2019/10/11/postgresql-buffer-page/pg-buffer-page-delete.svg"></p>
+<p>首先将数据指针删除，然后将后面的数据向上移动，填满空缺位。</p>
+<p>然后将实际的存储数据删除，将后面的数据向下移动，填补空缺位。</p>
+<p>最后还需要更新数据指针的 offset 属性，因为其对应的数据存储位置已经发生了改变。</p>
+<h2 id="修改数据"><a href="#修改数据" class="headerlink" title="修改数据"></a>修改数据</h2><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">bool</span> <span class="title">PageIndexTupleOverwrite</span><span class="params">(Page page, OffsetNumber offnum, Item newtup, Size newsize)</span></span>;</span><br></pre></td></tr></table></figure>
+<p>如果原有数据的大小和新数据相同，那么直接修改对应的数据指针和实际的数据。</p>
+<p>如果不一致，需要先将数据进行删除，然后将删除的空间进行压缩合并，并且更新所有数据指针的 offset 属性。最后才完成添加数据。</p>
+
+      
+    </div>
+    
+    
+    
+
+    
+
+    
+
+    
+
+    <footer class="post-footer">
+      
+        <div class="post-tags">
+          
+            <a href="/tags/postgresql-page/" rel="tag"># postgresql, page</a>
+          
+        </div>
+      
+
+      
+      
+      
+
+      
+        <div class="post-nav">
+          <div class="post-nav-next post-nav-item">
+            
+              <a href="/2019/10/10/postgresql-fsm-file/" rel="next" title="Postgresql Free Space Map 文件解析">
+                <i class="fa fa-chevron-left"></i> Postgresql Free Space Map 文件解析
+              </a>
+            
+          </div>
+
+          <span class="post-nav-divider"></span>
+
+          <div class="post-nav-prev post-nav-item">
+            
+          </div>
+        </div>
+      
+
+      
+      
+    </footer>
+  </div>
+  
+  
+  
+  </article>
+
+
+
+    <div class="post-spread">
+      
+    </div>
+  </div>
+
+
+          </div>
+          
+
+
+          
+
+  
+    <div class="comments" id="comments">
+    </div>
+  
+
+
+
+        </div>
+        
+          
+  
+  <div class="sidebar-toggle">
+    <div class="sidebar-toggle-line-wrap">
+      <span class="sidebar-toggle-line sidebar-toggle-line-first"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-middle"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-last"></span>
+    </div>
+  </div>
+
+  <aside id="sidebar" class="sidebar">
+    
+    <div class="sidebar-inner">
+
+      
+
+      
+        <ul class="sidebar-nav motion-element">
+          <li class="sidebar-nav-toc sidebar-nav-active" data-target="post-toc-wrap">
+            Table of Contents
+          </li>
+          <li class="sidebar-nav-overview" data-target="site-overview-wrap">
+            Overview
+          </li>
+        </ul>
+      
+
+      <section class="site-overview-wrap sidebar-panel">
+        <div class="site-overview">
+          <div class="site-author motion-element" itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+            
+              <p class="site-author-name" itemprop="name">zhmin</p>
+              <p class="site-description motion-element" itemprop="description"></p>
+          </div>
+
+          <nav class="site-state motion-element">
+
+            
+              <div class="site-state-item site-state-posts">
+              
+                <a href="/archives/">
+              
+                  <span class="site-state-item-count">56</span>
+                  <span class="site-state-item-name">posts</span>
+                </a>
+              </div>
+            
+
+            
+              
+              
+              <div class="site-state-item site-state-categories">
+                <a href="/categories/index.html">
+                  <span class="site-state-item-count">12</span>
+                  <span class="site-state-item-name">categories</span>
+                </a>
+              </div>
+            
+
+            
+              
+              
+              <div class="site-state-item site-state-tags">
+                
+                  <span class="site-state-item-count">53</span>
+                  <span class="site-state-item-name">tags</span>
+                
+              </div>
+            
+
+          </nav>
+
+          
+
+          
+            <div class="links-of-author motion-element">
+                
+                  <span class="links-of-author-item">
+                    <a href="https://github.com/zhmin" target="_blank" title="GitHub">
+                      
+                        <i class="fa fa-fw fa-github"></i>GitHub</a>
+                  </span>
+                
+            </div>
+          
+
+          
+          
+
+          
+          
+
+          
+
+        </div>
+      </section>
+
+      
+      <!--noindex-->
+        <section class="post-toc-wrap motion-element sidebar-panel sidebar-panel-active">
+          <div class="post-toc">
+
+            
+              
+            
+
+            
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#前言"><span class="nav-number">1.</span> <span class="nav-text">前言</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#内存结构"><span class="nav-number">2.</span> <span class="nav-text">内存结构</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Page-头部"><span class="nav-number">3.</span> <span class="nav-text">Page 头部</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#数据指针"><span class="nav-number">4.</span> <span class="nav-text">数据指针</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#插入数据"><span class="nav-number">5.</span> <span class="nav-text">插入数据</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#删除数据"><span class="nav-number">6.</span> <span class="nav-text">删除数据</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#修改数据"><span class="nav-number">7.</span> <span class="nav-text">修改数据</span></a></li></ol></div>
+            
+
+          </div>
+        </section>
+      <!--/noindex-->
+      
+
+      
+
+    </div>
+  </aside>
+
+
+        
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="footer-inner">
+        <div class="copyright">&copy; <span itemprop="copyrightYear">2019</span>
+  <span class="with-love">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">zhmin</span>
+
+  
+</div>
+
+
+
+
+
+
+
+
+
+
+
+  <script src="https://unpkg.com/mermaid@7.1.2/dist/mermaid.min.js"></script>
+  <script>
+    if (window.mermaid) {
+      mermaid.initialize({"startOnload":true,"theme":"forest"});
+    }
+  </script>
+
+
+
+<script async src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+<span id="busuanzi_container_site_pv">
+    访问量<span id="busuanzi_value_site_pv"></span>
+</span>
+<span class="post-meta-divider">|</span>
+<span id="busuanzi_container_site_uv">
+  访客数<span id="busuanzi_value_site_uv"></span>
+</span>
+
+        
+
+
+
+
+
+
+
+        
+      </div>
+    </footer>
+
+    
+      <div class="back-to-top">
+        <i class="fa fa-arrow-up"></i>
+        
+      </div>
+    
+
+    
+
+  </div>
+
+  
+
+<script type="text/javascript">
+  if (Object.prototype.toString.call(window.Promise) !== '[object Function]') {
+    window.Promise = null;
+  }
+</script>
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery/index.js?v=2.1.3"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fastclick/lib/fastclick.min.js?v=1.0.6"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery_lazyload/jquery.lazyload.js?v=1.9.7"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.ui.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fancybox/source/jquery.fancybox.pack.js?v=2.1.5"></script>
+  
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/utils.js?v=5.1.4"></script>
+
+  <script type="text/javascript" src="/js/src/motion.js?v=5.1.4"></script>
+
+
+
+  
+  
+
+  
+  <script type="text/javascript" src="/js/src/scrollspy.js?v=5.1.4"></script>
+<script type="text/javascript" src="/js/src/post-details.js?v=5.1.4"></script>
+
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/bootstrap.js?v=5.1.4"></script>
+
+
+
+  
+
+
+  
+
+
+
+
+	
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+  <script src="//cdn1.lncld.net/static/js/3.0.4/av-min.js"></script>
+  <script src="//unpkg.com/valine/dist/Valine.min.js"></script>
+  
+  <script type="text/javascript">
+    var GUEST = ['nick','mail','link'];
+    var guest = 'nick';
+    guest = guest.split(',').filter(item=>{
+      return GUEST.indexOf(item)>-1;
+    });
+    new Valine({
+        el: '#comments' ,
+        verify: false,
+        notify: false,
+        appId: 'iYiPQlDR2X2zg2QIql2UEe2o-gzGzoHsz',
+        appKey: 'EW8G4sftwX1pef1zS9EsOeKE',
+        placeholder: 'comment here',
+        avatar:'mm',
+        guest_info:guest,
+        pageSize:'10' || 10,
+    });
+  </script>
+
+
+
+  
+
+
+
+
+
+  
+
+  
+  <script src="https://cdn1.lncld.net/static/js/av-core-mini-0.6.4.js"></script>
+  <script>AV.initialize("iYiPQlDR2X2zg2QIql2UEe2o-gzGzoHsz", "EW8G4sftwX1pef1zS9EsOeKE");</script>
+  <script>
+    function showTime(Counter) {
+      var query = new AV.Query(Counter);
+      var entries = [];
+      var $visitors = $(".leancloud_visitors");
+
+      $visitors.each(function () {
+        entries.push( $(this).attr("id").trim() );
+      });
+
+      query.containedIn('url', entries);
+      query.find()
+        .done(function (results) {
+          var COUNT_CONTAINER_REF = '.leancloud-visitors-count';
+
+          if (results.length === 0) {
+            $visitors.find(COUNT_CONTAINER_REF).text(0);
+            return;
+          }
+
+          for (var i = 0; i < results.length; i++) {
+            var item = results[i];
+            var url = item.get('url');
+            var time = item.get('time');
+            var element = document.getElementById(url);
+
+            $(element).find(COUNT_CONTAINER_REF).text(time);
+          }
+          for(var i = 0; i < entries.length; i++) {
+            var url = entries[i];
+            var element = document.getElementById(url);
+            var countSpan = $(element).find(COUNT_CONTAINER_REF);
+            if( countSpan.text() == '') {
+              countSpan.text(0);
+            }
+          }
+        })
+        .fail(function (object, error) {
+          console.log("Error: " + error.code + " " + error.message);
+        });
+    }
+
+    function addCount(Counter) {
+      var $visitors = $(".leancloud_visitors");
+      var url = $visitors.attr('id').trim();
+      var title = $visitors.attr('data-flag-title').trim();
+      var query = new AV.Query(Counter);
+
+      query.equalTo("url", url);
+      query.find({
+        success: function(results) {
+          if (results.length > 0) {
+            var counter = results[0];
+            counter.fetchWhenSave(true);
+            counter.increment("time");
+            counter.save(null, {
+              success: function(counter) {
+                var $element = $(document.getElementById(url));
+                $element.find('.leancloud-visitors-count').text(counter.get('time'));
+              },
+              error: function(counter, error) {
+                console.log('Failed to save Visitor num, with error message: ' + error.message);
+              }
+            });
+          } else {
+            var newcounter = new Counter();
+            /* Set ACL */
+            var acl = new AV.ACL();
+            acl.setPublicReadAccess(true);
+            acl.setPublicWriteAccess(true);
+            newcounter.setACL(acl);
+            /* End Set ACL */
+            newcounter.set("title", title);
+            newcounter.set("url", url);
+            newcounter.set("time", 1);
+            newcounter.save(null, {
+              success: function(newcounter) {
+                var $element = $(document.getElementById(url));
+                $element.find('.leancloud-visitors-count').text(newcounter.get('time'));
+              },
+              error: function(newcounter, error) {
+                console.log('Failed to create');
+              }
+            });
+          }
+        },
+        error: function(error) {
+          console.log('Error:' + error.code + " " + error.message);
+        }
+      });
+    }
+
+    $(function() {
+      var Counter = AV.Object.extend("Counter");
+      if ($('.leancloud_visitors').length == 1) {
+        addCount(Counter);
+      } else if ($('.post-title-link').length > 1) {
+        showTime(Counter);
+      }
+    });
+  </script>
+
+
+
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+</body>
+</html>
