@@ -79,22 +79,22 @@
 
 
 
-<meta name="description" content="前言buffer page 存储着真正的数据，它同磁盘的block是相同格式的。 内存结构page 可以简单划分为四块区域：  page 头部区域，描述整个 page 的情况，比如空闲空间，校检值等 数据指针区域，数据指针用来描述实际数据的存储信息 数据区域，用来存储实际数据 特殊区域，用来存储一些特殊数据   其中数据指针区域和数据区域是空间共享的，数据指针区域的区间是从上面开始的，向下扩展。而">
+<meta name="description" content="前言postgresql 保存数据的基本单位是 page，一个 page 里包含多条数据。postgresql 同磁盘的读写单位也是 page，一个 page 对应于磁盘的一个 block。block 的格式和 page 是相同的，本篇文章详细得介绍了 page 的数据存储格式和相关的增删改查操作。 内存结构page 可以简单划分为四块区域：  page 头部区域，描述整个 page 的情况，比如">
 <meta name="keywords" content="postgresql, page">
 <meta property="og:type" content="article">
 <meta property="og:title" content="Postgresql Page 结构">
 <meta property="og:url" content="https://zhmin.github.io/2019/10/11/postgresql-buffer-page/index.html">
 <meta property="og:site_name" content="学习笔记">
-<meta property="og:description" content="前言buffer page 存储着真正的数据，它同磁盘的block是相同格式的。 内存结构page 可以简单划分为四块区域：  page 头部区域，描述整个 page 的情况，比如空闲空间，校检值等 数据指针区域，数据指针用来描述实际数据的存储信息 数据区域，用来存储实际数据 特殊区域，用来存储一些特殊数据   其中数据指针区域和数据区域是空间共享的，数据指针区域的区间是从上面开始的，向下扩展。而">
+<meta property="og:description" content="前言postgresql 保存数据的基本单位是 page，一个 page 里包含多条数据。postgresql 同磁盘的读写单位也是 page，一个 page 对应于磁盘的一个 block。block 的格式和 page 是相同的，本篇文章详细得介绍了 page 的数据存储格式和相关的增删改查操作。 内存结构page 可以简单划分为四块区域：  page 头部区域，描述整个 page 的情况，比如">
 <meta property="og:locale" content="default">
 <meta property="og:image" content="https://zhmin.github.io/2019/10/11/postgresql-buffer-page/pg-buffer-page-1.svg">
 <meta property="og:image" content="https://zhmin.github.io/2019/10/11/postgresql-buffer-page/pg-buffer-page-2.svg">
 <meta property="og:image" content="https://zhmin.github.io/2019/10/11/postgresql-buffer-page/pg-buffer-page-add.svg">
 <meta property="og:image" content="https://zhmin.github.io/2019/10/11/postgresql-buffer-page/pg-buffer-page-delete.svg">
-<meta property="og:updated_time" content="2019-10-11T12:34:15.830Z">
+<meta property="og:updated_time" content="2019-10-12T11:32:24.590Z">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="Postgresql Page 结构">
-<meta name="twitter:description" content="前言buffer page 存储着真正的数据，它同磁盘的block是相同格式的。 内存结构page 可以简单划分为四块区域：  page 头部区域，描述整个 page 的情况，比如空闲空间，校检值等 数据指针区域，数据指针用来描述实际数据的存储信息 数据区域，用来存储实际数据 特殊区域，用来存储一些特殊数据   其中数据指针区域和数据区域是空间共享的，数据指针区域的区间是从上面开始的，向下扩展。而">
+<meta name="twitter:description" content="前言postgresql 保存数据的基本单位是 page，一个 page 里包含多条数据。postgresql 同磁盘的读写单位也是 page，一个 page 对应于磁盘的一个 block。block 的格式和 page 是相同的，本篇文章详细得介绍了 page 的数据存储格式和相关的增删改查操作。 内存结构page 可以简单划分为四块区域：  page 头部区域，描述整个 page 的情况，比如">
 <meta name="twitter:image" content="https://zhmin.github.io/2019/10/11/postgresql-buffer-page/pg-buffer-page-1.svg">
 
 
@@ -358,7 +358,7 @@
       
 
       
-        <h2 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h2><p>buffer page 存储着真正的数据，它同磁盘的block是相同格式的。</p>
+        <h2 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h2><p>postgresql 保存数据的基本单位是 page，一个 page 里包含多条数据。postgresql 同磁盘的读写单位也是 page，一个 page 对应于磁盘的一个 block。block 的格式和 page 是相同的，本篇文章详细得介绍了 page 的数据存储格式和相关的增删改查操作。</p>
 <h2 id="内存结构"><a href="#内存结构" class="headerlink" title="内存结构"></a>内存结构</h2><p>page 可以简单划分为四块区域：</p>
 <ol>
 <li>page 头部区域，描述整个 page 的情况，比如空闲空间，校检值等</li>
