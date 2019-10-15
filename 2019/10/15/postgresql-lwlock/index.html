@@ -1,0 +1,941 @@
+<!DOCTYPE html>
+
+
+
+  
+
+
+<html class="theme-next mist use-motion" lang="">
+<head><meta name="generator" content="Hexo 3.8.0">
+  <meta charset="UTF-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="theme-color" content="#222">
+
+
+
+
+
+
+
+
+
+<meta http-equiv="Cache-Control" content="no-transform">
+<meta http-equiv="Cache-Control" content="no-siteapp">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+  <link href="/lib/fancybox/source/jquery.fancybox.css?v=2.1.5" rel="stylesheet" type="text/css">
+
+
+
+
+
+
+
+<link href="/lib/font-awesome/css/font-awesome.min.css?v=4.6.2" rel="stylesheet" type="text/css">
+
+<link href="/css/main.css?v=5.1.4" rel="stylesheet" type="text/css">
+
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png?v=5.1.4">
+
+
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png?v=5.1.4">
+
+
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png?v=5.1.4">
+
+
+  <link rel="mask-icon" href="/images/logo.svg?v=5.1.4" color="#222">
+
+
+
+
+
+  <meta name="keywords" content="postgresql, lwlock,">
+
+
+
+
+
+
+
+
+
+
+<meta name="description" content="前言postgresql 的架构是基于多进程的，进程之间往往存在着数据共享，比如缓存读写。这时 postgresql 需要提高一种锁机制来支持并发访问，但是 linux 只实现了线程间的读写锁，所以 postgresql 自己实现进程间的读写锁，它主要利用了信号量和自旋锁来实现。 进程结构每个进程都对应一个独立 PGPROC 实例，它包含了多个成员，下面只列出与锁相关的 12345678910st">
+<meta name="keywords" content="postgresql, lwlock">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Postgresql LWLock 原理">
+<meta property="og:url" content="https://zhmin.github.io/2019/10/15/postgresql-lwlock/index.html">
+<meta property="og:site_name" content="学习笔记">
+<meta property="og:description" content="前言postgresql 的架构是基于多进程的，进程之间往往存在着数据共享，比如缓存读写。这时 postgresql 需要提高一种锁机制来支持并发访问，但是 linux 只实现了线程间的读写锁，所以 postgresql 自己实现进程间的读写锁，它主要利用了信号量和自旋锁来实现。 进程结构每个进程都对应一个独立 PGPROC 实例，它包含了多个成员，下面只列出与锁相关的 12345678910st">
+<meta property="og:locale" content="default">
+<meta property="og:updated_time" content="2019-10-15T13:14:43.763Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Postgresql LWLock 原理">
+<meta name="twitter:description" content="前言postgresql 的架构是基于多进程的，进程之间往往存在着数据共享，比如缓存读写。这时 postgresql 需要提高一种锁机制来支持并发访问，但是 linux 只实现了线程间的读写锁，所以 postgresql 自己实现进程间的读写锁，它主要利用了信号量和自旋锁来实现。 进程结构每个进程都对应一个独立 PGPROC 实例，它包含了多个成员，下面只列出与锁相关的 12345678910st">
+
+
+
+<script type="text/javascript" id="hexo.configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '/',
+    scheme: 'Mist',
+    version: '5.1.4',
+    sidebar: {"position":"left","display":"hide","offset":12,"b2t":false,"scrollpercent":false,"onmobile":false},
+    fancybox: true,
+    tabs: true,
+    motion: {"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},
+    duoshuo: {
+      userId: '0',
+      author: 'Author'
+    },
+    algolia: {
+      applicationID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    }
+  };
+</script>
+
+
+
+  <link rel="canonical" href="https://zhmin.github.io/2019/10/15/postgresql-lwlock/">
+
+
+
+
+
+  <title>Postgresql LWLock 原理 | 学习笔记</title>
+  
+
+
+
+
+
+
+
+
+</head>
+
+<body itemscope="" itemtype="http://schema.org/WebPage" lang="default">
+
+  
+  
+    
+  
+
+  <div class="container sidebar-position-left page-post-detail">
+    <div class="headband"></div>
+
+    <header id="header" class="header" itemscope="" itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-wrapper">
+  <div class="site-meta ">
+    
+
+    <div class="custom-logo-site-title">
+      <a href="/" class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">学习笔记</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+      
+        <h1 class="site-subtitle" itemprop="description"></h1>
+      
+  </div>
+
+  <div class="site-nav-toggle">
+    <button>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+    </button>
+  </div>
+</div>
+
+<nav class="site-nav">
+  
+
+  
+    <ul id="menu" class="menu">
+      
+        
+        <li class="menu-item menu-item-home">
+          <a href="/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-home"></i> <br>
+            
+            Home
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-categories">
+          <a href="/categories/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-th"></i> <br>
+            
+            Categories
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-archives">
+          <a href="/archives/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-archive"></i> <br>
+            
+            Archives
+          </a>
+        </li>
+      
+
+      
+    </ul>
+  
+
+  
+</nav>
+
+
+
+ </div>
+    </header>
+
+    <main id="main" class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          <div id="content" class="content">
+            
+
+  <div id="posts" class="posts-expand">
+    
+
+  
+
+  
+  
+  
+
+  <article class="post post-type-normal" itemscope="" itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block">
+    <link itemprop="mainEntityOfPage" href="https://zhmin.github.io/2019/10/15/postgresql-lwlock/">
+
+    <span hidden itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="zhmin">
+      <meta itemprop="description" content="">
+      <meta itemprop="image" content="/images/avatar.gif">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope="" itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="学习笔记">
+    </span>
+
+    
+      <header class="post-header">
+
+        
+        
+          <h2 class="post-title" itemprop="name headline">Postgresql LWLock 原理</h2>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">Posted on</span>
+              
+              <time title="Post created" itemprop="dateCreated datePublished" datetime="2019-10-15T20:59:32+08:00">
+                2019-10-15
+              </time>
+            
+
+            
+
+            
+          </span>
+
+          
+            <span class="post-category">
+            
+              <span class="post-meta-divider">|</span>
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">In</span>
+              
+              
+                <span itemprop="about" itemscope="" itemtype="http://schema.org/Thing">
+                  <a href="/categories/postgresql/" itemprop="url" rel="index">
+                    <span itemprop="name">postgresql</span>
+                  </a>
+                </span>
+
+                
+                
+              
+            </span>
+          
+
+          
+            
+              <span class="post-comments-count">
+                <span class="post-meta-divider">|</span>
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-comment-o"></i>
+                </span>
+                <a href="/2019/10/15/postgresql-lwlock/#comments" itemprop="discussionUrl">
+                  <span class="post-comments-count valine-comment-count" data-xid="/2019/10/15/postgresql-lwlock/" itemprop="commentCount"></span>
+                </a>
+              </span>
+            
+          
+
+          
+          
+             <span id="/2019/10/15/postgresql-lwlock/" class="leancloud_visitors" data-flag-title="Postgresql LWLock 原理">
+               <span class="post-meta-divider">|</span>
+               <span class="post-meta-item-icon">
+                 <i class="fa fa-eye"></i>
+               </span>
+               
+                 <span class="post-meta-item-text">Visitors&#58;</span>
+               
+                 <span class="leancloud-visitors-count"></span>
+             </span>
+          
+
+          
+
+          
+
+          
+
+        </div>
+      </header>
+    
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+      
+
+      
+        <h2 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h2><p>postgresql 的架构是基于多进程的，进程之间往往存在着数据共享，比如缓存读写。这时 postgresql 需要提高一种锁机制来支持并发访问，但是 linux 只实现了线程间的读写锁，所以 postgresql 自己实现进程间的读写锁，它主要利用了信号量和自旋锁来实现。</p>
+<h2 id="进程结构"><a href="#进程结构" class="headerlink" title="进程结构"></a>进程结构</h2><p>每个进程都对应一个独立 <code>PGPROC</code> 实例，它包含了多个成员，下面只列出与锁相关的</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">PGPROC</span> </span></span><br><span class="line"><span class="class">&#123;</span></span><br><span class="line">    BackendId	backendId;		<span class="comment">/* This backend's backend ID (if assigned) */</span></span><br><span class="line">    PGSemaphore sem;			<span class="comment">// 信号量</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">// 正在等待的lwLock</span></span><br><span class="line">    <span class="keyword">bool</span>		lwWaiting;		<span class="comment">// 是否在等待lwlock</span></span><br><span class="line">    uint8		lwWaitMode;		<span class="comment">// lwlock加锁类型，有读锁和写锁</span></span><br><span class="line">    proclist_node lwWaitLink;	<span class="comment">// 位于等待列表中的位置</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p><code>PGPROC</code> 实例存储在进程共享内存里，在创建进程时会被初始化。这里需要提醒下，信号量 sem 的初始值为0，属于无名信号量。</p>
+<h2 id="锁结构"><a href="#锁结构" class="headerlink" title="锁结构"></a>锁结构</h2><p><code>LWLock</code>结构体表示读写锁，结构如下：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> <span class="title">LWLock</span></span></span><br><span class="line"><span class="class">&#123;</span></span><br><span class="line">	uint16		tranche;		<span class="comment">// tranche id，表示用于哪个方面</span></span><br><span class="line">	pg_atomic_uint32 state;		<span class="comment">// 状态值，包含多个标记位</span></span><br><span class="line">	proclist_head waiters;		<span class="comment">/* 等待进程链表 */</span></span><br><span class="line">&#125; LWLock;</span><br></pre></td></tr></table></figure>
+<p>需要介绍下 state 字段的标记位</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#<span class="meta-keyword">define</span> LW_VAL_SHARED         1                    <span class="comment">// 1~23位表示读锁的数量</span></span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">define</span> LW_VAL_EXCLUSIVE     ((uint32) 1 &lt;&lt; 24)    <span class="comment">// 是否写锁已经被占用</span></span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">define</span> LW_FLAG_LOCKED       ((uint32) 1 &lt;&lt; 28)    <span class="comment">// 锁标记位，用来保护进程列表的并发操作</span></span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">define</span> LW_FLAG_HAS_WAITERS  ((uint32) 1 &lt;&lt; 30)    <span class="comment">// 是否有进程在等待，用于快速判断等待列表是否为空</span></span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">define</span> LW_FLAG_RELEASE_OK   ((uint32) 1 &lt;&lt; 29)    <span class="comment">// 是否可以执行唤醒操作（目前我还没弄懂为什么需要这个标记位）</span></span></span><br></pre></td></tr></table></figure>
+<h2 id="加锁原理"><a href="#加锁原理" class="headerlink" title="加锁原理"></a>加锁原理</h2><p><code>LWLockAcquire</code>函数负责整个加过程，这里将过程分为下面四步：</p>
+<ol>
+<li>尝试获取锁，如果获取成功，会直接返回，否则执行第二步。</li>
+<li>将自身进程添加到等待队列后，还会进行一次尝试获取锁，因为有可能在刚加入队列之前，锁恰好被释放。如果获取锁成功，则将自身从队列删除并且直接返回，否则执行第三步。</li>
+<li>通过信号量阻塞，等待其他进程唤醒。</li>
+<li>当因为锁释放被唤醒之后（该进程已经被唤醒进程从等待队列里删除了），会回到第一步</li>
+</ol>
+<p>从上面可以看出来，这里采用的是非公平锁机制，也就是谁的速度快，谁就能获取到锁，没有先来先获取的顺序。</p>
+<h3 id="尝试获取锁"><a href="#尝试获取锁" class="headerlink" title="尝试获取锁"></a>尝试获取锁</h3><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">static</span> <span class="keyword">bool</span> <span class="title">LWLockAttemptLock</span><span class="params">(LWLock *lock, LWLockMode mode)</span></span>;</span><br></pre></td></tr></table></figure>
+<p>尝试通过 CAS 操作，设置<code>LW_VAL_EXCLUSIVE</code>或<code>LW_VAL_SHARED</code>标记位。来获取锁。使用到的 CAS 操作函数如下：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 如果当前ptr指向的值，等于expected指向的值，那么就会更改ptr指向的值为newval。</span></span><br><span class="line"><span class="comment">// 无论是否成功修改，当前ptr的最新值会保存到 expected。</span></span><br><span class="line"><span class="comment">// 返回true表示修改成功，返回false表示修改失败</span></span><br><span class="line"><span class="function"><span class="keyword">bool</span> <span class="title">pg_atomic_compare_exchange_u32</span><span class="params">(<span class="keyword">volatile</span> pg_atomic_uint32 *ptr, uint32 *expected, uint32 newval)</span></span>;</span><br></pre></td></tr></table></figure>
+<p>当尝试获取写锁时，需要检查<code>EXCLUSIVE</code>和<code>SHARED</code>标记位，只有两者为零，才能成功获取。</p>
+<p>当尝试获取读锁时，只需要检查<code>EXCLUSIVE</code>标记位。如果为零，就认为成功获取。</p>
+<h3 id="添加到等待队列"><a href="#添加到等待队列" class="headerlink" title="添加到等待队列"></a>添加到等待队列</h3><p>对于队列的操作，都需要使用自旋锁来设置<code>LW_FLAG_LOCKED</code>标记位，才有权利操作队列。当设置成功后，会将自身添加到等待列表，然后更新自身进程对应<code>PGPROC</code>实例的 <code>lwWaiting</code> 和 <code>lwWaitMode</code> 成员，最后释放锁，清除标记位。</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">static</span> <span class="keyword">void</span> <span class="title">LWLockQueueSelf</span><span class="params">(LWLock *lock, LWLockMode mode)</span></span>;</span><br></pre></td></tr></table></figure>
+<p>当加入到队列后，还需要更新<code>LW_FLAG_HAS_WAITERS</code>标记位，表示有进程在等待。</p>
+<h3 id="等待信号量"><a href="#等待信号量" class="headerlink" title="等待信号量"></a>等待信号量</h3><p>postgresql 是多进程架构的，进程之间使用信号量来同步。当进程获取锁失败时，会将自身添加到等待队列里，然后通过信号量进行阻塞，直到被别的进程唤醒。对于 postgresql 的每个进程都有一个信号量，由<code>PGPROC</code>实例的 sem 成员表示。sem 信号量的初始值为0，它的数值代表着满足的条件数。</p>
+<p>因为这个 sem 信号量会有多个用途，所以每次唤醒操作，并不一定是期望的条件发生，所以进程在被唤醒之后，需要一次条件检查。如果是因为其他条件唤醒，还需要记录被唤醒次数，在事后需要将执行相应次数的唤醒操作。</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 获取锁之前</span></span><br><span class="line">extraWaits = <span class="number">0</span></span><br><span class="line"><span class="keyword">for</span> (;;)</span><br><span class="line">&#123;</span><br><span class="line">    <span class="comment">// 执行信号量阻塞</span></span><br><span class="line">    PGSemaphoreLock(proc-&gt;sem);</span><br><span class="line">    <span class="comment">// 当被唤醒之后，需要检查唤醒条件是不是因为锁释放，</span></span><br><span class="line">    <span class="comment">// 如果是锁释放的原因，proc-&gt;lwWaiting 会为false</span></span><br><span class="line">    <span class="keyword">if</span> (!proc-&gt;lwWaiting)</span><br><span class="line">        <span class="keyword">break</span>;</span><br><span class="line">    <span class="comment">// 如果不是期望条件，需要记录次数</span></span><br><span class="line">    extraWaits++;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 获取到锁之后</span></span><br><span class="line"><span class="comment">// 因为刚刚占有了其余条件的唤醒，所以现在需要进行补偿</span></span><br><span class="line"><span class="keyword">while</span> (extraWaits-- &gt; <span class="number">0</span>)</span><br><span class="line">        PGSemaphoreUnlock(proc-&gt;sem);</span><br></pre></td></tr></table></figure>
+<p>假设下面有一个进程A对应信号量A，它会被用于两个方面，条件A和条件B。</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">----------                          ------------                          ------------</span><br><span class="line"> 进程A    |    阻塞条件A ----&gt;      |  信号量A   |   &lt;----- 因为条件A唤醒   |   进程B   |</span><br><span class="line">          |    阻塞条件B ----&gt;      |           |   &lt;----- 因为条件B唤醒   |           |</span><br><span class="line">----------                          ------------                          ------------</span><br></pre></td></tr></table></figure>
+<p>进程A正在阻塞条件A，此时进程B因为条件B唤醒了进程A。但进程A发现并不是期望的条件所唤醒的，所以它会继续阻塞，直到满足条件A被唤醒，最后进程A还会执行一次唤醒操作。</p>
+<h3 id="离开等待队列"><a href="#离开等待队列" class="headerlink" title="离开等待队列"></a>离开等待队列</h3><p>当获取到锁之后，如果自身在等待队列中，需要将其删除掉。如果之后队列为空，需要清除<code>LW_FLAG_HAS_WAITERS</code>标记位，当然这些操作都需要获取<code>LW_FLAG_LOCKED</code>锁。</p>
+<h3 id="源码"><a href="#源码" class="headerlink" title="源码"></a>源码</h3><p>下面展示了<code>LWLockAcquire</code>的源码，描述了整个加锁过程</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">bool</span> <span class="title">LWLockAcquire</span><span class="params">(LWLock *lock, LWLockMode mode)</span></span>;</span><br><span class="line">&#123;</span><br><span class="line">    <span class="keyword">bool</span> result = <span class="literal">true</span>;</span><br><span class="line">    <span class="keyword">int</span>	extraWaits = <span class="number">0</span>;</span><br><span class="line">    <span class="keyword">for</span> (;;)</span><br><span class="line">    &#123;</span><br><span class="line">        <span class="comment">// 尝试获取锁，如果成功则直接返回</span></span><br><span class="line">        <span class="keyword">bool</span> mustwait = LWLockAttemptLock(lock, mode);</span><br><span class="line">        <span class="keyword">if</span> (!mustwait)</span><br><span class="line">            <span class="keyword">break</span>;</span><br><span class="line">        </span><br><span class="line">        <span class="comment">// 步骤A，获取锁失败，则将自身添加到等待队列里</span></span><br><span class="line">        LWLockQueueSelf(lock, mode);</span><br><span class="line">    	<span class="comment">// 步骤C</span></span><br><span class="line">        </span><br><span class="line">        <span class="comment">// 在添加到队列时，有可能锁刚好释放。因为这时还未添加到队列里，所以不会通知它。</span></span><br><span class="line">        <span class="comment">// 所以这里需要再次尝试获取锁</span></span><br><span class="line">        mustwait = LWLockAttemptLock(lock, mode);</span><br><span class="line">    </span><br><span class="line">        <span class="comment">// 如果刚好成功获取了别人释放的锁，那么需要将自身从等待队列中删除</span></span><br><span class="line">        <span class="keyword">if</span> (!mustwait)</span><br><span class="line">        &#123;</span><br><span class="line">            LWLockDequeueSelf(lock);</span><br><span class="line">            <span class="keyword">break</span>;</span><br><span class="line">        &#125;</span><br><span class="line">    </span><br><span class="line">        <span class="comment">// 等待信号量，因为这个信号量是共享的，所以此次唤醒有可能是别的通知，而不是此次锁释放的原因</span></span><br><span class="line">        <span class="comment">// 通过检查 proc-&gt;lwWaiting 就可以判断是否是因为锁释放的原因唤醒的</span></span><br><span class="line">        <span class="keyword">for</span> (;;)</span><br><span class="line">        &#123;</span><br><span class="line">            PGSemaphoreLock(proc-&gt;sem);</span><br><span class="line">            <span class="keyword">if</span> (!proc-&gt;lwWaiting)</span><br><span class="line">                <span class="keyword">break</span>;</span><br><span class="line">            extraWaits++;</span><br><span class="line">        &#125;</span><br><span class="line">    </span><br><span class="line">        <span class="comment">/* Retrying, allow LWLockRelease to release waiters again. */</span></span><br><span class="line">        pg_atomic_fetch_or_u32(&amp;lock-&gt;state, LW_FLAG_RELEASE_OK);</span><br><span class="line">        <span class="comment">// result为false表示需要将</span></span><br><span class="line">        result = <span class="literal">false</span>;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">// 将锁添加到队列里</span></span><br><span class="line">    held_lwlocks[num_held_lwlocks].lock = lock;</span><br><span class="line">    held_lwlocks[num_held_lwlocks++].mode = mode;</span><br><span class="line">    </span><br><span class="line">    <span class="comment">// 因为刚刚有别的原因造成唤醒，所以现在需要唤醒其他等待进程相同次数</span></span><br><span class="line">    <span class="keyword">while</span> (extraWaits-- &gt; <span class="number">0</span>)</span><br><span class="line">        PGSemaphoreUnlock(proc-&gt;sem);</span><br><span class="line">    </span><br><span class="line">    <span class="keyword">return</span> result;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h2 id="释放锁"><a href="#释放锁" class="headerlink" title="释放锁"></a>释放锁</h2><p><code>LWLockRelease</code>函数负责释放锁，定义如下：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">void</span> <span class="title">LWLockRelease</span><span class="params">(LWLock *lock)</span></span>;</span><br></pre></td></tr></table></figure>
+<p>释放锁分为下列步骤：</p>
+<ol>
+<li>清除锁标记位，如果之前占用的是写锁，那么清除<code>LW_VAL_EXCLUSIVE</code>标记位，如果是读锁，那么将读锁数量减1。</li>
+<li>检查<code>LW_FLAG_HAS_WAITERS</code>和<code>LW_FLAG_RELEASE_OK</code>标记位，如果都设置了并且现在读写锁都没有被占用，那么需要执行唤醒操作。</li>
+<li>从等待队列里按照 FIFO 的顺序，按照读锁优先，写锁互斥的原则，取出等待进程。然后将这些进程对应<code>PGPROC</code>的 <code>lwWaiting</code>成员设置为 false，并且通过成员<code>sem</code>信号量来唤醒。</li>
+</ol>
+<p>下面列举了两种情况来阐述锁释放的原理：</p>
+<ol>
+<li>假设进程等待队列为<code>readlock0, readlock1, writelock1, readlock2</code>，这时释放了写锁。按照 FIFO 顺序，首先会释放读锁<code>readlock0</code>，然后会将后面的所有读锁都唤醒，包括<code>readlock1</code>和<code>readlock2</code>。</li>
+<li>假设进程等待队列为<code>writelock0, readlock2, readlock3, readlock4</code>，正在占用的读锁<code>readlock0, readlock1</code>。目前读锁<code>readlock0</code>释放，但由于<code>readlock1</code>还被占用，所以不会触发唤醒。当<code>readlock1</code>释放时，才会触发唤醒。按照写锁互斥的原则，只有<code>writelock0</code>会被唤醒，之后的读锁不会被唤醒。</li>
+</ol>
+<p>在取出进程之后，会清除<code>LW_FLAG_RELEASE_OK</code>标记位。如果检查到队列为空，还会清除<code>LW_FLAG_HAS_WAITERS</code>标记位。</p>
+<h2 id="LWLock-分类"><a href="#LWLock-分类" class="headerlink" title="LWLock 分类"></a>LWLock 分类</h2><p>lwlock 在 postgresql 中使用的场景非常多，为了更好管理这些 lwlock，postgresql 按照用途将它们分类，大体分为三个部分：</p>
+<ol>
+<li>系统场景，定义在<code>src/backend/storage/lmgr/lwlocknames.txt</code>文件里</li>
+<li>内置场景，比如buffer，wal等，由<code>BuiltinTrancheIds</code>表示，定义在<code>src/include/storage/lwlock.h</code>文件</li>
+<li>被用于插件场景，由<code>RequestNamedLWLockTranche</code>表示</li>
+</ol>
+
+      
+    </div>
+    
+    
+    
+
+    
+
+    
+
+    
+
+    <footer class="post-footer">
+      
+        <div class="post-tags">
+          
+            <a href="/tags/postgresql-lwlock/" rel="tag"># postgresql, lwlock</a>
+          
+        </div>
+      
+
+      
+      
+      
+
+      
+        <div class="post-nav">
+          <div class="post-nav-next post-nav-item">
+            
+              <a href="/2019/10/11/postgresql-buffer-page/" rel="next" title="Postgresql Page 结构">
+                <i class="fa fa-chevron-left"></i> Postgresql Page 结构
+              </a>
+            
+          </div>
+
+          <span class="post-nav-divider"></span>
+
+          <div class="post-nav-prev post-nav-item">
+            
+          </div>
+        </div>
+      
+
+      
+      
+    </footer>
+  </div>
+  
+  
+  
+  </article>
+
+
+
+    <div class="post-spread">
+      
+    </div>
+  </div>
+
+
+          </div>
+          
+
+
+          
+
+  
+    <div class="comments" id="comments">
+    </div>
+  
+
+
+
+        </div>
+        
+          
+  
+  <div class="sidebar-toggle">
+    <div class="sidebar-toggle-line-wrap">
+      <span class="sidebar-toggle-line sidebar-toggle-line-first"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-middle"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-last"></span>
+    </div>
+  </div>
+
+  <aside id="sidebar" class="sidebar">
+    
+    <div class="sidebar-inner">
+
+      
+
+      
+        <ul class="sidebar-nav motion-element">
+          <li class="sidebar-nav-toc sidebar-nav-active" data-target="post-toc-wrap">
+            Table of Contents
+          </li>
+          <li class="sidebar-nav-overview" data-target="site-overview-wrap">
+            Overview
+          </li>
+        </ul>
+      
+
+      <section class="site-overview-wrap sidebar-panel">
+        <div class="site-overview">
+          <div class="site-author motion-element" itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+            
+              <p class="site-author-name" itemprop="name">zhmin</p>
+              <p class="site-description motion-element" itemprop="description"></p>
+          </div>
+
+          <nav class="site-state motion-element">
+
+            
+              <div class="site-state-item site-state-posts">
+              
+                <a href="/archives/">
+              
+                  <span class="site-state-item-count">57</span>
+                  <span class="site-state-item-name">posts</span>
+                </a>
+              </div>
+            
+
+            
+              
+              
+              <div class="site-state-item site-state-categories">
+                <a href="/categories/index.html">
+                  <span class="site-state-item-count">12</span>
+                  <span class="site-state-item-name">categories</span>
+                </a>
+              </div>
+            
+
+            
+              
+              
+              <div class="site-state-item site-state-tags">
+                
+                  <span class="site-state-item-count">54</span>
+                  <span class="site-state-item-name">tags</span>
+                
+              </div>
+            
+
+          </nav>
+
+          
+
+          
+            <div class="links-of-author motion-element">
+                
+                  <span class="links-of-author-item">
+                    <a href="https://github.com/zhmin" target="_blank" title="GitHub">
+                      
+                        <i class="fa fa-fw fa-github"></i>GitHub</a>
+                  </span>
+                
+            </div>
+          
+
+          
+          
+
+          
+          
+
+          
+
+        </div>
+      </section>
+
+      
+      <!--noindex-->
+        <section class="post-toc-wrap motion-element sidebar-panel sidebar-panel-active">
+          <div class="post-toc">
+
+            
+              
+            
+
+            
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#前言"><span class="nav-number">1.</span> <span class="nav-text">前言</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#进程结构"><span class="nav-number">2.</span> <span class="nav-text">进程结构</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#锁结构"><span class="nav-number">3.</span> <span class="nav-text">锁结构</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#加锁原理"><span class="nav-number">4.</span> <span class="nav-text">加锁原理</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#尝试获取锁"><span class="nav-number">4.1.</span> <span class="nav-text">尝试获取锁</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#添加到等待队列"><span class="nav-number">4.2.</span> <span class="nav-text">添加到等待队列</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#等待信号量"><span class="nav-number">4.3.</span> <span class="nav-text">等待信号量</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#离开等待队列"><span class="nav-number">4.4.</span> <span class="nav-text">离开等待队列</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#源码"><span class="nav-number">4.5.</span> <span class="nav-text">源码</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#释放锁"><span class="nav-number">5.</span> <span class="nav-text">释放锁</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#LWLock-分类"><span class="nav-number">6.</span> <span class="nav-text">LWLock 分类</span></a></li></ol></div>
+            
+
+          </div>
+        </section>
+      <!--/noindex-->
+      
+
+      
+
+    </div>
+  </aside>
+
+
+        
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="footer-inner">
+        <div class="copyright">&copy; <span itemprop="copyrightYear">2019</span>
+  <span class="with-love">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">zhmin</span>
+
+  
+</div>
+
+
+
+
+
+
+
+
+
+
+
+  <script src="https://unpkg.com/mermaid@7.1.2/dist/mermaid.min.js"></script>
+  <script>
+    if (window.mermaid) {
+      mermaid.initialize({"startOnload":true,"theme":"forest"});
+    }
+  </script>
+
+
+
+<script async src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+<span id="busuanzi_container_site_pv">
+    访问量<span id="busuanzi_value_site_pv"></span>
+</span>
+<span class="post-meta-divider">|</span>
+<span id="busuanzi_container_site_uv">
+  访客数<span id="busuanzi_value_site_uv"></span>
+</span>
+
+        
+
+
+
+
+
+
+
+        
+      </div>
+    </footer>
+
+    
+      <div class="back-to-top">
+        <i class="fa fa-arrow-up"></i>
+        
+      </div>
+    
+
+    
+
+  </div>
+
+  
+
+<script type="text/javascript">
+  if (Object.prototype.toString.call(window.Promise) !== '[object Function]') {
+    window.Promise = null;
+  }
+</script>
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery/index.js?v=2.1.3"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fastclick/lib/fastclick.min.js?v=1.0.6"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery_lazyload/jquery.lazyload.js?v=1.9.7"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.ui.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fancybox/source/jquery.fancybox.pack.js?v=2.1.5"></script>
+  
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/utils.js?v=5.1.4"></script>
+
+  <script type="text/javascript" src="/js/src/motion.js?v=5.1.4"></script>
+
+
+
+  
+  
+
+  
+  <script type="text/javascript" src="/js/src/scrollspy.js?v=5.1.4"></script>
+<script type="text/javascript" src="/js/src/post-details.js?v=5.1.4"></script>
+
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/bootstrap.js?v=5.1.4"></script>
+
+
+
+  
+
+
+  
+
+
+
+
+	
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+  <script src="//cdn1.lncld.net/static/js/3.0.4/av-min.js"></script>
+  <script src="//unpkg.com/valine/dist/Valine.min.js"></script>
+  
+  <script type="text/javascript">
+    var GUEST = ['nick','mail','link'];
+    var guest = 'nick';
+    guest = guest.split(',').filter(item=>{
+      return GUEST.indexOf(item)>-1;
+    });
+    new Valine({
+        el: '#comments' ,
+        verify: false,
+        notify: false,
+        appId: 'iYiPQlDR2X2zg2QIql2UEe2o-gzGzoHsz',
+        appKey: 'EW8G4sftwX1pef1zS9EsOeKE',
+        placeholder: 'comment here',
+        avatar:'mm',
+        guest_info:guest,
+        pageSize:'10' || 10,
+    });
+  </script>
+
+
+
+  
+
+
+
+
+
+  
+
+  
+  <script src="https://cdn1.lncld.net/static/js/av-core-mini-0.6.4.js"></script>
+  <script>AV.initialize("iYiPQlDR2X2zg2QIql2UEe2o-gzGzoHsz", "EW8G4sftwX1pef1zS9EsOeKE");</script>
+  <script>
+    function showTime(Counter) {
+      var query = new AV.Query(Counter);
+      var entries = [];
+      var $visitors = $(".leancloud_visitors");
+
+      $visitors.each(function () {
+        entries.push( $(this).attr("id").trim() );
+      });
+
+      query.containedIn('url', entries);
+      query.find()
+        .done(function (results) {
+          var COUNT_CONTAINER_REF = '.leancloud-visitors-count';
+
+          if (results.length === 0) {
+            $visitors.find(COUNT_CONTAINER_REF).text(0);
+            return;
+          }
+
+          for (var i = 0; i < results.length; i++) {
+            var item = results[i];
+            var url = item.get('url');
+            var time = item.get('time');
+            var element = document.getElementById(url);
+
+            $(element).find(COUNT_CONTAINER_REF).text(time);
+          }
+          for(var i = 0; i < entries.length; i++) {
+            var url = entries[i];
+            var element = document.getElementById(url);
+            var countSpan = $(element).find(COUNT_CONTAINER_REF);
+            if( countSpan.text() == '') {
+              countSpan.text(0);
+            }
+          }
+        })
+        .fail(function (object, error) {
+          console.log("Error: " + error.code + " " + error.message);
+        });
+    }
+
+    function addCount(Counter) {
+      var $visitors = $(".leancloud_visitors");
+      var url = $visitors.attr('id').trim();
+      var title = $visitors.attr('data-flag-title').trim();
+      var query = new AV.Query(Counter);
+
+      query.equalTo("url", url);
+      query.find({
+        success: function(results) {
+          if (results.length > 0) {
+            var counter = results[0];
+            counter.fetchWhenSave(true);
+            counter.increment("time");
+            counter.save(null, {
+              success: function(counter) {
+                var $element = $(document.getElementById(url));
+                $element.find('.leancloud-visitors-count').text(counter.get('time'));
+              },
+              error: function(counter, error) {
+                console.log('Failed to save Visitor num, with error message: ' + error.message);
+              }
+            });
+          } else {
+            var newcounter = new Counter();
+            /* Set ACL */
+            var acl = new AV.ACL();
+            acl.setPublicReadAccess(true);
+            acl.setPublicWriteAccess(true);
+            newcounter.setACL(acl);
+            /* End Set ACL */
+            newcounter.set("title", title);
+            newcounter.set("url", url);
+            newcounter.set("time", 1);
+            newcounter.save(null, {
+              success: function(newcounter) {
+                var $element = $(document.getElementById(url));
+                $element.find('.leancloud-visitors-count').text(newcounter.get('time'));
+              },
+              error: function(newcounter, error) {
+                console.log('Failed to create');
+              }
+            });
+          }
+        },
+        error: function(error) {
+          console.log('Error:' + error.code + " " + error.message);
+        }
+      });
+    }
+
+    $(function() {
+      var Counter = AV.Object.extend("Counter");
+      if ($('.leancloud_visitors').length == 1) {
+        addCount(Counter);
+      } else if ($('.post-title-link').length > 1) {
+        showTime(Counter);
+      }
+    });
+  </script>
+
+
+
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+</body>
+</html>
