@@ -1,0 +1,946 @@
+<!DOCTYPE html>
+
+
+
+  
+
+
+<html class="theme-next mist use-motion" lang="">
+<head><meta name="generator" content="Hexo 3.8.0">
+  <meta charset="UTF-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="theme-color" content="#222">
+
+
+
+
+
+
+
+
+
+<meta http-equiv="Cache-Control" content="no-transform">
+<meta http-equiv="Cache-Control" content="no-siteapp">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+  <link href="/lib/fancybox/source/jquery.fancybox.css?v=2.1.5" rel="stylesheet" type="text/css">
+
+
+
+
+
+
+
+<link href="/lib/font-awesome/css/font-awesome.min.css?v=4.6.2" rel="stylesheet" type="text/css">
+
+<link href="/css/main.css?v=5.1.4" rel="stylesheet" type="text/css">
+
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png?v=5.1.4">
+
+
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png?v=5.1.4">
+
+
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png?v=5.1.4">
+
+
+  <link rel="mask-icon" href="/images/logo.svg?v=5.1.4" color="#222">
+
+
+
+
+
+  <meta name="keywords" content="postgresql, buffer,">
+
+
+
+
+
+
+
+
+
+
+<meta name="description" content="前言postgresql 为了提高响应速度，在存储层上面添加了一层缓存，这样对于数据的查询和修改，都会先在缓存中操作，后面才会同步到磁盘。这样对于一些热点数据，性能提高非常明显。缓存的基本单位对应文件的一个 block，本篇主要介绍缓存池的原理和使用。 缓存结构缓存分为共享缓存和本地缓存，共享缓存会被所有进程访问，一般普通的表和索引都会使用它。而本地缓存只有自身进程可以访问到，仅仅只有临时表使用。">
+<meta name="keywords" content="postgresql, buffer">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Postgresql 缓存池原理">
+<meta property="og:url" content="https://zhmin.github.io/2019/10/17/postgresql-buffer-pool/index.html">
+<meta property="og:site_name" content="学习笔记">
+<meta property="og:description" content="前言postgresql 为了提高响应速度，在存储层上面添加了一层缓存，这样对于数据的查询和修改，都会先在缓存中操作，后面才会同步到磁盘。这样对于一些热点数据，性能提高非常明显。缓存的基本单位对应文件的一个 block，本篇主要介绍缓存池的原理和使用。 缓存结构缓存分为共享缓存和本地缓存，共享缓存会被所有进程访问，一般普通的表和索引都会使用它。而本地缓存只有自身进程可以访问到，仅仅只有临时表使用。">
+<meta property="og:locale" content="default">
+<meta property="og:updated_time" content="2019-10-17T13:06:46.338Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Postgresql 缓存池原理">
+<meta name="twitter:description" content="前言postgresql 为了提高响应速度，在存储层上面添加了一层缓存，这样对于数据的查询和修改，都会先在缓存中操作，后面才会同步到磁盘。这样对于一些热点数据，性能提高非常明显。缓存的基本单位对应文件的一个 block，本篇主要介绍缓存池的原理和使用。 缓存结构缓存分为共享缓存和本地缓存，共享缓存会被所有进程访问，一般普通的表和索引都会使用它。而本地缓存只有自身进程可以访问到，仅仅只有临时表使用。">
+
+
+
+<script type="text/javascript" id="hexo.configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '/',
+    scheme: 'Mist',
+    version: '5.1.4',
+    sidebar: {"position":"left","display":"hide","offset":12,"b2t":false,"scrollpercent":false,"onmobile":false},
+    fancybox: true,
+    tabs: true,
+    motion: {"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},
+    duoshuo: {
+      userId: '0',
+      author: 'Author'
+    },
+    algolia: {
+      applicationID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    }
+  };
+</script>
+
+
+
+  <link rel="canonical" href="https://zhmin.github.io/2019/10/17/postgresql-buffer-pool/">
+
+
+
+
+
+  <title>Postgresql 缓存池原理 | 学习笔记</title>
+  
+
+
+
+
+
+
+
+
+</head>
+
+<body itemscope="" itemtype="http://schema.org/WebPage" lang="default">
+
+  
+  
+    
+  
+
+  <div class="container sidebar-position-left page-post-detail">
+    <div class="headband"></div>
+
+    <header id="header" class="header" itemscope="" itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-wrapper">
+  <div class="site-meta ">
+    
+
+    <div class="custom-logo-site-title">
+      <a href="/" class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">学习笔记</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+      
+        <h1 class="site-subtitle" itemprop="description"></h1>
+      
+  </div>
+
+  <div class="site-nav-toggle">
+    <button>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+    </button>
+  </div>
+</div>
+
+<nav class="site-nav">
+  
+
+  
+    <ul id="menu" class="menu">
+      
+        
+        <li class="menu-item menu-item-home">
+          <a href="/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-home"></i> <br>
+            
+            Home
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-categories">
+          <a href="/categories/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-th"></i> <br>
+            
+            Categories
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-archives">
+          <a href="/archives/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-archive"></i> <br>
+            
+            Archives
+          </a>
+        </li>
+      
+
+      
+    </ul>
+  
+
+  
+</nav>
+
+
+
+ </div>
+    </header>
+
+    <main id="main" class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          <div id="content" class="content">
+            
+
+  <div id="posts" class="posts-expand">
+    
+
+  
+
+  
+  
+  
+
+  <article class="post post-type-normal" itemscope="" itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block">
+    <link itemprop="mainEntityOfPage" href="https://zhmin.github.io/2019/10/17/postgresql-buffer-pool/">
+
+    <span hidden itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="zhmin">
+      <meta itemprop="description" content="">
+      <meta itemprop="image" content="/images/avatar.gif">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope="" itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="学习笔记">
+    </span>
+
+    
+      <header class="post-header">
+
+        
+        
+          <h2 class="post-title" itemprop="name headline">Postgresql 缓存池原理</h2>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">Posted on</span>
+              
+              <time title="Post created" itemprop="dateCreated datePublished" datetime="2019-10-17T21:02:16+08:00">
+                2019-10-17
+              </time>
+            
+
+            
+
+            
+          </span>
+
+          
+            <span class="post-category">
+            
+              <span class="post-meta-divider">|</span>
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">In</span>
+              
+              
+                <span itemprop="about" itemscope="" itemtype="http://schema.org/Thing">
+                  <a href="/categories/postgresql/" itemprop="url" rel="index">
+                    <span itemprop="name">postgresql</span>
+                  </a>
+                </span>
+
+                
+                
+              
+            </span>
+          
+
+          
+            
+              <span class="post-comments-count">
+                <span class="post-meta-divider">|</span>
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-comment-o"></i>
+                </span>
+                <a href="/2019/10/17/postgresql-buffer-pool/#comments" itemprop="discussionUrl">
+                  <span class="post-comments-count valine-comment-count" data-xid="/2019/10/17/postgresql-buffer-pool/" itemprop="commentCount"></span>
+                </a>
+              </span>
+            
+          
+
+          
+          
+             <span id="/2019/10/17/postgresql-buffer-pool/" class="leancloud_visitors" data-flag-title="Postgresql 缓存池原理">
+               <span class="post-meta-divider">|</span>
+               <span class="post-meta-item-icon">
+                 <i class="fa fa-eye"></i>
+               </span>
+               
+                 <span class="post-meta-item-text">Visitors&#58;</span>
+               
+                 <span class="leancloud-visitors-count"></span>
+             </span>
+          
+
+          
+
+          
+
+          
+
+        </div>
+      </header>
+    
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+      
+
+      
+        <h2 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h2><p>postgresql 为了提高响应速度，在存储层上面添加了一层缓存，这样对于数据的查询和修改，都会先在缓存中操作，后面才会同步到磁盘。这样对于一些热点数据，性能提高非常明显。缓存的基本单位对应文件的一个 block，本篇主要介绍缓存池的原理和使用。</p>
+<h2 id="缓存结构"><a href="#缓存结构" class="headerlink" title="缓存结构"></a>缓存结构</h2><p>缓存分为共享缓存和本地缓存，共享缓存会被所有进程访问，一般普通的表和索引都会使用它。而本地缓存只有自身进程可以访问到，仅仅只有临时表使用。</p>
+<p>无论是共享缓存还是本地缓存，postgresql 都是使用一个固定大小的 buffer 数组来存储。当 buffer 不够用时会使用算法剔除一些不常用的元素。 </p>
+<h2 id="Buffer-结构体"><a href="#Buffer-结构体" class="headerlink" title="Buffer 结构体"></a>Buffer 结构体</h2><p>BufferTag 用来表示缓存的内容是哪个文件的block</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> <span class="title">buftag</span></span></span><br><span class="line"><span class="class">&#123;</span></span><br><span class="line">	RelFileNode rnode;			<span class="comment">// 用来标识哪个表</span></span><br><span class="line">	ForkNumber	forkNum;        <span class="comment">// 表下面的文件类型</span></span><br><span class="line">	BlockNumber blockNum;		<span class="comment">// 对应的block编号</span></span><br><span class="line">&#125; BufferTag;</span><br></pre></td></tr></table></figure>
+<p><code>BufferDesc</code> 包含了<code>buffer</code>的头部信息</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> <span class="title">BufferDesc</span></span></span><br><span class="line"><span class="class">&#123;</span></span><br><span class="line">	BufferTag	tag;			<span class="comment">// 缓存哪个文件的block</span></span><br><span class="line">	<span class="keyword">int</span>			buf_id;			<span class="comment">// buffer id</span></span><br><span class="line">	pg_atomic_uint32 state;		<span class="comment">// 状态值</span></span><br><span class="line"></span><br><span class="line">	<span class="keyword">int</span>			wait_backend_pid;	<span class="comment">/* backend PID of pin-count waiter */</span></span><br><span class="line">	<span class="keyword">int</span>			freeNext;		<span class="comment">// 指向下个空闲位置</span></span><br><span class="line"></span><br><span class="line">	LWLock		content_lock;	<span class="comment">// 读写锁，用来控制内容的访问</span></span><br><span class="line">&#125; BufferDesc;</span><br></pre></td></tr></table></figure>
+<p>这里说一下 <code>buf_id</code>，小于0表示本地缓存，大于0表示全局缓存。通过它可以计算出它在数组的位置。</p>
+<p><code>state</code> 字段是一个32位的数值，它的格式如下：</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">--------------------+------------------+-------------------</span><br><span class="line">     10 bit         |     4 bit        |      18 bit      |</span><br><span class="line">--------------------+------------------+-------------------</span><br><span class="line">      标记位         |    累积访问次数   |     引用次数      |</span><br><span class="line">--------------------+------------------+-------------------</span><br></pre></td></tr></table></figure>
+<p>它的高位是一个 10 位的标记位，其中每个标记位都有着不同的含义</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#<span class="meta-keyword">define</span> BM_LOCKED				(1U &lt;&lt; 22)	<span class="comment">// 锁标记位，用来保护state字段</span></span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">define</span> BM_DIRTY				(1U &lt;&lt; 23)	<span class="comment">// 是否为脏页，也就是缓存被修改了，但对应的磁盘数据没被修改</span></span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">define</span> BM_VALID				(1U &lt;&lt; 24)	<span class="comment">// 数据是否有效</span></span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">define</span> BM_TAG_VALID			(1U &lt;&lt; 25)	<span class="comment">// tag 是否有效</span></span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">define</span> BM_IO_IN_PROGRESS		(1U &lt;&lt; 26)	<span class="comment">// 是否正在进行磁盘io</span></span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">define</span> BM_IO_ERROR				(1U &lt;&lt; 27)	<span class="comment">// 是否磁盘io发送错误</span></span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">define</span> BM_JUST_DIRTIED			(1U &lt;&lt; 28)	<span class="comment">/* dirtied since write started */</span></span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">define</span> BM_PIN_COUNT_WAITER		(1U &lt;&lt; 29)	<span class="comment">/* have waiter for sole pin */</span></span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">define</span> BM_CHECKPOINT_NEEDED	(1U &lt;&lt; 30)	<span class="comment">/* must write for checkpoint */</span></span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">define</span> BM_PERMANENT			(1U &lt;&lt; 31)	<span class="comment">/* permanent buffer (not unlogged, or init fork) */</span></span></span><br></pre></td></tr></table></figure>
+<h2 id="全局缓存"><a href="#全局缓存" class="headerlink" title="全局缓存"></a>全局缓存</h2><h3 id="缓存数组"><a href="#缓存数组" class="headerlink" title="缓存数组"></a>缓存数组</h3><p>全局缓存由一些 buffer 数组表示，这些数组相同索引的元素，对应同一个buffer。</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">BufferDescPadded *BufferDescriptors;  <span class="comment">// buffer头部数组</span></span><br><span class="line"><span class="keyword">char</span>	   *BufferBlocks;    <span class="comment">// buffer数据数组</span></span><br></pre></td></tr></table></figure>
+<p>当我们知道 buffer id 后，就可以在数组中找到对应的 buffer，索引号等于 buffer id。</p>
+<h3 id="缓存数组初始化"><a href="#缓存数组初始化" class="headerlink" title="缓存数组初始化"></a>缓存数组初始化</h3><p>全局缓存存储在共享内存里，共享内存是 linux 进程间通信的一种方式，在 postgresql 中通过可以调用<code>ShmemInitStruct</code>函数获取。下面展示了各种数组的初始化，数组大小由<code>NBuffers</code>指定，默认为1000，</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">void</span> <span class="title">InitBufferPool</span><span class="params">(<span class="keyword">void</span>)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">	<span class="comment">/* Align descriptors to a cacheline boundary. */</span></span><br><span class="line">	BufferDescriptors = (BufferDescPadded *) ShmemInitStruct(<span class="string">"Buffer Descriptors"</span>,</span><br><span class="line">						NBuffers * <span class="keyword">sizeof</span>(BufferDescPadded),</span><br><span class="line">						&amp;foundDescs);</span><br><span class="line"></span><br><span class="line">	BufferBlocks = (<span class="keyword">char</span> *)	ShmemInitStruct(<span class="string">"Buffer Blocks"</span>,</span><br><span class="line">						NBuffers * (Size) BLCKSZ, &amp;foundBufs);</span><br><span class="line"></span><br><span class="line">	<span class="comment">/* Align lwlocks to cacheline boundary */</span></span><br><span class="line">	BufferIOLWLockArray = (LWLockMinimallyPadded *)	ShmemInitStruct(<span class="string">"Buffer IO Locks"</span>,</span><br><span class="line">						NBuffers * (Size) <span class="keyword">sizeof</span>(LWLockMinimallyPadded),</span><br><span class="line">						&amp;foundIOLocks);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h3 id="缓存哈希表"><a href="#缓存哈希表" class="headerlink" title="缓存哈希表"></a>缓存哈希表</h3><p>postgresql 会经常根据文件的 block 来查找对应的缓存，为了提高查找查找速度，这里使用了动态哈希表存储，如下所示：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 哈希表，key为BufferTag，value为buffer_id</span></span><br><span class="line"><span class="keyword">static</span> HTAB *SharedBufHash;</span><br><span class="line"></span><br><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span></span></span><br><span class="line"><span class="class">&#123;</span></span><br><span class="line">    BufferTag	key;			<span class="comment">// 表示文件的哪个block</span></span><br><span class="line">    <span class="keyword">int</span>			id;				<span class="comment">// buffer id</span></span><br><span class="line">&#125; BufferLookupEnt;</span><br></pre></td></tr></table></figure>
+<p>用户首先根据指定文件的哪个block，由 BufferTag 参数指定。然后在<code>SharedBufHash</code>哈希表中，找到对应的 buffer id。再根据 buffer id 计算出数组的索引，然后从数组中取出 buffer 头部和数据。</p>
+<h2 id="本地缓存"><a href="#本地缓存" class="headerlink" title="本地缓存"></a>本地缓存</h2><h3 id="缓存数组-1"><a href="#缓存数组-1" class="headerlink" title="缓存数组"></a>缓存数组</h3><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">BufferDesc *LocalBufferDescriptors = <span class="literal">NULL</span>;</span><br><span class="line">Block	   *LocalBufferBlockPointers = <span class="literal">NULL</span>;</span><br><span class="line">int32	   *LocalRefCount = <span class="literal">NULL</span>;</span><br></pre></td></tr></table></figure>
+<p>buffer id 和 数组索引的对应关系为<code>index = -(buffer_id + 2)</code>。</p>
+<h3 id="缓存数组初始化-1"><a href="#缓存数组初始化-1" class="headerlink" title="缓存数组初始化"></a>缓存数组初始化</h3><p>本地缓存数组因为是进程私有，所以这里直接使用<code>calloc</code>分配内存。</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">LocalBufferDescriptors = (BufferDesc *) <span class="built_in">calloc</span>(nbufs, <span class="keyword">sizeof</span>(BufferDesc));</span><br><span class="line">LocalBufferBlockPointers = (Block *) <span class="built_in">calloc</span>(nbufs, <span class="keyword">sizeof</span>(Block));</span><br><span class="line">LocalRefCount = (int32 *) <span class="built_in">calloc</span>(nbufs, <span class="keyword">sizeof</span>(int32));</span><br></pre></td></tr></table></figure>
+<h3 id="缓存哈希表-1"><a href="#缓存哈希表-1" class="headerlink" title="缓存哈希表"></a>缓存哈希表</h3><p>本地缓存同样提供了哈希表，来提高查找速度，原理同全局缓存一样。</p>
+<h2 id="缓存读取"><a href="#缓存读取" class="headerlink" title="缓存读取"></a>缓存读取</h2><p>全局缓存和本地缓存的读取的原理大致相同，不过因为全局缓存是进程共享，而本地缓存属于进程私有，所以在分配和寻找缓存会有些区别，而且在修改全局缓存的时候需要锁来保护竞争。下面先介绍相同的部分，对于差异部分分开讲解。</p>
+<h3 id="读取配置"><a href="#读取配置" class="headerlink" title="读取配置"></a>读取配置</h3><p>因为缓存的空间是有限的，当空间不够用时，会将旧的缓存替换掉。对于不同场景的读取，替换算法也是不一样的，关于算法原理，后面会有文章单独介绍。</p>
+<p>读取方式</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">typedef</span> <span class="keyword">enum</span></span><br><span class="line">&#123;</span><br><span class="line">	RBM_NORMAL,					<span class="comment">/* 一般情况的读 */</span></span><br><span class="line">	RBM_ZERO_AND_LOCK,			<span class="comment">/* 分配一个buffer并且获取写锁返回，不需要从磁盘读取数据初始化 */</span></span><br><span class="line">	RBM_ZERO_AND_CLEANUP_LOCK,	<span class="comment">/* Like RBM_ZERO_AND_LOCK, but locks the page in "cleanup" mode */</span></span><br><span class="line">	RBM_ZERO_ON_ERROR,			<span class="comment">/* Read, but return an all-zeros page on error */</span></span><br><span class="line">	RBM_NORMAL_NO_LOG			<span class="comment">/* Don't log page as invalid during WAL replay; otherwise same as RBM_NORMAL */</span></span><br><span class="line">&#125; ReadBufferMode;</span><br></pre></td></tr></table></figure>
+<p><code>ReadBuffer</code>函数负责读取表的数据，定义如下：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">Buffer <span class="title">ReadBuffer</span><span class="params">(Relation reln, BlockNumber blockNum)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">	<span class="keyword">return</span> ReadBufferExtended(reln, MAIN_FORKNUM, blockNum, RBM_NORMAL, <span class="literal">NULL</span>);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>在介绍表的文件结构中，我们知道数据是存储在 main 类型文件里，所以传递的参数是<code>MAIN_FORKNUM</code>。它的读取方式为<code>RBM_NORMAL</code>表示正常读取，<code>BufferAccessStrategy</code>参数为 null 表示如果缓存满了，采用默认时钟清除算法来替换掉旧的缓存。</p>
+<h3 id="读取流程"><a href="#读取流程" class="headerlink" title="读取流程"></a>读取流程</h3><ol>
+<li>首先判断读取的表是不是临时表，如果是则表示需要从本地缓存中寻找，否则需要从全局缓存中寻找。</li>
+<li>从对应的缓存哈希表中寻找，如果哈希表存在则直接返回，如果不存在则需要分配一个缓存空间。</li>
+<li>根据读取方式，如果是<code>RBM_NORMAL</code>则从文件中读取数据到缓存，否则将缓存置零。</li>
+</ol>
+<h2 id="全局缓存锁"><a href="#全局缓存锁" class="headerlink" title="全局缓存锁"></a>全局缓存锁</h2><p>在进一步介绍介绍全局缓存的读取之前，需要先了解下锁的使用情况。</p>
+<h3 id="缓存头部锁"><a href="#缓存头部锁" class="headerlink" title="缓存头部锁"></a>缓存头部锁</h3><p>在修改缓存头部时，都需要获取它的头部锁。头部锁由<code>BM_LOCKED</code>标记位表示，有两种使用方法。一种是采用自旋锁实现。</p>
+<p><code>LockBufHdr</code>函数实现了头部锁，它使用了自旋锁和原子操作来实现</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">uint32 <span class="title">LockBufHdr</span><span class="params">(BufferDesc *desc)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">	SpinDelayStatus delayStatus;</span><br><span class="line">	uint32		old_buf_state;</span><br><span class="line">    <span class="comment">// 初始化自旋锁</span></span><br><span class="line">	init_local_spin_delay(&amp;delayStatus);</span><br><span class="line">	<span class="keyword">while</span> (<span class="literal">true</span>)</span><br><span class="line">	&#123;</span><br><span class="line">		<span class="comment">// 原子性的修改BM_LOCKED标记位，并且返回修改前的值</span></span><br><span class="line">		old_buf_state = pg_atomic_fetch_or_u32(&amp;desc-&gt;state, BM_LOCKED);</span><br><span class="line">		<span class="comment">// 如果之前的BM_LOCKED标记位为0，被此次修改为1，认为获取锁成功</span></span><br><span class="line">		<span class="keyword">if</span> (!(old_buf_state &amp; BM_LOCKED))</span><br><span class="line">			<span class="keyword">break</span>;</span><br><span class="line">        <span class="comment">// 可能进行一小段时间的睡眠</span></span><br><span class="line">		perform_spin_delay(&amp;delayStatus);</span><br><span class="line">	&#125;</span><br><span class="line">	finish_spin_delay(&amp;delayStatus);</span><br><span class="line">    <span class="comment">// 返回状态值</span></span><br><span class="line">	<span class="keyword">return</span> old_buf_state | BM_LOCKED;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>使用方法如下：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">BufferDesc * buf; <span class="comment">// 缓存头部</span></span><br><span class="line">uint32 buf_state = LockBufHdr(buf); <span class="comment">// 加锁</span></span><br><span class="line">buf_state &amp;= BM_TAG_VALID <span class="comment">// 修改头部</span></span><br><span class="line">UnlockBufHdr(buf, buf_state); <span class="comment">// 设置状态，并且释放锁</span></span><br></pre></td></tr></table></figure>
+<p>还有一种是调用<code>WaitBufHdrUnlocked</code>函数自旋等待，然后使用 CAS 操作获取锁。下面的以设置<code>DIRTY</code>为例</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">void</span> <span class="title">MarkBufferDirty</span><span class="params">(Buffer buffer)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    <span class="comment">// 获取对应的buffer头部</span></span><br><span class="line">    bufHdr = GetBufferDescriptor(buffer - <span class="number">1</span>);</span><br><span class="line">    <span class="comment">// 获取state属性</span></span><br><span class="line">    old_buf_state = pg_atomic_read_u32(&amp;bufHdr-&gt;state);</span><br><span class="line">    <span class="comment">// 循环等待锁释放，在获取锁成功后，会设置dirty位</span></span><br><span class="line">    <span class="keyword">for</span> (;;)</span><br><span class="line">	&#123;</span><br><span class="line">        <span class="comment">// 如果锁被别人占用，那么等待锁的释放</span></span><br><span class="line">        <span class="keyword">if</span> (old_buf_state &amp; BM_LOCKED)</span><br><span class="line">            old_buf_state = WaitBufHdrUnlocked(bufHdr);</span><br><span class="line">        <span class="comment">// 设置标记位</span></span><br><span class="line">        buf_state = old_buf_state;</span><br><span class="line">        buf_state |= BM_DIRTY | BM_JUST_DIRTIED;</span><br><span class="line">        <span class="comment">// 使用cas操作来原子性的设置标记位，如果成功则退出，如果失败则重试</span></span><br><span class="line">        <span class="keyword">if</span> (pg_atomic_compare_exchange_u32(&amp;bufHdr-&gt;state, &amp;old_buf_state, buf_state))</span><br><span class="line">            <span class="keyword">break</span>;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h3 id="缓存读写锁"><a href="#缓存读写锁" class="headerlink" title="缓存读写锁"></a>缓存读写锁</h3><p>每个缓存都有一个读写锁在保护，通过 buffer id 就可以获取。使用方法如下：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#<span class="meta-keyword">define</span> BufferDescriptorGetContentLock(bdesc)   ((LWLock*) (&amp;(bdesc)-&gt;content_lock))</span></span><br><span class="line">BufferDesc buffer = aaa;</span><br><span class="line">LWLockAcquire(LWLock *lock, LWLockMode mode);</span><br><span class="line"></span><br><span class="line">LWLockRelease(LWLock *lock);</span><br></pre></td></tr></table></figure>
+<h3 id="缓存-IO-锁"><a href="#缓存-IO-锁" class="headerlink" title="缓存 IO 锁"></a>缓存 IO 锁</h3><p>下面展示了与缓存io操作相关的全局变量</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">LWLockMinimallyPadded *BufferIOLWLockArray; <span class="comment">// LWLock 数组，索引同buffer数组一致</span></span><br><span class="line"><span class="keyword">static</span> BufferDesc *InProgressBuf = <span class="literal">NULL</span>;  <span class="comment">// 正在进行io的buffer，postgresql同时只能操作一个buffer进行io操作</span></span><br><span class="line"><span class="keyword">static</span> <span class="keyword">bool</span> IsForInput; <span class="comment">// 正在进行io操作的类型，表示是从磁盘读取数据到缓存，还是从缓存写入数据到磁盘</span></span><br></pre></td></tr></table></figure>
+<p>下面展示了缓存io锁的相关操作</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 阻塞等待 IO_IN_PROGRESS 标记位清除</span></span><br><span class="line"><span class="function"><span class="keyword">static</span> <span class="keyword">void</span> <span class="title">WaitIO</span><span class="params">(BufferDesc *buf)</span></span>;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 执行io操作，参数forInput为true，表示从磁盘读取到缓存。参数为false，表示将缓存写入到磁盘</span></span><br><span class="line"><span class="comment">// 返回值为false表示其他进程已经完成io操作，返回true表示成功设置了io标记位，需要自己完成io操作</span></span><br><span class="line"><span class="function"><span class="keyword">static</span> <span class="keyword">bool</span> <span class="title">StartBufferIO</span><span class="params">(BufferDesc *buf, <span class="keyword">bool</span> forInput)</span></span>;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 清除IO_IN_PROGRESS和IO_ERROR标记位，并且设置InProgressBuf为null</span></span><br><span class="line"><span class="comment">// 参数 clear_dirty 如果为true，它会清除DIRTY标记位（前提是没有设置JUST_DIRTIED标记位）</span></span><br><span class="line"><span class="comment">// 并且设置全局变量InProgressBuf为null，并且释放lw锁</span></span><br><span class="line"><span class="function"><span class="keyword">static</span> <span class="keyword">void</span> <span class="title">TerminateBufferIO</span><span class="params">(BufferDesc *buf, <span class="keyword">bool</span> clear_dirty, uint32 set_flag_bits)</span></span>;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 中断io操作，这里会设置IO_ERROR标记位</span></span><br><span class="line"><span class="function"><span class="keyword">void</span> <span class="title">AbortBufferIO</span><span class="params">(<span class="keyword">void</span>)</span></span>;</span><br></pre></td></tr></table></figure>
+<p>下面以将缓存写到磁盘为例，展示了io锁的用法</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">static</span> <span class="keyword">void</span> <span class="title">FlushBuffer</span><span class="params">(BufferDesc *buf, SMgrRelation reln)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    <span class="comment">// 获取io对应的lw锁</span></span><br><span class="line">    StartBufferIO(buf, <span class="literal">false</span>);</span><br><span class="line">    <span class="comment">// 清除JUST_DIRTIED标记位</span></span><br><span class="line">    buf_state = LockBufHdr(buf);</span><br><span class="line">    buf_state &amp;= ~BM_JUST_DIRTIED;</span><br><span class="line">	UnlockBufHdr(buf, buf_state);</span><br><span class="line">    </span><br><span class="line">    <span class="comment">// 如果设置了PERMANENT标记位，那么需要写入xlog文件</span></span><br><span class="line">    <span class="keyword">if</span> (buf_state &amp; BM_PERMANENT)</span><br><span class="line">		XLogFlush(recptr);</span><br><span class="line">    <span class="comment">// 从buffer block数组中找到数据，并且拷贝数据</span></span><br><span class="line">    bufBlock = BufHdrGetBlock(buf);</span><br><span class="line">    bufToWrite = PageSetChecksumCopy((Page) bufBlock, buf-&gt;tag.blockNum);</span><br><span class="line">    <span class="comment">// 写入磁盘</span></span><br><span class="line">    smgrwrite(reln, buf-&gt;tag.forkNum, buf-&gt;tag.blockNum, bufToWrite, <span class="literal">false</span>);</span><br><span class="line">    <span class="comment">// 清除io标记位和dirty标记位</span></span><br><span class="line">    TerminateBufferIO(buf, <span class="literal">true</span>, <span class="number">0</span>);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h2 id="全部缓存读取"><a href="#全部缓存读取" class="headerlink" title="全部缓存读取"></a>全部缓存读取</h2><p><code>ReadBuffer_common</code>函数负责处理全局缓存和本地缓存，</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">static</span> Buffer <span class="title">ReadBuffer_common</span><span class="params">(SMgrRelation smgr, <span class="keyword">char</span> relpersistence, ForkNumber forkNum,</span></span></span><br><span class="line"><span class="function"><span class="params">				  BlockNumber blockNum, ReadBufferMode mode,</span></span></span><br><span class="line"><span class="function"><span class="params">				  BufferAccessStrategy strategy, <span class="keyword">bool</span> *hit)</span></span>;</span><br></pre></td></tr></table></figure>
+<p>下面将它的代码做简化，只负责出路全局缓存，并且省略了异常处理。</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 如果参数blockNum等于特殊值P_NEW，表示需要新增数据块</span></span><br><span class="line">isExtend = (blockNum == P_NEW);</span><br><span class="line"><span class="keyword">if</span> (isExtend)</span><br><span class="line">    <span class="comment">// 获取新的blockNum</span></span><br><span class="line">    blockNum = smgrnblocks(smgr, forkNum);</span><br><span class="line"><span class="comment">// 在缓存中查找是否有对应的数据</span></span><br><span class="line"><span class="keyword">bool</span> found;</span><br><span class="line">bufHdr = BufferAlloc(smgr, relpersistence, forkNum, blockNum, strategy, &amp;found);</span><br><span class="line"><span class="keyword">if</span> (found)</span><br><span class="line">&#123;</span><br><span class="line">    <span class="keyword">if</span> (!isExtend)</span><br><span class="line">    &#123;</span><br><span class="line">        <span class="comment">// 在缓存中找到了，根据ReadBufferMode参数，执行不同操作</span></span><br><span class="line">        <span class="keyword">if</span> (mode == RBM_ZERO_AND_LOCK)</span><br><span class="line">            <span class="comment">// 获取写锁</span></span><br><span class="line">            LWLockAcquire(BufferDescriptorGetContentLock(bufHdr), LW_EXCLUSIVE);</span><br><span class="line">        <span class="keyword">if</span> (mode == RBM_ZERO_AND_CLEANUP_LOCK)</span><br><span class="line">            <span class="comment">// 获取写锁，准备删除</span></span><br><span class="line">            LockBufferForCleanup(BufferDescriptorGetBuffer(bufHdr));</span><br><span class="line">        <span class="keyword">return</span> BufferDescriptorGetBuffer(bufHdr);</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">// 这种情况表示我们本来创建新的数据块，但是已经存在缓存中，并且valid标记位为1。</span></span><br><span class="line">    <span class="comment">// 这种情况属于异常情况，需要清除valid标记位，并且执行io操作。</span></span><br><span class="line">    <span class="keyword">do</span></span><br><span class="line">    &#123;</span><br><span class="line">        uint32 buf_state = LockBufHdr(bufHdr);</span><br><span class="line">        Assert(buf_state &amp; BM_VALID);</span><br><span class="line">        buf_state &amp;= ~BM_VALID;</span><br><span class="line">        UnlockBufHdr(bufHdr, buf_state);</span><br><span class="line">    &#125; <span class="keyword">while</span> (!StartBufferIO(bufHdr, <span class="literal">true</span>));</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 找到缓存数据位置</span></span><br><span class="line">bufBlock = BufHdrGetBlock(bufHdr);</span><br><span class="line"><span class="keyword">if</span> (isExtend)</span><br><span class="line">&#123;</span><br><span class="line">    <span class="comment">// 将缓存置零，并且写入底层文件的新增数据块</span></span><br><span class="line">    MemSet((<span class="keyword">char</span> *) bufBlock, <span class="number">0</span>, BLCKSZ);</span><br><span class="line">    smgrextend(smgr, forkNum, blockNum, (<span class="keyword">char</span> *) bufBlock, <span class="literal">false</span>);</span><br><span class="line">&#125;</span><br><span class="line"><span class="keyword">else</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="keyword">if</span> (mode == RBM_ZERO_AND_LOCK || mode == RBM_ZERO_AND_CLEANUP_LOCK)</span><br><span class="line">        <span class="comment">// 将缓存置零</span></span><br><span class="line">        MemSet((<span class="keyword">char</span> *) bufBlock, <span class="number">0</span>, BLCKSZ);</span><br><span class="line">    <span class="keyword">else</span></span><br><span class="line">        <span class="comment">// 从文件中读取数据到缓存</span></span><br><span class="line">    	smgrread(smgr, forkNum, blockNum, (<span class="keyword">char</span> *) bufBlock);</span><br><span class="line">&#125;</span><br><span class="line"><span class="keyword">if</span> ((mode == RBM_ZERO_AND_LOCK || mode == RBM_ZERO_AND_CLEANUP_LOCK))</span><br><span class="line">&#123;</span><br><span class="line">    <span class="comment">// 获取写锁</span></span><br><span class="line">    LWLockAcquire(BufferDescriptorGetContentLock(bufHdr), LW_EXCLUSIVE);</span><br><span class="line">&#125;</span><br><span class="line"><span class="comment">// 结束io操作，这里会设置valid标记位</span></span><br><span class="line">TerminateBufferIO(bufHdr, <span class="literal">false</span>, BM_VALID);</span><br><span class="line"><span class="comment">// 返回buffer</span></span><br><span class="line"><span class="keyword">return</span> BufferDescriptorGetBuffer(bufHdr);</span><br></pre></td></tr></table></figure>
+<h2 id="本地缓存读取"><a href="#本地缓存读取" class="headerlink" title="本地缓存读取"></a>本地缓存读取</h2><p>本地缓存的读取非常简单，因为不涉及到任何的锁。下面同样将<code>ReadBuffer_common</code>函数代码进行简化</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br></pre></td><td class="code"><pre><span class="line">isExtend = (blockNum == P_NEW);</span><br><span class="line"><span class="keyword">if</span> (isExtend)</span><br><span class="line">    blockNum = smgrnblocks(smgr, forkNum);</span><br><span class="line">bufHdr = LocalBufferAlloc(smgr, forkNum, blockNum, &amp;found);</span><br><span class="line"><span class="keyword">if</span> (found)</span><br><span class="line">&#123;</span><br><span class="line">    <span class="keyword">if</span> (!isExtend)</span><br><span class="line">        <span class="keyword">return</span> BufferDescriptorGetBuffer(bufHdr);</span><br><span class="line">    <span class="comment">// 清除valid标记位    </span></span><br><span class="line">    uint32		buf_state = pg_atomic_read_u32(&amp;bufHdr-&gt;state);</span><br><span class="line">    buf_state &amp;= ~BM_VALID;</span><br><span class="line">    pg_atomic_unlocked_write_u32(&amp;bufHdr-&gt;state, buf_state);</span><br><span class="line">&#125;</span><br><span class="line">bufBlock = LocalBufHdrGetBlock(bufHdr)</span><br><span class="line"><span class="keyword">if</span> (isExtend)</span><br><span class="line">&#123;</span><br><span class="line">    <span class="comment">// 将缓存置零，并且写入底层文件的新增数据块</span></span><br><span class="line">    MemSet((<span class="keyword">char</span> *) bufBlock, <span class="number">0</span>, BLCKSZ);</span><br><span class="line">    smgrextend(smgr, forkNum, blockNum, (<span class="keyword">char</span> *) bufBlock, <span class="literal">false</span>);</span><br><span class="line">&#125;</span><br><span class="line"><span class="keyword">else</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="keyword">if</span> (mode == RBM_ZERO_AND_LOCK || mode == RBM_ZERO_AND_CLEANUP_LOCK)</span><br><span class="line">        <span class="comment">// 将缓存置零</span></span><br><span class="line">        MemSet((<span class="keyword">char</span> *) bufBlock, <span class="number">0</span>, BLCKSZ);</span><br><span class="line">    <span class="keyword">else</span></span><br><span class="line">        <span class="comment">// 从文件中读取数据到缓存</span></span><br><span class="line">    	smgrread(smgr, forkNum, blockNum, (<span class="keyword">char</span> *) bufBlock);</span><br><span class="line">&#125;</span><br><span class="line"><span class="comment">// 设置valid标记位</span></span><br><span class="line">uint32		buf_state = pg_atomic_read_u32(&amp;bufHdr-&gt;state);</span><br><span class="line">buf_state |= BM_VALID;</span><br><span class="line">pg_atomic_unlocked_write_u32(&amp;bufHdr-&gt;state, buf_state);</span><br><span class="line"><span class="comment">// 返回buffer</span></span><br><span class="line"><span class="keyword">return</span> BufferDescriptorGetBuffer(bufHdr);</span><br></pre></td></tr></table></figure>
+      
+    </div>
+    
+    
+    
+
+    
+
+    
+
+    
+
+    <footer class="post-footer">
+      
+        <div class="post-tags">
+          
+            <a href="/tags/postgresql-buffer/" rel="tag"># postgresql, buffer</a>
+          
+        </div>
+      
+
+      
+      
+      
+
+      
+        <div class="post-nav">
+          <div class="post-nav-next post-nav-item">
+            
+              <a href="/2019/10/15/postgresql-lwlock/" rel="next" title="Postgresql LWLock 原理">
+                <i class="fa fa-chevron-left"></i> Postgresql LWLock 原理
+              </a>
+            
+          </div>
+
+          <span class="post-nav-divider"></span>
+
+          <div class="post-nav-prev post-nav-item">
+            
+          </div>
+        </div>
+      
+
+      
+      
+    </footer>
+  </div>
+  
+  
+  
+  </article>
+
+
+
+    <div class="post-spread">
+      
+    </div>
+  </div>
+
+
+          </div>
+          
+
+
+          
+
+  
+    <div class="comments" id="comments">
+    </div>
+  
+
+
+
+        </div>
+        
+          
+  
+  <div class="sidebar-toggle">
+    <div class="sidebar-toggle-line-wrap">
+      <span class="sidebar-toggle-line sidebar-toggle-line-first"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-middle"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-last"></span>
+    </div>
+  </div>
+
+  <aside id="sidebar" class="sidebar">
+    
+    <div class="sidebar-inner">
+
+      
+
+      
+        <ul class="sidebar-nav motion-element">
+          <li class="sidebar-nav-toc sidebar-nav-active" data-target="post-toc-wrap">
+            Table of Contents
+          </li>
+          <li class="sidebar-nav-overview" data-target="site-overview-wrap">
+            Overview
+          </li>
+        </ul>
+      
+
+      <section class="site-overview-wrap sidebar-panel">
+        <div class="site-overview">
+          <div class="site-author motion-element" itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+            
+              <p class="site-author-name" itemprop="name">zhmin</p>
+              <p class="site-description motion-element" itemprop="description"></p>
+          </div>
+
+          <nav class="site-state motion-element">
+
+            
+              <div class="site-state-item site-state-posts">
+              
+                <a href="/archives/">
+              
+                  <span class="site-state-item-count">58</span>
+                  <span class="site-state-item-name">posts</span>
+                </a>
+              </div>
+            
+
+            
+              
+              
+              <div class="site-state-item site-state-categories">
+                <a href="/categories/index.html">
+                  <span class="site-state-item-count">12</span>
+                  <span class="site-state-item-name">categories</span>
+                </a>
+              </div>
+            
+
+            
+              
+              
+              <div class="site-state-item site-state-tags">
+                
+                  <span class="site-state-item-count">55</span>
+                  <span class="site-state-item-name">tags</span>
+                
+              </div>
+            
+
+          </nav>
+
+          
+
+          
+            <div class="links-of-author motion-element">
+                
+                  <span class="links-of-author-item">
+                    <a href="https://github.com/zhmin" target="_blank" title="GitHub">
+                      
+                        <i class="fa fa-fw fa-github"></i>GitHub</a>
+                  </span>
+                
+            </div>
+          
+
+          
+          
+
+          
+          
+
+          
+
+        </div>
+      </section>
+
+      
+      <!--noindex-->
+        <section class="post-toc-wrap motion-element sidebar-panel sidebar-panel-active">
+          <div class="post-toc">
+
+            
+              
+            
+
+            
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#前言"><span class="nav-number">1.</span> <span class="nav-text">前言</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#缓存结构"><span class="nav-number">2.</span> <span class="nav-text">缓存结构</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Buffer-结构体"><span class="nav-number">3.</span> <span class="nav-text">Buffer 结构体</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#全局缓存"><span class="nav-number">4.</span> <span class="nav-text">全局缓存</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#缓存数组"><span class="nav-number">4.1.</span> <span class="nav-text">缓存数组</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#缓存数组初始化"><span class="nav-number">4.2.</span> <span class="nav-text">缓存数组初始化</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#缓存哈希表"><span class="nav-number">4.3.</span> <span class="nav-text">缓存哈希表</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#本地缓存"><span class="nav-number">5.</span> <span class="nav-text">本地缓存</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#缓存数组-1"><span class="nav-number">5.1.</span> <span class="nav-text">缓存数组</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#缓存数组初始化-1"><span class="nav-number">5.2.</span> <span class="nav-text">缓存数组初始化</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#缓存哈希表-1"><span class="nav-number">5.3.</span> <span class="nav-text">缓存哈希表</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#缓存读取"><span class="nav-number">6.</span> <span class="nav-text">缓存读取</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#读取配置"><span class="nav-number">6.1.</span> <span class="nav-text">读取配置</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#读取流程"><span class="nav-number">6.2.</span> <span class="nav-text">读取流程</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#全局缓存锁"><span class="nav-number">7.</span> <span class="nav-text">全局缓存锁</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#缓存头部锁"><span class="nav-number">7.1.</span> <span class="nav-text">缓存头部锁</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#缓存读写锁"><span class="nav-number">7.2.</span> <span class="nav-text">缓存读写锁</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#缓存-IO-锁"><span class="nav-number">7.3.</span> <span class="nav-text">缓存 IO 锁</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#全部缓存读取"><span class="nav-number">8.</span> <span class="nav-text">全部缓存读取</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#本地缓存读取"><span class="nav-number">9.</span> <span class="nav-text">本地缓存读取</span></a></li></ol></div>
+            
+
+          </div>
+        </section>
+      <!--/noindex-->
+      
+
+      
+
+    </div>
+  </aside>
+
+
+        
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="footer-inner">
+        <div class="copyright">&copy; <span itemprop="copyrightYear">2019</span>
+  <span class="with-love">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">zhmin</span>
+
+  
+</div>
+
+
+
+
+
+
+
+
+
+
+
+  <script src="https://unpkg.com/mermaid@7.1.2/dist/mermaid.min.js"></script>
+  <script>
+    if (window.mermaid) {
+      mermaid.initialize({"startOnload":true,"theme":"forest"});
+    }
+  </script>
+
+
+
+<script async src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+<span id="busuanzi_container_site_pv">
+    访问量<span id="busuanzi_value_site_pv"></span>
+</span>
+<span class="post-meta-divider">|</span>
+<span id="busuanzi_container_site_uv">
+  访客数<span id="busuanzi_value_site_uv"></span>
+</span>
+
+        
+
+
+
+
+
+
+
+        
+      </div>
+    </footer>
+
+    
+      <div class="back-to-top">
+        <i class="fa fa-arrow-up"></i>
+        
+      </div>
+    
+
+    
+
+  </div>
+
+  
+
+<script type="text/javascript">
+  if (Object.prototype.toString.call(window.Promise) !== '[object Function]') {
+    window.Promise = null;
+  }
+</script>
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery/index.js?v=2.1.3"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fastclick/lib/fastclick.min.js?v=1.0.6"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery_lazyload/jquery.lazyload.js?v=1.9.7"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.ui.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fancybox/source/jquery.fancybox.pack.js?v=2.1.5"></script>
+  
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/utils.js?v=5.1.4"></script>
+
+  <script type="text/javascript" src="/js/src/motion.js?v=5.1.4"></script>
+
+
+
+  
+  
+
+  
+  <script type="text/javascript" src="/js/src/scrollspy.js?v=5.1.4"></script>
+<script type="text/javascript" src="/js/src/post-details.js?v=5.1.4"></script>
+
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/bootstrap.js?v=5.1.4"></script>
+
+
+
+  
+
+
+  
+
+
+
+
+	
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+  <script src="//cdn1.lncld.net/static/js/3.0.4/av-min.js"></script>
+  <script src="//unpkg.com/valine/dist/Valine.min.js"></script>
+  
+  <script type="text/javascript">
+    var GUEST = ['nick','mail','link'];
+    var guest = 'nick';
+    guest = guest.split(',').filter(item=>{
+      return GUEST.indexOf(item)>-1;
+    });
+    new Valine({
+        el: '#comments' ,
+        verify: false,
+        notify: false,
+        appId: 'iYiPQlDR2X2zg2QIql2UEe2o-gzGzoHsz',
+        appKey: 'EW8G4sftwX1pef1zS9EsOeKE',
+        placeholder: 'comment here',
+        avatar:'mm',
+        guest_info:guest,
+        pageSize:'10' || 10,
+    });
+  </script>
+
+
+
+  
+
+
+
+
+
+  
+
+  
+  <script src="https://cdn1.lncld.net/static/js/av-core-mini-0.6.4.js"></script>
+  <script>AV.initialize("iYiPQlDR2X2zg2QIql2UEe2o-gzGzoHsz", "EW8G4sftwX1pef1zS9EsOeKE");</script>
+  <script>
+    function showTime(Counter) {
+      var query = new AV.Query(Counter);
+      var entries = [];
+      var $visitors = $(".leancloud_visitors");
+
+      $visitors.each(function () {
+        entries.push( $(this).attr("id").trim() );
+      });
+
+      query.containedIn('url', entries);
+      query.find()
+        .done(function (results) {
+          var COUNT_CONTAINER_REF = '.leancloud-visitors-count';
+
+          if (results.length === 0) {
+            $visitors.find(COUNT_CONTAINER_REF).text(0);
+            return;
+          }
+
+          for (var i = 0; i < results.length; i++) {
+            var item = results[i];
+            var url = item.get('url');
+            var time = item.get('time');
+            var element = document.getElementById(url);
+
+            $(element).find(COUNT_CONTAINER_REF).text(time);
+          }
+          for(var i = 0; i < entries.length; i++) {
+            var url = entries[i];
+            var element = document.getElementById(url);
+            var countSpan = $(element).find(COUNT_CONTAINER_REF);
+            if( countSpan.text() == '') {
+              countSpan.text(0);
+            }
+          }
+        })
+        .fail(function (object, error) {
+          console.log("Error: " + error.code + " " + error.message);
+        });
+    }
+
+    function addCount(Counter) {
+      var $visitors = $(".leancloud_visitors");
+      var url = $visitors.attr('id').trim();
+      var title = $visitors.attr('data-flag-title').trim();
+      var query = new AV.Query(Counter);
+
+      query.equalTo("url", url);
+      query.find({
+        success: function(results) {
+          if (results.length > 0) {
+            var counter = results[0];
+            counter.fetchWhenSave(true);
+            counter.increment("time");
+            counter.save(null, {
+              success: function(counter) {
+                var $element = $(document.getElementById(url));
+                $element.find('.leancloud-visitors-count').text(counter.get('time'));
+              },
+              error: function(counter, error) {
+                console.log('Failed to save Visitor num, with error message: ' + error.message);
+              }
+            });
+          } else {
+            var newcounter = new Counter();
+            /* Set ACL */
+            var acl = new AV.ACL();
+            acl.setPublicReadAccess(true);
+            acl.setPublicWriteAccess(true);
+            newcounter.setACL(acl);
+            /* End Set ACL */
+            newcounter.set("title", title);
+            newcounter.set("url", url);
+            newcounter.set("time", 1);
+            newcounter.save(null, {
+              success: function(newcounter) {
+                var $element = $(document.getElementById(url));
+                $element.find('.leancloud-visitors-count').text(newcounter.get('time'));
+              },
+              error: function(newcounter, error) {
+                console.log('Failed to create');
+              }
+            });
+          }
+        },
+        error: function(error) {
+          console.log('Error:' + error.code + " " + error.message);
+        }
+      });
+    }
+
+    $(function() {
+      var Counter = AV.Object.extend("Counter");
+      if ($('.leancloud_visitors').length == 1) {
+        addCount(Counter);
+      } else if ($('.post-title-link').length > 1) {
+        showTime(Counter);
+      }
+    });
+  </script>
+
+
+
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+</body>
+</html>
