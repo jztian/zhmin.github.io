@@ -1,0 +1,967 @@
+<!DOCTYPE html>
+
+
+
+  
+
+
+<html class="theme-next mist use-motion" lang="">
+<head><meta name="generator" content="Hexo 3.8.0">
+  <meta charset="UTF-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="theme-color" content="#222">
+
+
+
+
+
+
+
+
+
+<meta http-equiv="Cache-Control" content="no-transform">
+<meta http-equiv="Cache-Control" content="no-siteapp">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+  <link href="/lib/fancybox/source/jquery.fancybox.css?v=2.1.5" rel="stylesheet" type="text/css">
+
+
+
+
+
+
+
+<link href="/lib/font-awesome/css/font-awesome.min.css?v=4.6.2" rel="stylesheet" type="text/css">
+
+<link href="/css/main.css?v=5.1.4" rel="stylesheet" type="text/css">
+
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png?v=5.1.4">
+
+
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png?v=5.1.4">
+
+
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png?v=5.1.4">
+
+
+  <link rel="mask-icon" href="/images/logo.svg?v=5.1.4" color="#222">
+
+
+
+
+
+  <meta name="keywords" content="postgresql, buffer,">
+
+
+
+
+
+
+
+
+
+
+<meta name="description" content="前言postgresql 使用缓存来作为与磁盘读写的中间层，但是缓存的大小是有限的，当缓存不够用时需要剔除一些不常用的。但是如何高效的选出那些需要剔除的缓存呢，postgresql 针对不同的应用场景，提供了简单高效的不同算法。 替换算法postgresql 主要提供了两种替换算法，ring 算法和 clock sweep 算法，分别针对批量读写和正常读写。 ring 算法ring算法适合那些批量">
+<meta name="keywords" content="postgresql, buffer">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Postgresql 缓存替换算法">
+<meta property="og:url" content="https://zhmin.github.io/2019/10/21/postgresql-buffer-replace/index.html">
+<meta property="og:site_name" content="学习笔记">
+<meta property="og:description" content="前言postgresql 使用缓存来作为与磁盘读写的中间层，但是缓存的大小是有限的，当缓存不够用时需要剔除一些不常用的。但是如何高效的选出那些需要剔除的缓存呢，postgresql 针对不同的应用场景，提供了简单高效的不同算法。 替换算法postgresql 主要提供了两种替换算法，ring 算法和 clock sweep 算法，分别针对批量读写和正常读写。 ring 算法ring算法适合那些批量">
+<meta property="og:locale" content="default">
+<meta property="og:updated_time" content="2019-10-21T12:51:27.015Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Postgresql 缓存替换算法">
+<meta name="twitter:description" content="前言postgresql 使用缓存来作为与磁盘读写的中间层，但是缓存的大小是有限的，当缓存不够用时需要剔除一些不常用的。但是如何高效的选出那些需要剔除的缓存呢，postgresql 针对不同的应用场景，提供了简单高效的不同算法。 替换算法postgresql 主要提供了两种替换算法，ring 算法和 clock sweep 算法，分别针对批量读写和正常读写。 ring 算法ring算法适合那些批量">
+
+
+
+<script type="text/javascript" id="hexo.configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '/',
+    scheme: 'Mist',
+    version: '5.1.4',
+    sidebar: {"position":"left","display":"hide","offset":12,"b2t":false,"scrollpercent":false,"onmobile":false},
+    fancybox: true,
+    tabs: true,
+    motion: {"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},
+    duoshuo: {
+      userId: '0',
+      author: 'Author'
+    },
+    algolia: {
+      applicationID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    }
+  };
+</script>
+
+
+
+  <link rel="canonical" href="https://zhmin.github.io/2019/10/21/postgresql-buffer-replace/">
+
+
+
+
+
+  <title>Postgresql 缓存替换算法 | 学习笔记</title>
+  
+
+
+
+
+
+
+
+
+</head>
+
+<body itemscope="" itemtype="http://schema.org/WebPage" lang="default">
+
+  
+  
+    
+  
+
+  <div class="container sidebar-position-left page-post-detail">
+    <div class="headband"></div>
+
+    <header id="header" class="header" itemscope="" itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-wrapper">
+  <div class="site-meta ">
+    
+
+    <div class="custom-logo-site-title">
+      <a href="/" class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">学习笔记</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+      
+        <h1 class="site-subtitle" itemprop="description"></h1>
+      
+  </div>
+
+  <div class="site-nav-toggle">
+    <button>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+    </button>
+  </div>
+</div>
+
+<nav class="site-nav">
+  
+
+  
+    <ul id="menu" class="menu">
+      
+        
+        <li class="menu-item menu-item-home">
+          <a href="/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-home"></i> <br>
+            
+            Home
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-categories">
+          <a href="/categories/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-th"></i> <br>
+            
+            Categories
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-archives">
+          <a href="/archives/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-archive"></i> <br>
+            
+            Archives
+          </a>
+        </li>
+      
+
+      
+    </ul>
+  
+
+  
+</nav>
+
+
+
+ </div>
+    </header>
+
+    <main id="main" class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          <div id="content" class="content">
+            
+
+  <div id="posts" class="posts-expand">
+    
+
+  
+
+  
+  
+  
+
+  <article class="post post-type-normal" itemscope="" itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block">
+    <link itemprop="mainEntityOfPage" href="https://zhmin.github.io/2019/10/21/postgresql-buffer-replace/">
+
+    <span hidden itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="zhmin">
+      <meta itemprop="description" content="">
+      <meta itemprop="image" content="/images/avatar.gif">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope="" itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="学习笔记">
+    </span>
+
+    
+      <header class="post-header">
+
+        
+        
+          <h2 class="post-title" itemprop="name headline">Postgresql 缓存替换算法</h2>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">Posted on</span>
+              
+              <time title="Post created" itemprop="dateCreated datePublished" datetime="2019-10-21T20:38:37+08:00">
+                2019-10-21
+              </time>
+            
+
+            
+
+            
+          </span>
+
+          
+            <span class="post-category">
+            
+              <span class="post-meta-divider">|</span>
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">In</span>
+              
+              
+                <span itemprop="about" itemscope="" itemtype="http://schema.org/Thing">
+                  <a href="/categories/postgresql/" itemprop="url" rel="index">
+                    <span itemprop="name">postgresql</span>
+                  </a>
+                </span>
+
+                
+                
+              
+            </span>
+          
+
+          
+            
+              <span class="post-comments-count">
+                <span class="post-meta-divider">|</span>
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-comment-o"></i>
+                </span>
+                <a href="/2019/10/21/postgresql-buffer-replace/#comments" itemprop="discussionUrl">
+                  <span class="post-comments-count valine-comment-count" data-xid="/2019/10/21/postgresql-buffer-replace/" itemprop="commentCount"></span>
+                </a>
+              </span>
+            
+          
+
+          
+          
+             <span id="/2019/10/21/postgresql-buffer-replace/" class="leancloud_visitors" data-flag-title="Postgresql 缓存替换算法">
+               <span class="post-meta-divider">|</span>
+               <span class="post-meta-item-icon">
+                 <i class="fa fa-eye"></i>
+               </span>
+               
+                 <span class="post-meta-item-text">Visitors&#58;</span>
+               
+                 <span class="leancloud-visitors-count"></span>
+             </span>
+          
+
+          
+
+          
+
+          
+
+        </div>
+      </header>
+    
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+      
+
+      
+        <h2 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h2><p>postgresql 使用缓存来作为与磁盘读写的中间层，但是缓存的大小是有限的，当缓存不够用时需要剔除一些不常用的。但是如何高效的选出那些需要剔除的缓存呢，postgresql 针对不同的应用场景，提供了简单高效的不同算法。</p>
+<h2 id="替换算法"><a href="#替换算法" class="headerlink" title="替换算法"></a>替换算法</h2><p>postgresql 主要提供了两种替换算法，ring 算法和 clock sweep 算法，分别针对批量读写和正常读写。</p>
+<h3 id="ring-算法"><a href="#ring-算法" class="headerlink" title="ring 算法"></a>ring 算法</h3><p>ring算法适合那些批量读写的场景，因为操作数据都是一次性的，这些数据在使用后就没有作用了。如果频繁的触发缓存替换，对性能造成没必要的损耗的。所以使用一个特定大小的环，循环使用。这种算法性能高，而且对缓存造成很大的影响。</p>
+<p>ring算法的原理很简单，它有一个环状数组，数组的每个元素都对应一个buffer，注意到buffer的分配是动态的，也就是说开始的时候，数组的元素都为空。</p>
+<p>每次需要获取替换的缓存，它都会从上次遍历的位置开始，直接返回下一个元素。如果这个数组元素没有分配buffer，则需要进行分配。当这个buffer被分配了，它会一直存在，不会被替换掉，除非被明确释放掉。</p>
+<p>ring 算法的相关参数定义如下：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> <span class="title">BufferAccessStrategyData</span></span></span><br><span class="line"><span class="class">&#123;</span></span><br><span class="line">	</span><br><span class="line">	BufferAccessStrategyType btype;          <span class="comment">// 策略类型</span></span><br><span class="line">	<span class="keyword">int</span>			ring_size;                  <span class="comment">// 环大小	</span></span><br><span class="line">	<span class="keyword">int</span>			current;                    <span class="comment">// 数组的遍历当前位置</span></span><br><span class="line">	<span class="keyword">bool</span>		current_was_in_ring;        <span class="comment">// 数组当前位置的元素，有没有分配buffer</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">// 这里使用数组来表示环，当元素的值为InvalidBuffer(也就是0)，表示还分配buffer给这个元素</span></span><br><span class="line">	Buffer		buffers[FLEXIBLE_ARRAY_MEMBER];</span><br><span class="line">&#125; BufferAccessStrategyData;</span><br></pre></td></tr></table></figure>
+<p>上面的<code>BufferAccessStrategyType</code>定义了哪种策略，定义如下</p>
+<table>
+<thead>
+<tr>
+<th>BufferAccessStrategyType</th>
+<th>使用场景</th>
+<th>替换算法</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>BAS_NORMAL</td>
+<td>一般情况的随机读写</td>
+<td>clock sweep 算法</td>
+</tr>
+<tr>
+<td>BAS_BULKREAD</td>
+<td>批量读</td>
+<td>ring算法，环大小为 256 * 1024 / BLCKSZ</td>
+</tr>
+<tr>
+<td>BAS_BULKWRITE</td>
+<td>批量写</td>
+<td>ring算法，环大小为 16 <em> 1024 </em> 1024 / BLCKSZ</td>
+</tr>
+<tr>
+<td>BAS_VACUUM</td>
+<td>VACUUM 进程</td>
+<td>ring算法，环大小为 256 * 1024 / BLCKSZ</td>
+</tr>
+</tbody>
+</table>
+<h3 id="clock-sweep-算法"><a href="#clock-sweep-算法" class="headerlink" title="clock sweep 算法"></a>clock sweep 算法</h3><p>clock sweep 算法根据访问次数来判断哪些数据为热点数据。当缓存空间不足，它会优先替换掉访问次数低的缓存。它的算法参数如下：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span></span></span><br><span class="line"><span class="class">&#123;</span></span><br><span class="line">	<span class="keyword">slock_t</span>		buffer_strategy_lock;      <span class="comment">// 自旋锁，用来保护下面的成员</span></span><br><span class="line">	pg_atomic_uint32 nextVictimBuffer;     <span class="comment">// 下次遍历位置</span></span><br><span class="line"></span><br><span class="line">	<span class="keyword">int</span>			firstFreeBuffer;	     <span class="comment">// 空闲buffer链表的头部</span></span><br><span class="line">	<span class="keyword">int</span>			lastFreeBuffer;          <span class="comment">// 空闲buffer链表的尾部</span></span><br><span class="line"></span><br><span class="line">	uint32		completePasses; <span class="comment">// 记录遍历完数组的次数</span></span><br><span class="line">	pg_atomic_uint32 numBufferAllocs;	<span class="comment">/* Buffers allocated since last reset */</span></span><br><span class="line"></span><br><span class="line">	<span class="comment">/*</span></span><br><span class="line"><span class="comment">	 * Bgworker process to be notified upon activity or -1 if none. See</span></span><br><span class="line"><span class="comment">	 * StrategyNotifyBgWriter.</span></span><br><span class="line"><span class="comment">	 */</span></span><br><span class="line">	<span class="keyword">int</span>			bgwprocno;</span><br><span class="line">&#125; BufferStrategyControl;</span><br></pre></td></tr></table></figure>
+<p>每次从上次位置开始轮询，然后检查buffer 的引用次数 refcount 和访问次数 usagecount。</p>
+<ol>
+<li>如果 refcount，usagecount 都为零，那么直接返回。</li>
+<li><p>如果 refcount 为零，usagecount 不为零，那么将其usagecount 减1，遍历下一个buffer。</p>
+</li>
+<li><p>如果 refcount 不为零，则遍历下一个。</p>
+</li>
+</ol>
+<p>clock sweep 算法是一个死循环算法，直到找出一个 refcount，usagecount 都为零的buffer。</p>
+<h3 id="空闲链表"><a href="#空闲链表" class="headerlink" title="空闲链表"></a>空闲链表</h3><p>为了加快查找空闲 buffer 的速度，postgresql 使用链表来保存这些buffer。链表的头部和尾部由 BufferStrategyControl 结构体的 firstFreeBuffer 和 lastFreeBuffer 成员指定。链表节点由 BufferDesc 结构体表示，它的 freeNext 成员指向下一个节点。</p>
+<p>当有新增的空闲buffer，它会被添加到链表的尾部。当需要空闲空间时，则直接返回链表的头部。</p>
+<h2 id="寻找空闲全局缓存"><a href="#寻找空闲全局缓存" class="headerlink" title="寻找空闲全局缓存"></a>寻找空闲全局缓存</h2><ol>
+<li>如果指定使用了ring算法，那么首先从环中获取空闲缓存，如果找到则直接返回。</li>
+<li>查看空闲链表是否有空闲缓存，如果有则直接返回</li>
+<li>使用 clock sweep 算法查找到一个空闲缓存，如果之前指定了ring算法，需要将这个空闲位置添加到环中。</li>
+<li>如果缓存为脏页，那么需要将它刷新到磁盘。</li>
+<li>修改缓存的头部，并且更新缓存哈希表</li>
+</ol>
+<h2 id="寻找空闲本地缓存"><a href="#寻找空闲本地缓存" class="headerlink" title="寻找空闲本地缓存"></a>寻找空闲本地缓存</h2><p>寻找本地空闲缓存很简单，直接使用 clock sweep 算法寻找。在找到替换的缓存后，还需要处理脏页和修改缓存头部，并且更新缓存哈希表。</p>
+<h2 id="引用计数缓存"><a href="#引用计数缓存" class="headerlink" title="引用计数缓存"></a>引用计数缓存</h2><p>当获取到一个缓存时，不想让它被替换掉，那么就需要增加它的引用次数。替换算法只会替换那些引用次数为零的缓存，当被使用完后，需要减少它的引用次数，当减少至零就可以被替换掉。</p>
+<p>本来state字段包含引用次数和使用次数，但是每次更新都需要获取头部锁。因为头部锁还被用于其他多个地方，所以为了减少冲突，单独使用了计数器存储了引用次数。现在 state 字段的引用次数只有0和1两个值，用来表示是否有被进程引用。</p>
+<h3 id="引用计数器"><a href="#引用计数器" class="headerlink" title="引用计数器"></a>引用计数器</h3><p>每个buffer都对应一个计数器，定义如下：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> <span class="title">PrivateRefCountEntry</span></span></span><br><span class="line"><span class="class">&#123;</span></span><br><span class="line">	Buffer		buffer;  <span class="comment">// 类型为int，等于buffer_id</span></span><br><span class="line">	int32		refcount;  <span class="comment">// 引用计数器</span></span><br><span class="line">&#125; PrivateRefCountEntry;</span><br></pre></td></tr></table></figure>
+<p>为了快速找到指定buffer的引用计数，postgresql 提供了一个数组作为一级缓存，使用哈希表作为二级缓存。这个数组的长度为8，每个元素占有 8byte，选择数字8，刚好等于64byte，这个长度与CPU的缓存大小刚好相关。</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#<span class="meta-keyword">define</span> REFCOUNT_ARRAY_ENTRIES 8</span></span><br><span class="line"><span class="keyword">static</span> <span class="class"><span class="keyword">struct</span> <span class="title">PrivateRefCountEntry</span> <span class="title">PrivateRefCountArray</span>[<span class="title">REFCOUNT_ARRAY_ENTRIES</span>];</span>  <span class="comment">// 数组</span></span><br><span class="line"><span class="keyword">static</span> PrivateRefCountEntry * ReservedRefCountEntry = <span class="literal">NULL</span>;   <span class="comment">// 指向数组中空余的位置</span></span><br><span class="line"></span><br><span class="line"></span><br><span class="line"><span class="keyword">static</span> HTAB *PrivateRefCountHash = <span class="literal">NULL</span>;  <span class="comment">// 哈希表，key为buffer_id，value为引用次数</span></span><br><span class="line"><span class="keyword">static</span> int32 PrivateRefCountOverflowed = <span class="number">0</span>;  <span class="comment">// 哈希表包含entry的数目</span></span><br></pre></td></tr></table></figure>
+<h3 id="使用示例"><a href="#使用示例" class="headerlink" title="使用示例"></a>使用示例</h3><p>下面列举了常用的函数：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 寻找顺组中的空闲位置，如果没有找到，那么就将数组挑选出一个，将其转移到哈希表中</span></span><br><span class="line"><span class="comment">// 挑选策略采用了轮询</span></span><br><span class="line"><span class="function"><span class="keyword">static</span> <span class="keyword">void</span> <span class="title">ReservePrivateRefCountEntry</span><span class="params">(<span class="keyword">void</span>)</span></span>;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 将buffer添加到数组空闲位置</span></span><br><span class="line"><span class="function"><span class="keyword">static</span> PrivateRefCountEntry* <span class="title">NewPrivateRefCountEntry</span><span class="params">(Buffer buffer)</span></span>;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 寻找指定buffer对应的PrivateRefCountEntry，</span></span><br><span class="line"><span class="comment">// 参数do_move为true时，表示当数据在哈希表里，需要将其转移到数组</span></span><br><span class="line"><span class="function"><span class="keyword">static</span> PrivateRefCountEntry* <span class="title">GetPrivateRefCountEntry</span><span class="params">(Buffer buffer, <span class="keyword">bool</span> do_move)</span></span>;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 返回引用次数，这里调用了GetPrivateRefCountEntry方法</span></span><br><span class="line"><span class="function"><span class="keyword">static</span> <span class="keyword">inline</span> int32 <span class="title">GetPrivateRefCount</span><span class="params">(Buffer buffer)</span></span>;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 释放PrivateRefCountEntry，通过比较数组的内存起始位置和结束位置，可以很快判断出是否在数组中</span></span><br><span class="line"><span class="function"><span class="keyword">static</span> <span class="keyword">void</span> <span class="title">ForgetPrivateRefCountEntry</span><span class="params">(PrivateRefCountEntry *ref)</span></span>;</span><br></pre></td></tr></table></figure>
+<p>下面以新添加一个buffer的计数器为例：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">Buffer buffer;  <span class="comment">// 指定buffer</span></span><br><span class="line">ReservePrivateRefCountEntry();   <span class="comment">// 保证数组有一个空闲位置</span></span><br><span class="line">ref = NewPrivateRefCountEntry(buffer);  <span class="comment">// 为buffer创建计数器</span></span><br><span class="line">ref-&gt;refcount = <span class="number">1</span>; <span class="comment">// 设置引用次数</span></span><br></pre></td></tr></table></figure>
+<h2 id="修改引用次数"><a href="#修改引用次数" class="headerlink" title="修改引用次数"></a>修改引用次数</h2><p>在增加或减少buffer的引用次数时，会涉及到 buffer头部的 state 字段，和引用计数的更新。</p>
+<ol>
+<li>当 buffer 的引用次数由0变为1时，会触发 state 字段的更新和创建新的计数器，之后的增加操作，就只会更改引用计数。</li>
+<li>当buffer 的引用次数由1变为0时，会触发state 字段的更新，并且会删除对应的计数器。如果不是减为0，那么只需要更改引用计数。</li>
+</ol>
+<h3 id="增加引用次数"><a href="#增加引用次数" class="headerlink" title="增加引用次数"></a>增加引用次数</h3><p>修改引用次数的函数如下：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 增加引用次数，参数buf为指定的buffer，参数strategy指定了替换算法</span></span><br><span class="line"><span class="function"><span class="keyword">static</span> <span class="keyword">bool</span> <span class="title">PinBuffer</span><span class="params">(BufferDesc *buf, BufferAccessStrategy strategy)</span></span>;</span><br></pre></td></tr></table></figure>
+<h3 id="减少引用次数"><a href="#减少引用次数" class="headerlink" title="减少引用次数"></a>减少引用次数</h3><p>在减少引用次数，先在引用计数器减少1，如果引用次数变为0，那么需要减少state字段的计数器，并且</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 减少引用次数</span></span><br><span class="line"><span class="function"><span class="keyword">static</span> <span class="keyword">void</span> <span class="title">UnpinBuffer</span><span class="params">(BufferDesc *buf, <span class="keyword">bool</span> fixOwner)</span></span>;</span><br></pre></td></tr></table></figure>
+
+      
+    </div>
+    
+    
+    
+
+    
+
+    
+
+    
+
+    <footer class="post-footer">
+      
+        <div class="post-tags">
+          
+            <a href="/tags/postgresql-buffer/" rel="tag"># postgresql, buffer</a>
+          
+        </div>
+      
+
+      
+      
+      
+
+      
+        <div class="post-nav">
+          <div class="post-nav-next post-nav-item">
+            
+              <a href="/2019/10/17/postgresql-buffer-pool/" rel="next" title="Postgresql 缓存池原理">
+                <i class="fa fa-chevron-left"></i> Postgresql 缓存池原理
+              </a>
+            
+          </div>
+
+          <span class="post-nav-divider"></span>
+
+          <div class="post-nav-prev post-nav-item">
+            
+          </div>
+        </div>
+      
+
+      
+      
+    </footer>
+  </div>
+  
+  
+  
+  </article>
+
+
+
+    <div class="post-spread">
+      
+    </div>
+  </div>
+
+
+          </div>
+          
+
+
+          
+
+  
+    <div class="comments" id="comments">
+    </div>
+  
+
+
+
+        </div>
+        
+          
+  
+  <div class="sidebar-toggle">
+    <div class="sidebar-toggle-line-wrap">
+      <span class="sidebar-toggle-line sidebar-toggle-line-first"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-middle"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-last"></span>
+    </div>
+  </div>
+
+  <aside id="sidebar" class="sidebar">
+    
+    <div class="sidebar-inner">
+
+      
+
+      
+        <ul class="sidebar-nav motion-element">
+          <li class="sidebar-nav-toc sidebar-nav-active" data-target="post-toc-wrap">
+            Table of Contents
+          </li>
+          <li class="sidebar-nav-overview" data-target="site-overview-wrap">
+            Overview
+          </li>
+        </ul>
+      
+
+      <section class="site-overview-wrap sidebar-panel">
+        <div class="site-overview">
+          <div class="site-author motion-element" itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+            
+              <p class="site-author-name" itemprop="name">zhmin</p>
+              <p class="site-description motion-element" itemprop="description"></p>
+          </div>
+
+          <nav class="site-state motion-element">
+
+            
+              <div class="site-state-item site-state-posts">
+              
+                <a href="/archives/">
+              
+                  <span class="site-state-item-count">59</span>
+                  <span class="site-state-item-name">posts</span>
+                </a>
+              </div>
+            
+
+            
+              
+              
+              <div class="site-state-item site-state-categories">
+                <a href="/categories/index.html">
+                  <span class="site-state-item-count">12</span>
+                  <span class="site-state-item-name">categories</span>
+                </a>
+              </div>
+            
+
+            
+              
+              
+              <div class="site-state-item site-state-tags">
+                
+                  <span class="site-state-item-count">55</span>
+                  <span class="site-state-item-name">tags</span>
+                
+              </div>
+            
+
+          </nav>
+
+          
+
+          
+            <div class="links-of-author motion-element">
+                
+                  <span class="links-of-author-item">
+                    <a href="https://github.com/zhmin" target="_blank" title="GitHub">
+                      
+                        <i class="fa fa-fw fa-github"></i>GitHub</a>
+                  </span>
+                
+            </div>
+          
+
+          
+          
+
+          
+          
+
+          
+
+        </div>
+      </section>
+
+      
+      <!--noindex-->
+        <section class="post-toc-wrap motion-element sidebar-panel sidebar-panel-active">
+          <div class="post-toc">
+
+            
+              
+            
+
+            
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#前言"><span class="nav-number">1.</span> <span class="nav-text">前言</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#替换算法"><span class="nav-number">2.</span> <span class="nav-text">替换算法</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#ring-算法"><span class="nav-number">2.1.</span> <span class="nav-text">ring 算法</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#clock-sweep-算法"><span class="nav-number">2.2.</span> <span class="nav-text">clock sweep 算法</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#空闲链表"><span class="nav-number">2.3.</span> <span class="nav-text">空闲链表</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#寻找空闲全局缓存"><span class="nav-number">3.</span> <span class="nav-text">寻找空闲全局缓存</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#寻找空闲本地缓存"><span class="nav-number">4.</span> <span class="nav-text">寻找空闲本地缓存</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#引用计数缓存"><span class="nav-number">5.</span> <span class="nav-text">引用计数缓存</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#引用计数器"><span class="nav-number">5.1.</span> <span class="nav-text">引用计数器</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#使用示例"><span class="nav-number">5.2.</span> <span class="nav-text">使用示例</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#修改引用次数"><span class="nav-number">6.</span> <span class="nav-text">修改引用次数</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#增加引用次数"><span class="nav-number">6.1.</span> <span class="nav-text">增加引用次数</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#减少引用次数"><span class="nav-number">6.2.</span> <span class="nav-text">减少引用次数</span></a></li></ol></li></ol></div>
+            
+
+          </div>
+        </section>
+      <!--/noindex-->
+      
+
+      
+
+    </div>
+  </aside>
+
+
+        
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="footer-inner">
+        <div class="copyright">&copy; <span itemprop="copyrightYear">2019</span>
+  <span class="with-love">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">zhmin</span>
+
+  
+</div>
+
+
+
+
+
+
+
+
+
+
+
+  <script src="https://unpkg.com/mermaid@7.1.2/dist/mermaid.min.js"></script>
+  <script>
+    if (window.mermaid) {
+      mermaid.initialize({"startOnload":true,"theme":"forest"});
+    }
+  </script>
+
+
+
+<script async src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+<span id="busuanzi_container_site_pv">
+    访问量<span id="busuanzi_value_site_pv"></span>
+</span>
+<span class="post-meta-divider">|</span>
+<span id="busuanzi_container_site_uv">
+  访客数<span id="busuanzi_value_site_uv"></span>
+</span>
+
+        
+
+
+
+
+
+
+
+        
+      </div>
+    </footer>
+
+    
+      <div class="back-to-top">
+        <i class="fa fa-arrow-up"></i>
+        
+      </div>
+    
+
+    
+
+  </div>
+
+  
+
+<script type="text/javascript">
+  if (Object.prototype.toString.call(window.Promise) !== '[object Function]') {
+    window.Promise = null;
+  }
+</script>
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery/index.js?v=2.1.3"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fastclick/lib/fastclick.min.js?v=1.0.6"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery_lazyload/jquery.lazyload.js?v=1.9.7"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.ui.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fancybox/source/jquery.fancybox.pack.js?v=2.1.5"></script>
+  
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/utils.js?v=5.1.4"></script>
+
+  <script type="text/javascript" src="/js/src/motion.js?v=5.1.4"></script>
+
+
+
+  
+  
+
+  
+  <script type="text/javascript" src="/js/src/scrollspy.js?v=5.1.4"></script>
+<script type="text/javascript" src="/js/src/post-details.js?v=5.1.4"></script>
+
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/bootstrap.js?v=5.1.4"></script>
+
+
+
+  
+
+
+  
+
+
+
+
+	
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+  <script src="//cdn1.lncld.net/static/js/3.0.4/av-min.js"></script>
+  <script src="//unpkg.com/valine/dist/Valine.min.js"></script>
+  
+  <script type="text/javascript">
+    var GUEST = ['nick','mail','link'];
+    var guest = 'nick';
+    guest = guest.split(',').filter(item=>{
+      return GUEST.indexOf(item)>-1;
+    });
+    new Valine({
+        el: '#comments' ,
+        verify: false,
+        notify: false,
+        appId: 'iYiPQlDR2X2zg2QIql2UEe2o-gzGzoHsz',
+        appKey: 'EW8G4sftwX1pef1zS9EsOeKE',
+        placeholder: 'comment here',
+        avatar:'mm',
+        guest_info:guest,
+        pageSize:'10' || 10,
+    });
+  </script>
+
+
+
+  
+
+
+
+
+
+  
+
+  
+  <script src="https://cdn1.lncld.net/static/js/av-core-mini-0.6.4.js"></script>
+  <script>AV.initialize("iYiPQlDR2X2zg2QIql2UEe2o-gzGzoHsz", "EW8G4sftwX1pef1zS9EsOeKE");</script>
+  <script>
+    function showTime(Counter) {
+      var query = new AV.Query(Counter);
+      var entries = [];
+      var $visitors = $(".leancloud_visitors");
+
+      $visitors.each(function () {
+        entries.push( $(this).attr("id").trim() );
+      });
+
+      query.containedIn('url', entries);
+      query.find()
+        .done(function (results) {
+          var COUNT_CONTAINER_REF = '.leancloud-visitors-count';
+
+          if (results.length === 0) {
+            $visitors.find(COUNT_CONTAINER_REF).text(0);
+            return;
+          }
+
+          for (var i = 0; i < results.length; i++) {
+            var item = results[i];
+            var url = item.get('url');
+            var time = item.get('time');
+            var element = document.getElementById(url);
+
+            $(element).find(COUNT_CONTAINER_REF).text(time);
+          }
+          for(var i = 0; i < entries.length; i++) {
+            var url = entries[i];
+            var element = document.getElementById(url);
+            var countSpan = $(element).find(COUNT_CONTAINER_REF);
+            if( countSpan.text() == '') {
+              countSpan.text(0);
+            }
+          }
+        })
+        .fail(function (object, error) {
+          console.log("Error: " + error.code + " " + error.message);
+        });
+    }
+
+    function addCount(Counter) {
+      var $visitors = $(".leancloud_visitors");
+      var url = $visitors.attr('id').trim();
+      var title = $visitors.attr('data-flag-title').trim();
+      var query = new AV.Query(Counter);
+
+      query.equalTo("url", url);
+      query.find({
+        success: function(results) {
+          if (results.length > 0) {
+            var counter = results[0];
+            counter.fetchWhenSave(true);
+            counter.increment("time");
+            counter.save(null, {
+              success: function(counter) {
+                var $element = $(document.getElementById(url));
+                $element.find('.leancloud-visitors-count').text(counter.get('time'));
+              },
+              error: function(counter, error) {
+                console.log('Failed to save Visitor num, with error message: ' + error.message);
+              }
+            });
+          } else {
+            var newcounter = new Counter();
+            /* Set ACL */
+            var acl = new AV.ACL();
+            acl.setPublicReadAccess(true);
+            acl.setPublicWriteAccess(true);
+            newcounter.setACL(acl);
+            /* End Set ACL */
+            newcounter.set("title", title);
+            newcounter.set("url", url);
+            newcounter.set("time", 1);
+            newcounter.save(null, {
+              success: function(newcounter) {
+                var $element = $(document.getElementById(url));
+                $element.find('.leancloud-visitors-count').text(newcounter.get('time'));
+              },
+              error: function(newcounter, error) {
+                console.log('Failed to create');
+              }
+            });
+          }
+        },
+        error: function(error) {
+          console.log('Error:' + error.code + " " + error.message);
+        }
+      });
+    }
+
+    $(function() {
+      var Counter = AV.Object.extend("Counter");
+      if ($('.leancloud_visitors').length == 1) {
+        addCount(Counter);
+      } else if ($('.post-title-link').length > 1) {
+        showTime(Counter);
+      }
+    });
+  </script>
+
+
+
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+</body>
+</html>
