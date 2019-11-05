@@ -1,0 +1,1049 @@
+<!DOCTYPE html>
+
+
+
+  
+
+
+<html class="theme-next mist use-motion" lang="">
+<head><meta name="generator" content="Hexo 3.8.0">
+  <meta charset="UTF-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="theme-color" content="#222">
+
+
+
+
+
+
+
+
+
+<meta http-equiv="Cache-Control" content="no-transform">
+<meta http-equiv="Cache-Control" content="no-siteapp">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+  <link href="/lib/fancybox/source/jquery.fancybox.css?v=2.1.5" rel="stylesheet" type="text/css">
+
+
+
+
+
+
+
+<link href="/lib/font-awesome/css/font-awesome.min.css?v=4.6.2" rel="stylesheet" type="text/css">
+
+<link href="/css/main.css?v=5.1.4" rel="stylesheet" type="text/css">
+
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png?v=5.1.4">
+
+
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png?v=5.1.4">
+
+
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png?v=5.1.4">
+
+
+  <link rel="mask-icon" href="/images/logo.svg?v=5.1.4" color="#222">
+
+
+
+
+
+  <meta name="keywords" content="postgresql, storage,">
+
+
+
+
+
+
+
+
+
+
+<meta name="description" content="前言Postgresql 使用 wal 日志保存每一次的数据修改，这样保证了数据库即使意外宕机，也能利用它准确的恢复数据。wal 日志也叫做 xlog，在 9.4 版本之后作了重大更新，本篇只讲解最新版的格式。wal 日志被用于多个方面，比如修改数据，修改索引等，每种用途的格式都不相同，但是构建方式是相同的，本篇会先介绍wal日志的相同部分，然后讲解构建的原理。 结构概览一条 wal 日志分成四个">
+<meta name="keywords" content="postgresql, storage">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Postgresql Wal 日志构建原理">
+<meta property="og:url" content="https://zhmin.github.io/2019/11/05/postgresql-wal-format/index.html">
+<meta property="og:site_name" content="学习笔记">
+<meta property="og:description" content="前言Postgresql 使用 wal 日志保存每一次的数据修改，这样保证了数据库即使意外宕机，也能利用它准确的恢复数据。wal 日志也叫做 xlog，在 9.4 版本之后作了重大更新，本篇只讲解最新版的格式。wal 日志被用于多个方面，比如修改数据，修改索引等，每种用途的格式都不相同，但是构建方式是相同的，本篇会先介绍wal日志的相同部分，然后讲解构建的原理。 结构概览一条 wal 日志分成四个">
+<meta property="og:locale" content="default">
+<meta property="og:image" content="https://zhmin.github.io/2019/11/05/postgresql-wal-format/pg-xlog-format.svg">
+<meta property="og:updated_time" content="2019-11-05T08:12:39.269Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Postgresql Wal 日志构建原理">
+<meta name="twitter:description" content="前言Postgresql 使用 wal 日志保存每一次的数据修改，这样保证了数据库即使意外宕机，也能利用它准确的恢复数据。wal 日志也叫做 xlog，在 9.4 版本之后作了重大更新，本篇只讲解最新版的格式。wal 日志被用于多个方面，比如修改数据，修改索引等，每种用途的格式都不相同，但是构建方式是相同的，本篇会先介绍wal日志的相同部分，然后讲解构建的原理。 结构概览一条 wal 日志分成四个">
+<meta name="twitter:image" content="https://zhmin.github.io/2019/11/05/postgresql-wal-format/pg-xlog-format.svg">
+
+
+
+<script type="text/javascript" id="hexo.configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '/',
+    scheme: 'Mist',
+    version: '5.1.4',
+    sidebar: {"position":"left","display":"hide","offset":12,"b2t":false,"scrollpercent":false,"onmobile":false},
+    fancybox: true,
+    tabs: true,
+    motion: {"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},
+    duoshuo: {
+      userId: '0',
+      author: 'Author'
+    },
+    algolia: {
+      applicationID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    }
+  };
+</script>
+
+
+
+  <link rel="canonical" href="https://zhmin.github.io/2019/11/05/postgresql-wal-format/">
+
+
+
+
+
+  <title>Postgresql Wal 日志构建原理 | 学习笔记</title>
+  
+
+
+
+
+
+
+
+
+</head>
+
+<body itemscope="" itemtype="http://schema.org/WebPage" lang="default">
+
+  
+  
+    
+  
+
+  <div class="container sidebar-position-left page-post-detail">
+    <div class="headband"></div>
+
+    <header id="header" class="header" itemscope="" itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-wrapper">
+  <div class="site-meta ">
+    
+
+    <div class="custom-logo-site-title">
+      <a href="/" class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">学习笔记</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+      
+        <h1 class="site-subtitle" itemprop="description"></h1>
+      
+  </div>
+
+  <div class="site-nav-toggle">
+    <button>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+    </button>
+  </div>
+</div>
+
+<nav class="site-nav">
+  
+
+  
+    <ul id="menu" class="menu">
+      
+        
+        <li class="menu-item menu-item-home">
+          <a href="/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-home"></i> <br>
+            
+            Home
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-categories">
+          <a href="/categories/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-th"></i> <br>
+            
+            Categories
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-archives">
+          <a href="/archives/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-archive"></i> <br>
+            
+            Archives
+          </a>
+        </li>
+      
+
+      
+    </ul>
+  
+
+  
+</nav>
+
+
+
+ </div>
+    </header>
+
+    <main id="main" class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          <div id="content" class="content">
+            
+
+  <div id="posts" class="posts-expand">
+    
+
+  
+
+  
+  
+  
+
+  <article class="post post-type-normal" itemscope="" itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block">
+    <link itemprop="mainEntityOfPage" href="https://zhmin.github.io/2019/11/05/postgresql-wal-format/">
+
+    <span hidden itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="zhmin">
+      <meta itemprop="description" content="">
+      <meta itemprop="image" content="/images/avatar.gif">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope="" itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="学习笔记">
+    </span>
+
+    
+      <header class="post-header">
+
+        
+        
+          <h2 class="post-title" itemprop="name headline">Postgresql Wal 日志构建原理</h2>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">Posted on</span>
+              
+              <time title="Post created" itemprop="dateCreated datePublished" datetime="2019-11-05T16:02:51+08:00">
+                2019-11-05
+              </time>
+            
+
+            
+
+            
+          </span>
+
+          
+            <span class="post-category">
+            
+              <span class="post-meta-divider">|</span>
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">In</span>
+              
+              
+                <span itemprop="about" itemscope="" itemtype="http://schema.org/Thing">
+                  <a href="/categories/postgresql/" itemprop="url" rel="index">
+                    <span itemprop="name">postgresql</span>
+                  </a>
+                </span>
+
+                
+                
+              
+            </span>
+          
+
+          
+            
+              <span class="post-comments-count">
+                <span class="post-meta-divider">|</span>
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-comment-o"></i>
+                </span>
+                <a href="/2019/11/05/postgresql-wal-format/#comments" itemprop="discussionUrl">
+                  <span class="post-comments-count valine-comment-count" data-xid="/2019/11/05/postgresql-wal-format/" itemprop="commentCount"></span>
+                </a>
+              </span>
+            
+          
+
+          
+          
+             <span id="/2019/11/05/postgresql-wal-format/" class="leancloud_visitors" data-flag-title="Postgresql Wal 日志构建原理">
+               <span class="post-meta-divider">|</span>
+               <span class="post-meta-item-icon">
+                 <i class="fa fa-eye"></i>
+               </span>
+               
+                 <span class="post-meta-item-text">Visitors&#58;</span>
+               
+                 <span class="leancloud-visitors-count"></span>
+             </span>
+          
+
+          
+
+          
+
+          
+
+        </div>
+      </header>
+    
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+      
+
+      
+        <h2 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h2><p>Postgresql 使用 wal 日志保存每一次的数据修改，这样保证了数据库即使意外宕机，也能利用它准确的恢复数据。wal 日志也叫做 xlog，在 9.4 版本之后作了重大更新，本篇只讲解最新版的格式。wal 日志被用于多个方面，比如修改数据，修改索引等，每种用途的格式都不相同，但是构建方式是相同的，本篇会先介绍wal日志的相同部分，然后讲解构建的原理。</p>
+<h2 id="结构概览"><a href="#结构概览" class="headerlink" title="结构概览"></a>结构概览</h2><p>一条 wal 日志分成四个部分：</p>
+<ol>
+<li>Xlog 头部，存储着事务ID，日志长度，校检码，使用用途等信息</li>
+<li>块头部，描述了对应数据页的位置，是否包含数据页的内容，是否被压缩等</li>
+<li>块私有数据，这里的每个数据都隶属于一个数据页，由使用者自己定义</li>
+<li>XLog 数据，由使用者自身定义</li>
+</ol>
+<p><img src="/2019/11/05/postgresql-wal-format/pg-xlog-format.svg"></p>
+<h2 id="Xlog-头部"><a href="#Xlog-头部" class="headerlink" title="Xlog 头部"></a>Xlog 头部</h2><p>postgresql 在9.4版之前的wal 日志格式，由于每种用途的格式都完全不一样，并且也没有一个通用的标准，使得对于它的处理比较混乱，所以 postgresql 在9.4版本之后，统一了 wal 日志的头部。注意这里只是作了头部统一，数据区域的格式仍然不一致。通用头部的格式定义如下：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> <span class="title">XLogRecord</span></span></span><br><span class="line"><span class="class">&#123;</span></span><br><span class="line">	uint32		xl_tot_len;		<span class="comment">/* 整个xlog的长度，包含头部 */</span></span><br><span class="line">	TransactionId xl_xid;		<span class="comment">/* xact id */</span></span><br><span class="line">	XLogRecPtr	xl_prev;		<span class="comment">/* ptr to previous record in log */</span></span><br><span class="line">	uint8		xl_info;		<span class="comment">/* 标记位 */</span></span><br><span class="line">	RmgrId		xl_rmid;		<span class="comment">/* 表示用于哪种用途 */</span></span><br><span class="line">	pg_crc32c	xl_crc;			<span class="comment">/* xlog的crc32c校检码，不包含头部 */</span></span><br><span class="line">&#125; XLogRecord;</span><br></pre></td></tr></table></figure>
+<p><code>xl_info</code>标记位分为两部分。高四位使用者自己定义，低四位如下：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#<span class="meta-keyword">define</span> XLR_SPECIAL_REL_UPDATE	0x01</span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">define</span> XLR_CHECK_CONSISTENCY	0x02</span></span><br></pre></td></tr></table></figure>
+<h2 id="备份模式"><a href="#备份模式" class="headerlink" title="备份模式"></a>备份模式</h2><p>在介绍块头部之前，还需要介绍一下备份模式的 wal。一般情况下，wal 日志只会记录此次修改的数据。当数据库执行恢复操作时，会将根据磁盘文件和 wal 日志，就能完整的将数据恢复。这种方案成立的前提是磁盘文件必须是完好无损的，如果在 data buffer 写入文件的过程中刚好宕机，那么文件的数据就会不完整，也就是被损坏了。</p>
+<p>postgresql 为了解决这个问题，它会在 checkpoint 之后，当数据block被第一次修改时，会在 xlog 中记录数据 block 的全部数据。这样数据库修复时，直接从上次 checkpoint 的位置开始恢复，这样就不用担心写过程中失败的问题。这种记录了数据block的 xlog，称为备份模式的 xlog。</p>
+<h2 id="块头部"><a href="#块头部" class="headerlink" title="块头部"></a>块头部</h2><p>一条 xlog 可能会涉及修改到多个数据 block，每个数据block都对应着一个头部，这里称作为块头部。块头部根据 xlog 是否为备份模式，数据 block 是否有空闲空间，数据 block在备份时是否被压缩，分为下列三种：</p>
+<table>
+<thead>
+<tr>
+<th>场景</th>
+<th>格式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>无备份模式</td>
+<td><code>XLogRecordBlockHeader</code> + <code>RelFileNode</code> + <code>BlockNumber</code></td>
+</tr>
+<tr>
+<td>备份模式</td>
+<td><code>XLogRecordBlockHeader</code> + <code>XLogRecordBlockImageHeader</code> + <code>RelFileNode</code> + <code>BlockNumber</code></td>
+</tr>
+<tr>
+<td>备份模式，开启压缩，数据 block 有空闲空间</td>
+<td><code>XLogRecordBlockHeader</code> + <code>XLogRecordBlockImageHeader</code> + <code>XLogRecordBlockCompressHeader</code> + <code>RelFileNode</code> + <code>BlockNumber</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="XLogRecordBlockHeader-格式"><a href="#XLogRecordBlockHeader-格式" class="headerlink" title="XLogRecordBlockHeader  格式"></a>XLogRecordBlockHeader  格式</h3><p><code>XLogRecordBlockHeader</code>的结构很简单</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> <span class="title">XLogRecordBlockHeader</span></span></span><br><span class="line"><span class="class">&#123;</span></span><br><span class="line">	uint8		id;				<span class="comment">/* 数组种的索引 */</span></span><br><span class="line">	uint8		fork_flags;		<span class="comment">/* 低4位是fork类型，高四位是标记位 */</span></span><br><span class="line">	uint16		data_length;	<span class="comment">/* rdata数据长度 */</span></span><br><span class="line">&#125; XLogRecordBlockHeader;</span><br></pre></td></tr></table></figure>
+<p><code>fork_flags</code>高位标记位格式如下：</p>
+<table>
+<thead>
+<tr>
+<th>名称</th>
+<th>含义</th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>SAME_RELATION</td>
+<td>和上条记录属于同一张表</td>
+<td></td>
+</tr>
+<tr>
+<td>WILL_INIT</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>HAS_DATA</td>
+<td>是否有 rdata</td>
+<td></td>
+</tr>
+<tr>
+<td>HAS_IMAGE</td>
+<td>是否为备份模式</td>
+</tr>
+</tbody>
+</table>
+<h3 id="XLogRecordBlockImageHeader-格式"><a href="#XLogRecordBlockImageHeader-格式" class="headerlink" title="XLogRecordBlockImageHeader 格式"></a>XLogRecordBlockImageHeader 格式</h3><p>我们直到数据 block 的存储格式，它的空间是从顶部和底部开始，向中间分配的方式，所以它的空闲空间是处于中间的连续空间，具体原理参见这篇博客。postgresql 在备份这个数据block，会忽略掉空闲空间。<code>XLogRecordBlockImageHeader</code>的定义如下：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> <span class="title">XLogRecordBlockImageHeader</span></span></span><br><span class="line"><span class="class">&#123;</span></span><br><span class="line">	uint16		length;			<span class="comment">/* 如果开启压缩，表示压缩后的数据长度。没有开启压缩，表示忽略空闲数据后的长度 */</span></span><br><span class="line">	uint16		hole_offset;	<span class="comment">/* 空闲数据的起始位置 */</span></span><br><span class="line">	uint8		bimg_info;		<span class="comment">/* 标记位 */</span></span><br><span class="line">&#125; XLogRecordBlockImageHeader;</span><br></pre></td></tr></table></figure>
+<p>标记位格式</p>
+<table>
+<thead>
+<tr>
+<th>属性名</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>BKPIMAGE_HAS_HOLE</td>
+<td>是否有空闲数据</td>
+</tr>
+<tr>
+<td>BKPIMAGE_IS_COMPRESSED</td>
+<td>是否数据被压缩</td>
+</tr>
+<tr>
+<td>BKPIMAGE_APPLY</td>
+<td>是否在恢复数据时使用此条日志</td>
+</tr>
+</tbody>
+</table>
+<h3 id="XLogRecordBlockCompressHeader-格式"><a href="#XLogRecordBlockCompressHeader-格式" class="headerlink" title="XLogRecordBlockCompressHeader 格式"></a>XLogRecordBlockCompressHeader 格式</h3><p>只有在开启了数据压缩，并且数据block有空闲空间，头部才会包含<code>XLogRecordBlockCompressHeader</code>。它的结构很简单：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> <span class="title">XLogRecordBlockCompressHeader</span></span></span><br><span class="line"><span class="class">&#123;</span></span><br><span class="line">	uint16		hole_length;	<span class="comment">/* 空闲数据的长度 */</span></span><br><span class="line">&#125; XLogRecordBlockCompressHeader;</span><br></pre></td></tr></table></figure>
+<h3 id="数据块位置字段"><a href="#数据块位置字段" class="headerlink" title="数据块位置字段"></a>数据块位置字段</h3><p>在每个块末尾，还有两个字段 rnode 和 blocknum 表示对应数据块的位置。rnode 为 <code>RelFileNode</code>类型，用来确定数据块属于哪张表，如果和上个数据block相同，那么可以省略。blocknum 为<code>BlockNumber</code>类型，表示数据块的编号。</p>
+<h2 id="头部剩余字段"><a href="#头部剩余字段" class="headerlink" title="头部剩余字段"></a>头部剩余字段</h2><p>头部末尾还有如下字段</p>
+<table>
+<thead>
+<tr>
+<th>名称</th>
+<th>类型</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>replorigin_type</td>
+<td>char</td>
+<td>当为253时，会有replorigin_session_origin字段。否则忽略掉replorigin_session_origin字段。</td>
+</tr>
+<tr>
+<td>replorigin_session_origin</td>
+<td>RepOriginId</td>
+<td></td>
+</tr>
+<tr>
+<td>mainrdata_len_type</td>
+<td>char</td>
+<td>当mainrdata_len大于255，为254。否则为255。</td>
+</tr>
+<tr>
+<td>mainrdata_len</td>
+<td>如果值小于等于255，则为uint8类型。否则为uint32类型</td>
+<td>xlog 数据的长度</td>
+</tr>
+</tbody>
+</table>
+<h2 id="数据区域"><a href="#数据区域" class="headerlink" title="数据区域"></a>数据区域</h2><p>上面介绍完头部格式，接下来介绍数据区域的格式。数据区域没有统一的格式，每种用途都有着自己的格式，postgresql 也只是将数据区域简单地划分为两部分，块私有数据区域和 xlog 数据区域。块私有数据依次按序存储，xlog 数据存储在最后面。</p>
+<h2 id="构建-WAL-日志"><a href="#构建-WAL-日志" class="headerlink" title="构建 WAL 日志"></a>构建 WAL 日志</h2><p>postgresql 提供了构建 wal 日志的一些列方法，调用过程如下</p>
+<ol>
+<li>调用<code>XLogBeginInsert</code>方法，表示开始构建 xlog</li>
+<li>调用<code>XLogRegisterBuffer</code>方法，添加数据页</li>
+<li>调用<code>XLogRegisterBufData</code>方法，将数据添加到块私有数据</li>
+<li>调用<code>XLogRegisterData</code>方法，将数据添加到 xlog 数据</li>
+<li>调用<code>XLogInsertRecord</code>方法，写入xlog 到文件中</li>
+<li>调用<code>XLogResetInsertion</code>方法，重置构建时用到的缓存</li>
+</ol>
+<p>下面以插入单条数据为例，</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">XLogBeginInsert();</span><br><span class="line">XLogRegisterData((<span class="keyword">char</span> *) &amp;xlrec, SizeOfHeapInsert);    <span class="comment">// xlog 数据的格式是xlrec</span></span><br><span class="line">XLogRegisterBuffer(<span class="number">0</span>, buffer, REGBUF_STANDARD | bufflags);  <span class="comment">// 记录修改的数据block</span></span><br><span class="line">XLogRegisterBufData(<span class="number">0</span>, (<span class="keyword">char</span> *) &amp;xlhdr, SizeOfHeapHeader);  <span class="comment">// 添加块私有数据xlhdr</span></span><br><span class="line">XLogRegisterBufData(<span class="number">0</span>, (<span class="keyword">char</span> *) heaptup-&gt;t_data + SizeofHeapTupleHeader,</span><br><span class="line">                    heaptup-&gt;t_len - SizeofHeapTupleHeader); <span class="comment">// 添加数据block的私有数据heaptup</span></span><br><span class="line">XLogSetRecordFlags(XLOG_INCLUDE_ORIGIN);  <span class="comment">// 设置插入配置</span></span><br><span class="line">XLogInsert(RM_HEAP_ID, info);  <span class="comment">// 持久化 xlog</span></span><br></pre></td></tr></table></figure>
+<h2 id="构建-WAL-日志原理"><a href="#构建-WAL-日志原理" class="headerlink" title="构建 WAL 日志原理"></a>构建 WAL 日志原理</h2><p>上面介绍了构建 wal 日志的方法，接下来讲解它们是如何实现的，这些方法都定义在<code>src/backend/access/transam/xloginsert.c</code>文件中。</p>
+<h3 id="数据链表节点"><a href="#数据链表节点" class="headerlink" title="数据链表节点"></a>数据链表节点</h3><p><code>XLogRecData</code>结构表示链表节点，每次添加块私有数据或者 xlog 数据，都会生成一个节点，添加到对应的链表中。如果时块私有数据，那么会添加到块的私有链表里。如果是共享数据，那么会添加到全局的共享链表里。</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> <span class="title">XLogRecData</span></span></span><br><span class="line"><span class="class">&#123;</span></span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">XLogRecData</span> *<span class="title">next</span>;</span>	<span class="comment">/* 指向下个节点，如果为NULL表示到达链表结尾 */</span></span><br><span class="line">	<span class="keyword">char</span>	   *data;			<span class="comment">/* 数据的起始地址 */</span></span><br><span class="line">	uint32		len;			<span class="comment">/* 数据的长度 */</span></span><br><span class="line">&#125; XLogRecData;</span><br></pre></td></tr></table></figure>
+<h3 id="块私有区域数据"><a href="#块私有区域数据" class="headerlink" title="块私有区域数据"></a>块私有区域数据</h3><p>当添加一个数据页到 wal 日志里时，会生成一个<code>registered_buffer</code>实例，里面包含了自身的私有数据链表。</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span></span></span><br><span class="line"><span class="class">&#123;</span></span><br><span class="line">	<span class="keyword">bool</span>		in_use;			<span class="comment">/* is this slot in use? */</span></span><br><span class="line">	uint8		flags;			<span class="comment">/* REGBUF_* flags */</span></span><br><span class="line">	RelFileNode rnode;			<span class="comment">/* 指定所属表的存储目录 */</span></span><br><span class="line">	ForkNumber	forkno;         <span class="comment">/* 哪种文件类型 */</span></span><br><span class="line">	BlockNumber block;          <span class="comment">/* 块编号 */</span></span><br><span class="line">	Page		page;			<span class="comment">/* 对应的原始数据页 */</span></span><br><span class="line">    </span><br><span class="line">	uint32		rdata_len;		<span class="comment">/* 私有数据链表的长度总和 */</span></span><br><span class="line">	XLogRecData *rdata_head;	<span class="comment">/* 私有数据链表头部节点 */</span></span><br><span class="line">	XLogRecData *rdata_tail;	<span class="comment">/* 私有数据链表尾部节点 */</span></span><br><span class="line"></span><br><span class="line">	XLogRecData bkp_rdatas[<span class="number">2</span>];	<span class="comment">/* 存储着压缩后或忽略空闲数据的数据，如果有空闲位置且没有压缩，那么数据会被分成两个部分，存储在两个数组元素里 */</span></span><br><span class="line"></span><br><span class="line">	<span class="keyword">char</span>		compressed_page[PGLZ_MAX_BLCKSZ]; <span class="comment">/* 如果开启了压缩，那么存储着压缩后的数据 */</span></span><br><span class="line">&#125; registered_buffer;</span><br></pre></td></tr></table></figure>
+<p><code>flags</code>存储标记位格式：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#<span class="meta-keyword">define</span> REGBUF_FORCE_IMAGE	0x01	<span class="comment">/* force a full-page image */</span></span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">define</span> REGBUF_NO_IMAGE		0x02	<span class="comment">/* don't take a full-page image */</span></span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">define</span> REGBUF_WILL_INIT	(0x04 | 0x02)	<span class="comment">/* page will be re-initialized at</span></span></span><br><span class="line"><span class="meta"><span class="comment">											 * replay (implies NO_IMAGE) */</span></span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">define</span> REGBUF_STANDARD		0x08	<span class="comment">/* page follows "standard" page layout,</span></span></span><br><span class="line"><span class="meta"><span class="comment">									 * (data between pd_lower and pd_upper</span></span></span><br><span class="line"><span class="meta"><span class="comment">									 * will be skipped) */</span></span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">define</span> REGBUF_KEEP_DATA	0x10	<span class="comment">/* include data even if a full-page image</span></span></span><br><span class="line"><span class="meta"><span class="comment">									 * is taken */</span></span></span><br></pre></td></tr></table></figure>
+<h3 id="XLog-数据"><a href="#XLog-数据" class="headerlink" title="XLog 数据"></a>XLog 数据</h3><p>Xlog 数据同样是链表的形式组织起来，由全局变量管理</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">static</span> XLogRecData *mainrdata_head; <span class="comment">/* 链表头 */</span></span><br><span class="line"><span class="keyword">static</span> XLogRecData *mainrdata_last = (XLogRecData *) &amp;mainrdata_head; <span class="comment">/* 链表尾 */</span></span><br><span class="line"><span class="keyword">static</span> uint32 mainrdata_len;	<span class="comment">/* 链表所有节点的数据总和 */</span></span><br></pre></td></tr></table></figure>
+<h3 id="合并数据节点"><a href="#合并数据节点" class="headerlink" title="合并数据节点"></a>合并数据节点</h3><p>当 wal 日志持久化到磁盘里时，会将链表节点的数据合并，然后存储到文件中。所以使用者设计存储格式时，需要考虑到读取时如何能够分割。</p>
+<h2 id="构建预分配"><a href="#构建预分配" class="headerlink" title="构建预分配"></a>构建预分配</h2><p>因为 wal 日志构建非常频繁，postgresql 为了减少内存申请和释放的开销，采用了预分配机制。</p>
+<h3 id="registered-buffer-数组"><a href="#registered-buffer-数组" class="headerlink" title="registered_buffer 数组"></a>registered_buffer 数组</h3><p>当添加一个数据block，就需要创建出一个<code>registered_buffer</code>实例。postgresql 提前创建了一个<code>registered_buffer</code>数组，这样每次只需要从中取出空闲元素就行。</p>
+<h3 id="XLogRecData-数组"><a href="#XLogRecData-数组" class="headerlink" title="XLogRecData 数组"></a>XLogRecData 数组</h3><p>当添加一个数据时，就需要创建出一个<code>XLogRecData</code>实例。postgresql 提前创建了一个<code>XLogRecData</code>数组，这样每次只需要从中取出空闲元素就行。</p>
+<h3 id="头部预分配"><a href="#头部预分配" class="headerlink" title="头部预分配"></a>头部预分配</h3><p>当构建一条 wal 日志时，就需要创建出一个头部。postgresql 提前创建了一个最大空间的头部，这样无论多大的 wal 日志，它的头部都能包含。下面来看看 postgresql 如何计算最大头部长度：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#<span class="meta-keyword">define</span> SizeOfXlogOrigin	(sizeof(RepOriginId) + sizeof(char))</span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">define</span> XLR_MAX_BLOCK_ID			32</span></span><br><span class="line"></span><br><span class="line"><span class="meta">#<span class="meta-keyword">define</span> HEADER_SCRATCH_SIZE \  </span></span><br><span class="line">	(SizeOfXLogRecord + \    <span class="comment">/* XLog 头部 */</span></span><br><span class="line">	 MaxSizeOfXLogRecordBlockHeader * (XLR_MAX_BLOCK_ID + <span class="number">1</span>) + \  <span class="comment">/* 块头部的最大长度 * 最大块数目 */</span></span><br><span class="line">	 SizeOfXLogRecordDataHeaderLong + \   <span class="comment">/* xlog 数据的长度信息 */</span></span><br><span class="line">     SizeOfXlogOrigin)   <span class="comment">/* RepOriginId 信息 */</span></span><br></pre></td></tr></table></figure>
+<p>块头部的最大长度计算：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#<span class="meta-keyword">define</span> MaxSizeOfXLogRecordBlockHeader \</span></span><br><span class="line">	(SizeOfXLogRecordBlockHeader + \             <span class="comment">/* 块基本头部 */</span></span><br><span class="line">	 SizeOfXLogRecordBlockImageHeader + \        <span class="comment">/* 块备份模式 */</span></span><br><span class="line">	 SizeOfXLogRecordBlockCompressHeader + \     <span class="comment">/* 块压缩信息 */</span></span><br><span class="line">	 <span class="keyword">sizeof</span>(RelFileNode) + \                     <span class="comment">/* 数据块的位置 */</span></span><br><span class="line">	 <span class="keyword">sizeof</span>(BlockNumber))</span><br></pre></td></tr></table></figure>
+      
+    </div>
+    
+    
+    
+
+    
+
+    
+
+    
+
+    <footer class="post-footer">
+      
+        <div class="post-tags">
+          
+            <a href="/tags/postgresql-storage/" rel="tag"># postgresql, storage</a>
+          
+        </div>
+      
+
+      
+      
+      
+
+      
+        <div class="post-nav">
+          <div class="post-nav-next post-nav-item">
+            
+              <a href="/2019/10/21/postgresql-buffer-replace/" rel="next" title="Postgresql 缓存替换算法">
+                <i class="fa fa-chevron-left"></i> Postgresql 缓存替换算法
+              </a>
+            
+          </div>
+
+          <span class="post-nav-divider"></span>
+
+          <div class="post-nav-prev post-nav-item">
+            
+          </div>
+        </div>
+      
+
+      
+      
+    </footer>
+  </div>
+  
+  
+  
+  </article>
+
+
+
+    <div class="post-spread">
+      
+    </div>
+  </div>
+
+
+          </div>
+          
+
+
+          
+
+  
+    <div class="comments" id="comments">
+    </div>
+  
+
+
+
+        </div>
+        
+          
+  
+  <div class="sidebar-toggle">
+    <div class="sidebar-toggle-line-wrap">
+      <span class="sidebar-toggle-line sidebar-toggle-line-first"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-middle"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-last"></span>
+    </div>
+  </div>
+
+  <aside id="sidebar" class="sidebar">
+    
+    <div class="sidebar-inner">
+
+      
+
+      
+        <ul class="sidebar-nav motion-element">
+          <li class="sidebar-nav-toc sidebar-nav-active" data-target="post-toc-wrap">
+            Table of Contents
+          </li>
+          <li class="sidebar-nav-overview" data-target="site-overview-wrap">
+            Overview
+          </li>
+        </ul>
+      
+
+      <section class="site-overview-wrap sidebar-panel">
+        <div class="site-overview">
+          <div class="site-author motion-element" itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+            
+              <p class="site-author-name" itemprop="name">zhmin</p>
+              <p class="site-description motion-element" itemprop="description"></p>
+          </div>
+
+          <nav class="site-state motion-element">
+
+            
+              <div class="site-state-item site-state-posts">
+              
+                <a href="/archives/">
+              
+                  <span class="site-state-item-count">60</span>
+                  <span class="site-state-item-name">posts</span>
+                </a>
+              </div>
+            
+
+            
+              
+              
+              <div class="site-state-item site-state-categories">
+                <a href="/categories/index.html">
+                  <span class="site-state-item-count">12</span>
+                  <span class="site-state-item-name">categories</span>
+                </a>
+              </div>
+            
+
+            
+              
+              
+              <div class="site-state-item site-state-tags">
+                
+                  <span class="site-state-item-count">55</span>
+                  <span class="site-state-item-name">tags</span>
+                
+              </div>
+            
+
+          </nav>
+
+          
+
+          
+            <div class="links-of-author motion-element">
+                
+                  <span class="links-of-author-item">
+                    <a href="https://github.com/zhmin" target="_blank" title="GitHub">
+                      
+                        <i class="fa fa-fw fa-github"></i>GitHub</a>
+                  </span>
+                
+            </div>
+          
+
+          
+          
+
+          
+          
+
+          
+
+        </div>
+      </section>
+
+      
+      <!--noindex-->
+        <section class="post-toc-wrap motion-element sidebar-panel sidebar-panel-active">
+          <div class="post-toc">
+
+            
+              
+            
+
+            
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#前言"><span class="nav-number">1.</span> <span class="nav-text">前言</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#结构概览"><span class="nav-number">2.</span> <span class="nav-text">结构概览</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Xlog-头部"><span class="nav-number">3.</span> <span class="nav-text">Xlog 头部</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#备份模式"><span class="nav-number">4.</span> <span class="nav-text">备份模式</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#块头部"><span class="nav-number">5.</span> <span class="nav-text">块头部</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#XLogRecordBlockHeader-格式"><span class="nav-number">5.1.</span> <span class="nav-text">XLogRecordBlockHeader  格式</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#XLogRecordBlockImageHeader-格式"><span class="nav-number">5.2.</span> <span class="nav-text">XLogRecordBlockImageHeader 格式</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#XLogRecordBlockCompressHeader-格式"><span class="nav-number">5.3.</span> <span class="nav-text">XLogRecordBlockCompressHeader 格式</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#数据块位置字段"><span class="nav-number">5.4.</span> <span class="nav-text">数据块位置字段</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#头部剩余字段"><span class="nav-number">6.</span> <span class="nav-text">头部剩余字段</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#数据区域"><span class="nav-number">7.</span> <span class="nav-text">数据区域</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#构建-WAL-日志"><span class="nav-number">8.</span> <span class="nav-text">构建 WAL 日志</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#构建-WAL-日志原理"><span class="nav-number">9.</span> <span class="nav-text">构建 WAL 日志原理</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#数据链表节点"><span class="nav-number">9.1.</span> <span class="nav-text">数据链表节点</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#块私有区域数据"><span class="nav-number">9.2.</span> <span class="nav-text">块私有区域数据</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#XLog-数据"><span class="nav-number">9.3.</span> <span class="nav-text">XLog 数据</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#合并数据节点"><span class="nav-number">9.4.</span> <span class="nav-text">合并数据节点</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#构建预分配"><span class="nav-number">10.</span> <span class="nav-text">构建预分配</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#registered-buffer-数组"><span class="nav-number">10.1.</span> <span class="nav-text">registered_buffer 数组</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#XLogRecData-数组"><span class="nav-number">10.2.</span> <span class="nav-text">XLogRecData 数组</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#头部预分配"><span class="nav-number">10.3.</span> <span class="nav-text">头部预分配</span></a></li></ol></li></ol></div>
+            
+
+          </div>
+        </section>
+      <!--/noindex-->
+      
+
+      
+
+    </div>
+  </aside>
+
+
+        
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="footer-inner">
+        <div class="copyright">&copy; <span itemprop="copyrightYear">2019</span>
+  <span class="with-love">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">zhmin</span>
+
+  
+</div>
+
+
+
+
+
+
+
+
+
+
+
+  <script src="https://unpkg.com/mermaid@7.1.2/dist/mermaid.min.js"></script>
+  <script>
+    if (window.mermaid) {
+      mermaid.initialize({"startOnload":true,"theme":"forest"});
+    }
+  </script>
+
+
+
+<script async src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+<span id="busuanzi_container_site_pv">
+    访问量<span id="busuanzi_value_site_pv"></span>
+</span>
+<span class="post-meta-divider">|</span>
+<span id="busuanzi_container_site_uv">
+  访客数<span id="busuanzi_value_site_uv"></span>
+</span>
+
+        
+
+
+
+
+
+
+
+        
+      </div>
+    </footer>
+
+    
+      <div class="back-to-top">
+        <i class="fa fa-arrow-up"></i>
+        
+      </div>
+    
+
+    
+
+  </div>
+
+  
+
+<script type="text/javascript">
+  if (Object.prototype.toString.call(window.Promise) !== '[object Function]') {
+    window.Promise = null;
+  }
+</script>
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery/index.js?v=2.1.3"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fastclick/lib/fastclick.min.js?v=1.0.6"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery_lazyload/jquery.lazyload.js?v=1.9.7"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.ui.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fancybox/source/jquery.fancybox.pack.js?v=2.1.5"></script>
+  
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/utils.js?v=5.1.4"></script>
+
+  <script type="text/javascript" src="/js/src/motion.js?v=5.1.4"></script>
+
+
+
+  
+  
+
+  
+  <script type="text/javascript" src="/js/src/scrollspy.js?v=5.1.4"></script>
+<script type="text/javascript" src="/js/src/post-details.js?v=5.1.4"></script>
+
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/bootstrap.js?v=5.1.4"></script>
+
+
+
+  
+
+
+  
+
+
+
+
+	
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+  <script src="//cdn1.lncld.net/static/js/3.0.4/av-min.js"></script>
+  <script src="//unpkg.com/valine/dist/Valine.min.js"></script>
+  
+  <script type="text/javascript">
+    var GUEST = ['nick','mail','link'];
+    var guest = 'nick';
+    guest = guest.split(',').filter(item=>{
+      return GUEST.indexOf(item)>-1;
+    });
+    new Valine({
+        el: '#comments' ,
+        verify: false,
+        notify: false,
+        appId: 'iYiPQlDR2X2zg2QIql2UEe2o-gzGzoHsz',
+        appKey: 'EW8G4sftwX1pef1zS9EsOeKE',
+        placeholder: 'comment here',
+        avatar:'mm',
+        guest_info:guest,
+        pageSize:'10' || 10,
+    });
+  </script>
+
+
+
+  
+
+
+
+
+
+  
+
+  
+  <script src="https://cdn1.lncld.net/static/js/av-core-mini-0.6.4.js"></script>
+  <script>AV.initialize("iYiPQlDR2X2zg2QIql2UEe2o-gzGzoHsz", "EW8G4sftwX1pef1zS9EsOeKE");</script>
+  <script>
+    function showTime(Counter) {
+      var query = new AV.Query(Counter);
+      var entries = [];
+      var $visitors = $(".leancloud_visitors");
+
+      $visitors.each(function () {
+        entries.push( $(this).attr("id").trim() );
+      });
+
+      query.containedIn('url', entries);
+      query.find()
+        .done(function (results) {
+          var COUNT_CONTAINER_REF = '.leancloud-visitors-count';
+
+          if (results.length === 0) {
+            $visitors.find(COUNT_CONTAINER_REF).text(0);
+            return;
+          }
+
+          for (var i = 0; i < results.length; i++) {
+            var item = results[i];
+            var url = item.get('url');
+            var time = item.get('time');
+            var element = document.getElementById(url);
+
+            $(element).find(COUNT_CONTAINER_REF).text(time);
+          }
+          for(var i = 0; i < entries.length; i++) {
+            var url = entries[i];
+            var element = document.getElementById(url);
+            var countSpan = $(element).find(COUNT_CONTAINER_REF);
+            if( countSpan.text() == '') {
+              countSpan.text(0);
+            }
+          }
+        })
+        .fail(function (object, error) {
+          console.log("Error: " + error.code + " " + error.message);
+        });
+    }
+
+    function addCount(Counter) {
+      var $visitors = $(".leancloud_visitors");
+      var url = $visitors.attr('id').trim();
+      var title = $visitors.attr('data-flag-title').trim();
+      var query = new AV.Query(Counter);
+
+      query.equalTo("url", url);
+      query.find({
+        success: function(results) {
+          if (results.length > 0) {
+            var counter = results[0];
+            counter.fetchWhenSave(true);
+            counter.increment("time");
+            counter.save(null, {
+              success: function(counter) {
+                var $element = $(document.getElementById(url));
+                $element.find('.leancloud-visitors-count').text(counter.get('time'));
+              },
+              error: function(counter, error) {
+                console.log('Failed to save Visitor num, with error message: ' + error.message);
+              }
+            });
+          } else {
+            var newcounter = new Counter();
+            /* Set ACL */
+            var acl = new AV.ACL();
+            acl.setPublicReadAccess(true);
+            acl.setPublicWriteAccess(true);
+            newcounter.setACL(acl);
+            /* End Set ACL */
+            newcounter.set("title", title);
+            newcounter.set("url", url);
+            newcounter.set("time", 1);
+            newcounter.save(null, {
+              success: function(newcounter) {
+                var $element = $(document.getElementById(url));
+                $element.find('.leancloud-visitors-count').text(newcounter.get('time'));
+              },
+              error: function(newcounter, error) {
+                console.log('Failed to create');
+              }
+            });
+          }
+        },
+        error: function(error) {
+          console.log('Error:' + error.code + " " + error.message);
+        }
+      });
+    }
+
+    $(function() {
+      var Counter = AV.Object.extend("Counter");
+      if ($('.leancloud_visitors').length == 1) {
+        addCount(Counter);
+      } else if ($('.post-title-link').length > 1) {
+        showTime(Counter);
+      }
+    });
+  </script>
+
+
+
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+</body>
+</html>

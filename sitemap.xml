@@ -2,6 +2,13 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   
   <url>
+    <loc>https://zhmin.github.io/2019/11/05/postgresql-wal-format/</loc>
+    
+    <lastmod>2019-11-05T08:12:39.269Z</lastmod>
+    
+  </url>
+  
+  <url>
     <loc>https://zhmin.github.io/2019/10/21/postgresql-buffer-replace/</loc>
     
     <lastmod>2019-10-21T12:51:27.015Z</lastmod>
