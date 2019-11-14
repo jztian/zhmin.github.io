@@ -2,6 +2,13 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   
   <url>
+    <loc>https://zhmin.github.io/2019/09/11/paxos/</loc>
+    
+    <lastmod>2019-11-14T13:39:02.481Z</lastmod>
+    
+  </url>
+  
+  <url>
     <loc>https://zhmin.github.io/2019/11/05/postgresql-wal-format/</loc>
     
     <lastmod>2019-11-05T08:12:39.269Z</lastmod>
@@ -19,13 +26,6 @@
     <loc>https://zhmin.github.io/2019/10/17/postgresql-buffer-pool/</loc>
     
     <lastmod>2019-10-17T13:06:46.338Z</lastmod>
-    
-  </url>
-  
-  <url>
-    <loc>https://zhmin.github.io/2019/09/11/paxos/</loc>
-    
-    <lastmod>2019-10-15T13:18:22.281Z</lastmod>
     
   </url>
   
