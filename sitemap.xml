@@ -2,6 +2,13 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   
   <url>
+    <loc>https://zhmin.github.io/2019/11/24/postgresql-checkpoint/</loc>
+    
+    <lastmod>2019-11-24T12:23:47.633Z</lastmod>
+    
+  </url>
+  
+  <url>
     <loc>https://zhmin.github.io/2019/09/11/paxos/</loc>
     
     <lastmod>2019-11-14T13:39:02.481Z</lastmod>
