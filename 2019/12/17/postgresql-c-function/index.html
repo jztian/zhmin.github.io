@@ -1,0 +1,952 @@
+<!DOCTYPE html>
+
+
+
+  
+
+
+<html class="theme-next mist use-motion" lang="">
+<head><meta name="generator" content="Hexo 3.8.0">
+  <meta charset="UTF-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="theme-color" content="#222">
+
+
+
+
+
+
+
+
+
+<meta http-equiv="Cache-Control" content="no-transform">
+<meta http-equiv="Cache-Control" content="no-siteapp">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+  <link href="/lib/fancybox/source/jquery.fancybox.css?v=2.1.5" rel="stylesheet" type="text/css">
+
+
+
+
+
+
+
+<link href="/lib/font-awesome/css/font-awesome.min.css?v=4.6.2" rel="stylesheet" type="text/css">
+
+<link href="/css/main.css?v=5.1.4" rel="stylesheet" type="text/css">
+
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png?v=5.1.4">
+
+
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png?v=5.1.4">
+
+
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png?v=5.1.4">
+
+
+  <link rel="mask-icon" href="/images/logo.svg?v=5.1.4" color="#222">
+
+
+
+
+
+  <meta name="keywords" content="postgresql, function,">
+
+
+
+
+
+
+
+
+
+
+<meta name="description" content="前言postgresql 支持自定义函数，并且还支持多种语言进行编写， 极大的提高了可扩展性。postgresql 支持使用 pgSQL(postgresql提供的类sql语言)，python 和 c 语言来编写函数，本篇主要讲解 c 语言，因为它的性能是最好的。 示例编写 c 函数分为三部分：  编写 c 文件，定义函数实现 编译程序，需要编译成共享库 在 postgresql 中执行 CREA">
+<meta name="keywords" content="postgresql, function">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Postgresql 编写自定义 C 函数">
+<meta property="og:url" content="https://zhmin.github.io/2019/12/17/postgresql-c-function/index.html">
+<meta property="og:site_name" content="学习笔记">
+<meta property="og:description" content="前言postgresql 支持自定义函数，并且还支持多种语言进行编写， 极大的提高了可扩展性。postgresql 支持使用 pgSQL(postgresql提供的类sql语言)，python 和 c 语言来编写函数，本篇主要讲解 c 语言，因为它的性能是最好的。 示例编写 c 函数分为三部分：  编写 c 文件，定义函数实现 编译程序，需要编译成共享库 在 postgresql 中执行 CREA">
+<meta property="og:locale" content="default">
+<meta property="og:updated_time" content="2019-12-17T14:20:00.968Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Postgresql 编写自定义 C 函数">
+<meta name="twitter:description" content="前言postgresql 支持自定义函数，并且还支持多种语言进行编写， 极大的提高了可扩展性。postgresql 支持使用 pgSQL(postgresql提供的类sql语言)，python 和 c 语言来编写函数，本篇主要讲解 c 语言，因为它的性能是最好的。 示例编写 c 函数分为三部分：  编写 c 文件，定义函数实现 编译程序，需要编译成共享库 在 postgresql 中执行 CREA">
+
+
+
+<script type="text/javascript" id="hexo.configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '/',
+    scheme: 'Mist',
+    version: '5.1.4',
+    sidebar: {"position":"left","display":"hide","offset":12,"b2t":false,"scrollpercent":false,"onmobile":false},
+    fancybox: true,
+    tabs: true,
+    motion: {"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},
+    duoshuo: {
+      userId: '0',
+      author: 'Author'
+    },
+    algolia: {
+      applicationID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    }
+  };
+</script>
+
+
+
+  <link rel="canonical" href="https://zhmin.github.io/2019/12/17/postgresql-c-function/">
+
+
+
+
+
+  <title>Postgresql 编写自定义 C 函数 | 学习笔记</title>
+  
+
+
+
+
+
+
+
+
+</head>
+
+<body itemscope="" itemtype="http://schema.org/WebPage" lang="default">
+
+  
+  
+    
+  
+
+  <div class="container sidebar-position-left page-post-detail">
+    <div class="headband"></div>
+
+    <header id="header" class="header" itemscope="" itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-wrapper">
+  <div class="site-meta ">
+    
+
+    <div class="custom-logo-site-title">
+      <a href="/" class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">学习笔记</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+      
+        <h1 class="site-subtitle" itemprop="description"></h1>
+      
+  </div>
+
+  <div class="site-nav-toggle">
+    <button>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+    </button>
+  </div>
+</div>
+
+<nav class="site-nav">
+  
+
+  
+    <ul id="menu" class="menu">
+      
+        
+        <li class="menu-item menu-item-home">
+          <a href="/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-home"></i> <br>
+            
+            Home
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-categories">
+          <a href="/categories/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-th"></i> <br>
+            
+            Categories
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-archives">
+          <a href="/archives/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-archive"></i> <br>
+            
+            Archives
+          </a>
+        </li>
+      
+
+      
+    </ul>
+  
+
+  
+</nav>
+
+
+
+ </div>
+    </header>
+
+    <main id="main" class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          <div id="content" class="content">
+            
+
+  <div id="posts" class="posts-expand">
+    
+
+  
+
+  
+  
+  
+
+  <article class="post post-type-normal" itemscope="" itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block">
+    <link itemprop="mainEntityOfPage" href="https://zhmin.github.io/2019/12/17/postgresql-c-function/">
+
+    <span hidden itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="zhmin">
+      <meta itemprop="description" content="">
+      <meta itemprop="image" content="/images/avatar.gif">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope="" itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="学习笔记">
+    </span>
+
+    
+      <header class="post-header">
+
+        
+        
+          <h2 class="post-title" itemprop="name headline">Postgresql 编写自定义 C 函数</h2>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">Posted on</span>
+              
+              <time title="Post created" itemprop="dateCreated datePublished" datetime="2019-12-17T22:18:17+08:00">
+                2019-12-17
+              </time>
+            
+
+            
+
+            
+          </span>
+
+          
+            <span class="post-category">
+            
+              <span class="post-meta-divider">|</span>
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">In</span>
+              
+              
+                <span itemprop="about" itemscope="" itemtype="http://schema.org/Thing">
+                  <a href="/categories/postgresql/" itemprop="url" rel="index">
+                    <span itemprop="name">postgresql</span>
+                  </a>
+                </span>
+
+                
+                
+              
+            </span>
+          
+
+          
+            
+              <span class="post-comments-count">
+                <span class="post-meta-divider">|</span>
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-comment-o"></i>
+                </span>
+                <a href="/2019/12/17/postgresql-c-function/#comments" itemprop="discussionUrl">
+                  <span class="post-comments-count valine-comment-count" data-xid="/2019/12/17/postgresql-c-function/" itemprop="commentCount"></span>
+                </a>
+              </span>
+            
+          
+
+          
+          
+             <span id="/2019/12/17/postgresql-c-function/" class="leancloud_visitors" data-flag-title="Postgresql 编写自定义 C 函数">
+               <span class="post-meta-divider">|</span>
+               <span class="post-meta-item-icon">
+                 <i class="fa fa-eye"></i>
+               </span>
+               
+                 <span class="post-meta-item-text">Visitors&#58;</span>
+               
+                 <span class="leancloud-visitors-count"></span>
+             </span>
+          
+
+          
+
+          
+
+          
+
+        </div>
+      </header>
+    
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+      
+
+      
+        <h2 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h2><p>postgresql 支持自定义函数，并且还支持多种语言进行编写， 极大的提高了可扩展性。postgresql 支持使用 pgSQL(postgresql提供的类sql语言)，python 和 c 语言来编写函数，本篇主要讲解 c 语言，因为它的性能是最好的。</p>
+<h2 id="示例"><a href="#示例" class="headerlink" title="示例"></a>示例</h2><p>编写 c 函数分为三部分：</p>
+<ol>
+<li>编写 c 文件，定义函数实现</li>
+<li>编译程序，需要编译成共享库</li>
+<li>在 postgresql 中执行 <code>CREATE FUNCTION</code>注册函数</li>
+</ol>
+<p>下面展示一个简单的函数，用于两数相加。通过这个简单的例子，来看看操作流程。</p>
+<h3 id="编写函数"><a href="#编写函数" class="headerlink" title="编写函数"></a>编写函数</h3><p>创建一个<code>my_add_func.c</code> 文件，内容如下</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#<span class="meta-keyword">include</span> <span class="meta-string">"postgres.h"</span></span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">include</span> <span class="meta-string">"fmgr.h"</span></span></span><br><span class="line"></span><br><span class="line">PG_MODULE_MAGIC;</span><br><span class="line"></span><br><span class="line">PG_FUNCTION_INFO_V1(my_add_func);</span><br><span class="line"><span class="function">Datum <span class="title">my_add_func</span><span class="params">(PG_FUNCTION_ARGS)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    int32 a = PG_GETARG_INT32(<span class="number">0</span>);</span><br><span class="line">    int32 b = PG_GETARG_INT32(<span class="number">1</span>);</span><br><span class="line">    int64 result = a + b;</span><br><span class="line">    PG_RETURN_INT64(result);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>这里面的函数很简单，只不过调用了一些莫名其妙的宏，所以会觉得疑惑。这些宏的原理在后面会讲到，这里先简单的介绍下作用。</p>
+<p><code>PG_MODULE_MAGIC</code>宏必须要使用，后面编译生成的库才可以被 postgresql 加载。</p>
+<p><code>PG_FUNCTION_INFO_V1</code>宏声明了函数的版本，这个也必须要使用，目前postgresql 只支持 v1 版本的函数。</p>
+<p><code>PG_FUNCTION_ARGS</code>宏定义了参数类型和名称，等于<code>FunctionCallInfo fcinfo</code>，这个函数名称会在取参数值会用到。</p>
+<p><code>PG_GETARG_INT32</code>宏表示取出指定位置的参数，并且转换为 int32 类型。</p>
+<p><code>PG_RETURN_INT64</code>宏表示将 int64 类型的数值，转换为<code>Datum</code>并且返回。</p>
+<h3 id="编译函数"><a href="#编译函数" class="headerlink" title="编译函数"></a>编译函数</h3><p>上述的 c 文件，包含了 postgresql 里的头文件，所以在编译的时候需要指定头文件的位置。通过<code>pg_config --includedir-server</code>命令就可以找到。我是通过 yum 在 Centos 上装的 postgresql，执行情况如下：</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">[root@host1]#</span> /usr/pgsql-9.6/bin/pg_config --includedir-server</span><br><span class="line">/usr/pgsql-9.6/include/server</span><br></pre></td></tr></table></figure>
+<p>然后执行编译命令，记住这个生成共享库（so 结尾的文件）的路径，在创建函数时会用到</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">gcc -fPIC -c my_add_func.c -I/usr/pgsql-9.6/include/server/  # 生成my_add_func.o文件</span><br><span class="line">gcc -shared -o my_add_func.so my_add_func.o            # 生成共享库</span><br></pre></td></tr></table></figure>
+<h3 id="创建函数"><a href="#创建函数" class="headerlink" title="创建函数"></a>创建函数</h3><p>然后在 postgresql 命令行执行<code>CREATE FUNCTION</code>命令</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">CREATE</span> <span class="keyword">FUNCTION</span> my_add(a <span class="built_in">integer</span>, b <span class="built_in">integer</span>) <span class="keyword">RETURNS</span> <span class="built_in">integer</span></span><br><span class="line">     <span class="keyword">AS</span> <span class="string">'/var/lib/pgsql/my_add_func.so'</span>, <span class="string">'my_add_func'</span> <span class="keyword">LANGUAGE</span> C <span class="keyword">STRICT</span>;</span><br></pre></td></tr></table></figure>
+<p>接下来我们尝试使用 my_add 函数</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line">test=# select my_add(1, 2);</span><br><span class="line"> my_add </span><br><span class="line">--------</span><br><span class="line">      3</span><br><span class="line">(1 row)</span><br><span class="line"></span><br><span class="line">test=# select my_add(id, price), id, price from orders ;</span><br><span class="line"> my_add | id | price </span><br><span class="line">--------+----+-------</span><br><span class="line">    124 |  1 |   123</span><br><span class="line">(1 row)</span><br></pre></td></tr></table></figure>
+<h2 id="数据类型"><a href="#数据类型" class="headerlink" title="数据类型"></a>数据类型</h2><p>通过上面的例子，可以看到创建一个 c 函数并不难，不过还有些细节需要注意到，就是数据是如何在 postgresql 和函数之间传递的。</p>
+<p>postgresql 支持的数据类型有多种，基本类型 int，char，double 等，还有复杂类型，比如字符串，结构体等。这些数据传递时都是由<code>Datum</code>类型表示，也就是指针类型。指针长度根据平台不同而不一样，有32位或64位。那么它是如何能够表示这么多类型的数据呢。下面分为两种情形来分析，基本数据类型和复杂数据类型。</p>
+<h2 id="基本数据传递"><a href="#基本数据传递" class="headerlink" title="基本数据传递"></a>基本数据传递</h2><p>基本数据类型包含 int8，int16，int32，int64，float等数值型。因为<code>Datum</code>的长度根据系统的不同，可能是 4个字节 或 8个字节。如果基本类型的长度小于等于 <code>Datum</code>，那么将它的值直接存储在<code>Datum</code>。如果大于 <code>Datum</code>，就需要分配堆内存，然后将内存地址存储在<code>Datum</code>。</p>
+<p>我们以 int16 类型的数值 -1 为例，它的二进制位<code>1111 1111 1111 1111</code>。这里假设<code>Datum</code>的长度为 4 个字节，将其转换为<code>Datum</code>之后的二进制位<code>0000 0000 0000 0000 1111 1111 1111 1111</code>。这里只是在高位填充0。当从<code>Datum</code>转换 int16 类型时，直接取对应的低位。这里转换规则和我们平时接触的不太一样，在 c 语言中如果是负数，会在高位填充1，正数才会填充0，目前还不太清楚原因。</p>
+<p>再来看看 int64 数据类型，<code>Int64GetDatum</code>定义了转换规则。如果<code>Datum</code>的长度等于 8 个字节，那么就定义了<code>USE_FLOAT8_BYVAL</code>宏，也就是直接存储到<code>Datum</code>里。如果<code>Datum</code>的长度小于 8 个字节，那么则分配堆内存，然后将内存地址存储在<code>Datum</code>。</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#<span class="meta-keyword">ifdef</span> USE_FLOAT8_BYVAL</span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">define</span> Int64GetDatum(X) ((Datum) (X))</span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">else</span></span></span><br><span class="line"><span class="function"><span class="keyword">extern</span> Datum <span class="title">Int64GetDatum</span><span class="params">(int64 X)</span></span>;</span><br><span class="line"><span class="meta">#<span class="meta-keyword">endif</span></span></span><br><span class="line"></span><br><span class="line"><span class="function">Datum <span class="title">Int64GetDatum</span><span class="params">(int64 X)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    <span class="comment">// 使用palloc分配堆内存，palloc的作用同malloc一样，在它基础之上增加了内存管理</span></span><br><span class="line">	int64	   *retval = (int64 *) palloc(<span class="keyword">sizeof</span>(int64));</span><br><span class="line">    <span class="comment">// 设置堆内存值</span></span><br><span class="line">	*retval = X;</span><br><span class="line">    <span class="comment">// 将内存地址存储在Datum</span></span><br><span class="line">	<span class="keyword">return</span> PointerGetDatum(retval);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h3 id="相关宏"><a href="#相关宏" class="headerlink" title="相关宏"></a>相关宏</h3><p>这里再来回顾下<code>PG_FUNCTION_ARGS</code>宏，它定义函数参数名称<code>fcinfo</code>，类型为<code>FunctionCallInfo</code>。<code>FunctionCallInfo</code>是一个结构体，里面有个<code>args</code>成员，表示参数数组。</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#<span class="meta-keyword">define</span> PG_FUNCTION_ARGS	FunctionCallInfo fcinfo</span></span><br></pre></td></tr></table></figure>
+<p>postgresql 为我们提供了提取参数的方法，下面列举其中一些</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 提取指定位置的参数</span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">define</span> PG_GETARG_DATUM(n)	 (fcinfo-&gt;args[n].value)</span></span><br><span class="line"></span><br><span class="line"><span class="comment">// 将指定位置的参数转换为uint16</span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">define</span> PG_GETARG_UINT16(n)  DatumGetUInt16(PG_GETARG_DATUM(n))</span></span><br><span class="line"></span><br><span class="line"><span class="comment">// 将指定位置的参数转换为int32</span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">define</span> PG_GETARG_INT32(n)	 DatumGetInt32(PG_GETARG_DATUM(n))</span></span><br></pre></td></tr></table></figure>
+<p>同样 postgresql 也为我们提供了返回结果的方法，</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 将int32转换为Datum类型，并且返回</span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">define</span> PG_RETURN_INT32(x)	 return Int32GetDatum(x)</span></span><br><span class="line"><span class="comment">// 将uint32转换为Datum类型，并且返回</span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">define</span> PG_RETURN_UINT32(x)  return UInt32GetDatum(x)</span></span><br></pre></td></tr></table></figure>
+<h2 id="复合数据传递"><a href="#复合数据传递" class="headerlink" title="复合数据传递"></a>复合数据传递</h2><p>上述介绍的<code>my_add_func</code>例子，只是接收和返回基本类型。postgresql 还可以接收行数据，或者自定义的数据类型（比如postgis插件的  POINT 类型），这种情况叫做复合类型数据，它在 c 语言中 由 tuple 表示，下面演示一个实例：</p>
+<p>c 文件内容</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#<span class="meta-keyword">include</span> <span class="meta-string">"postgres.h"</span></span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">include</span> <span class="meta-string">"funcapi.h"</span></span></span><br><span class="line"></span><br><span class="line">PG_MODULE_MAGIC;</span><br><span class="line"></span><br><span class="line">PG_FUNCTION_INFO_V1(my_tuple_func);</span><br><span class="line"><span class="function">Datum <span class="title">my_tuple_func</span><span class="params">(PG_FUNCTION_ARGS)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    <span class="comment">// 第一个参数为复合类型</span></span><br><span class="line">	HeapTupleHeader tuple = PG_GETARG_HEAPTUPLEHEADER(<span class="number">0</span>);</span><br><span class="line">	</span><br><span class="line">	<span class="comment">// 取出返回数据的类型，由TupleDesc表示</span></span><br><span class="line">	TupleDesc	tupdesc;</span><br><span class="line">	<span class="keyword">if</span> (get_call_result_type(fcinfo, <span class="literal">NULL</span>, &amp;tupdesc) != TYPEFUNC_COMPOSITE)</span><br><span class="line">		elog(ERROR, <span class="string">"return type must be a row type"</span>);</span><br><span class="line"></span><br><span class="line">	<span class="comment">// 构建返回值</span></span><br><span class="line">	Datum values[<span class="number">2</span>];</span><br><span class="line">	values[<span class="number">0</span>] = PointerGetDatum(cstring_to_text(<span class="string">"hello"</span>));</span><br><span class="line">	values[<span class="number">1</span>] = Int32GetDatum(<span class="number">1</span>);</span><br><span class="line">    <span class="comment">// nulls 数组表示值是否为空</span></span><br><span class="line">	<span class="keyword">bool</span>		nulls[<span class="number">2</span>];</span><br><span class="line">	<span class="built_in">memset</span>(nulls, <span class="number">0</span>, <span class="keyword">sizeof</span>(nulls));</span><br><span class="line">	<span class="comment">// 构建返回数据，由HeapTuple表示</span></span><br><span class="line">	HeapTuple result = heap_form_tuple(tupdesc, values, nulls);</span><br><span class="line">	PG_RETURN_DATUM(HeapTupleGetDatum(result));</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>创建函数语句如下，定义了接收参数类型为 record， 返回结果有两列（text，int）</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">CREATE</span> <span class="keyword">FUNCTION</span> my_tuple_func(tuple <span class="built_in">record</span>) </span><br><span class="line">     <span class="keyword">RETURNS</span> <span class="keyword">TABLE</span> (message <span class="built_in">text</span> ,<span class="keyword">num</span> <span class="built_in">int</span>)</span><br><span class="line"><span class="keyword">AS</span> <span class="string">'/var/lib/pgsql/my_tuple_func'</span>, <span class="string">'my_tuple_func'</span></span><br><span class="line"><span class="keyword">LANGUAGE</span> C <span class="keyword">STRICT</span>;</span><br></pre></td></tr></table></figure>
+<p>执行语句，返回的数据为复合类型，可以通过<code>.*</code>符号展示所有列</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line">test=# select my_tuple_func(orders) from orders where id = 1;</span><br><span class="line"> my_tuple_func </span><br><span class="line">---------------</span><br><span class="line"> (hello,1)</span><br><span class="line">(1 row)</span><br><span class="line"></span><br><span class="line">test=# select (my_tuple_func(orders)).* from orders where id = 1; </span><br><span class="line"> message | num </span><br><span class="line">---------+-----</span><br><span class="line"> hello   |   1</span><br></pre></td></tr></table></figure>
+<p>通过上面的例子，可以看到可以接收行数据，参数为对应的表名即可。它由<code>HeapTuple</code>类表示，关于<code>HeapTuple</code>的原理，可以参考后续的文件。</p>
+<p>在获取参数时，我们又看到了一个新的宏<code>PG_GETARG_HEAPTUPLEHEADER</code>，它负责提取参数并且转换为<code>HeapTuple</code>类。</p>
+<p>在构建返回结果时，我们需要调用<code>get_call_result_type</code>函数获取返回结果的类型，也就是<code>TupleDesc</code>。返回结果的类型是在我们执行<code>CREATE FUNCTION</code>时候创建的，通过<code>RETURNS TABLE</code>语句定义的。postgresql 在调用函数时，会将结果类型保存到参数<code>FunctionCallInfo</code>里。</p>
+<p>还需要注意一点，上述函数返回的第一列是<code>TEXT</code>类型，它并不等于 C 语言的字符串，所以需要使用<code>cstring_to_text</code>函数转换。</p>
+<h2 id="返回多行数据"><a href="#返回多行数据" class="headerlink" title="返回多行数据"></a>返回多行数据</h2><p>下面展示一个函数，用于生成指定数量的行数据。每行数据包括两列，（message text ,num int）。</p>
+<p>c 语言文件</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#<span class="meta-keyword">include</span> <span class="meta-string">"postgres.h"</span></span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">include</span> <span class="meta-string">"funcapi.h"</span></span></span><br><span class="line"></span><br><span class="line">PG_MODULE_MAGIC;</span><br><span class="line"></span><br><span class="line">PG_FUNCTION_INFO_V1(my_records_func);    </span><br><span class="line"><span class="function">Datum <span class="title">my_records_func</span><span class="params">(PG_FUNCTION_ARGS)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    FuncCallContext     *funcctx;</span><br><span class="line">    </span><br><span class="line">    <span class="comment">// 判断是否第一次执行</span></span><br><span class="line">    <span class="keyword">if</span> (SRF_IS_FIRSTCALL())</span><br><span class="line">    &#123;</span><br><span class="line">        <span class="comment">// 进行此次函数滴哦啊用初始化</span></span><br><span class="line">        funcctx = SRF_FIRSTCALL_INIT();</span><br><span class="line">        <span class="comment">// 提取参数，保存到FuncCallContext的max_calls属性里</span></span><br><span class="line">        funcctx-&gt;max_calls = PG_GETARG_UINT32(<span class="number">0</span>);</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 获取最新的FuncCallContext</span></span><br><span class="line">    funcctx = SRF_PERCALL_SETUP();</span><br><span class="line">    uint64 call_cntr = funcctx-&gt;call_cntr;</span><br><span class="line">    uint64 max_calls = funcctx-&gt;max_calls;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span> (call_cntr &lt; max_calls)</span><br><span class="line">    &#123;</span><br><span class="line">        TupleDesc            tupdesc;</span><br><span class="line">        <span class="keyword">if</span> (get_call_result_type(fcinfo, <span class="literal">NULL</span>, &amp;tupdesc) != TYPEFUNC_COMPOSITE)</span><br><span class="line">            elog(ERROR, <span class="string">"return type must be a row type"</span>);</span><br><span class="line">        </span><br><span class="line">        <span class="comment">// 构建返回值，使用调用次数作为第二列的值</span></span><br><span class="line">        Datum values[<span class="number">2</span>];</span><br><span class="line">        values[<span class="number">0</span>] = PointerGetDatum(cstring_to_text(<span class="string">"hello"</span>));</span><br><span class="line">        values[<span class="number">1</span>] = UInt64GetDatum(call_cntr);</span><br><span class="line">        <span class="comment">// nulls 数组表示值是否为空</span></span><br><span class="line">        <span class="keyword">bool</span>		nulls[<span class="number">2</span>];</span><br><span class="line">        <span class="built_in">memset</span>(nulls, <span class="number">0</span>, <span class="keyword">sizeof</span>(nulls));</span><br><span class="line">        <span class="comment">// 构建返回数据，由HeapTuple表示</span></span><br><span class="line">        HeapTuple tuple = heap_form_tuple(tupdesc, values, nulls);        </span><br><span class="line">        Datum result = HeapTupleGetDatum(tuple);</span><br><span class="line">        <span class="comment">// 返回数据</span></span><br><span class="line">        SRF_RETURN_NEXT(funcctx, result);</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">else</span>    </span><br><span class="line">    &#123;</span><br><span class="line">        <span class="comment">// 数据已经全部返回</span></span><br><span class="line">        SRF_RETURN_DONE(funcctx);</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>创建函数</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">CREATE</span> <span class="keyword">FUNCTION</span> my_tuple_func(tuple <span class="built_in">record</span>) </span><br><span class="line">     <span class="keyword">RETURNS</span> <span class="keyword">TABLE</span> (message <span class="built_in">text</span> ,<span class="keyword">num</span> <span class="built_in">int</span>)</span><br><span class="line"><span class="keyword">AS</span> <span class="string">'/var/lib/pgsql/my_records_func.so'</span>, <span class="string">'my_records_func'</span></span><br><span class="line"><span class="keyword">LANGUAGE</span> C <span class="keyword">STRICT</span>;</span><br></pre></td></tr></table></figure>
+<p>执行语句</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line">test=# </span><br><span class="line">test=# select  * from my_records_func(5);</span><br><span class="line"> message | num </span><br><span class="line">---------+-----</span><br><span class="line"> hello   |   0</span><br><span class="line"> hello   |   1</span><br><span class="line"> hello   |   2</span><br><span class="line"> hello   |   3</span><br><span class="line"> hello   |   4</span><br><span class="line">(5 rows)</span><br></pre></td></tr></table></figure>
+<h3 id="函数调用上下文"><a href="#函数调用上下文" class="headerlink" title="函数调用上下文"></a>函数调用上下文</h3><p>因为要返回多行数据，所以会执行函数多次。这里需要一个上下文变量，来保存需要在执行多次之间传递的变量，比如执行的次数等。<code>FuncCallContext</code>结构体，作为函数调用的内置上下文变量，下面只是列举常见的成员</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> <span class="title">FuncCallContext</span></span></span><br><span class="line"><span class="class">&#123;</span></span><br><span class="line">	uint64		call_cntr;      <span class="comment">// 已经返回结果的次数</span></span><br><span class="line">	MemoryContext multi_call_memory_ctx;   <span class="comment">// 用于分配内存</span></span><br><span class="line">    <span class="comment">// .......</span></span><br><span class="line">&#125; FuncCallContext;</span><br></pre></td></tr></table></figure>
+<p><code>ReturnSetInfo</code>作为返回结果的描述信息，主要到它的<code>isDone</code>成员。如果为<code>ExprMultipleResult</code>，表示返回了正常的函数据。如果为<code>ExprEndResult</code>，表示数据返回完毕。</p>
+<h3 id="相关宏-1"><a href="#相关宏-1" class="headerlink" title="相关宏"></a>相关宏</h3><p>上述的程序调用了多个宏，接下来简单介绍下它们的用途：</p>
+<p><code>SRF_IS_FIRSTCALL</code>负责判断是否这是第一次执行。</p>
+<p><code>SRF_FIRSTCALL_INIT</code>负责初始化<code>FuncCallContext</code>，它会设置<code>call_cntr</code>为 0，然后在<code>fn_mcxt</code>内存管理器下，分配一个子管理器，负责这个函数执行时的内存申请。使用内存管理器有一个好处，它会记录所有的申请内存，在所有的行数据返回完之后，会释放掉执行期间申请的所有内存。</p>
+<p><code>SRF_PERCALL_SETUP</code>负责返回最新的<code>FuncCallContext</code>。</p>
+<p><code>SRF_RETURN_NEXT</code>负责返回数据，会更新<code>call_cntr</code>自增，设置<code>isDone</code>为<code>ExprMultipleResult</code>，表示还有更多的行数据。</p>
+<p><code>SRF_RETURN_NEXT_NULL</code>负责返回空数据，执行过程同<code>SRF_RETURN_NEXT</code>相同。</p>
+<p><code>SRF_RETURN_DONE</code>负责释放函数执行期间申请的所有内存，并且设置<code>isDone</code>为<code>ExprEndResult</code>，表示所有的行数据已经返回完了。</p>
+
+      
+    </div>
+    
+    
+    
+
+    
+
+    
+
+    
+
+    <footer class="post-footer">
+      
+        <div class="post-tags">
+          
+            <a href="/tags/postgresql-function/" rel="tag"># postgresql, function</a>
+          
+        </div>
+      
+
+      
+      
+      
+
+      
+        <div class="post-nav">
+          <div class="post-nav-next post-nav-item">
+            
+              <a href="/2019/11/27/postgresql-bg-writer/" rel="next" title="Postgresql BgWriter 原理">
+                <i class="fa fa-chevron-left"></i> Postgresql BgWriter 原理
+              </a>
+            
+          </div>
+
+          <span class="post-nav-divider"></span>
+
+          <div class="post-nav-prev post-nav-item">
+            
+          </div>
+        </div>
+      
+
+      
+      
+    </footer>
+  </div>
+  
+  
+  
+  </article>
+
+
+
+    <div class="post-spread">
+      
+    </div>
+  </div>
+
+
+          </div>
+          
+
+
+          
+
+  
+    <div class="comments" id="comments">
+    </div>
+  
+
+
+
+        </div>
+        
+          
+  
+  <div class="sidebar-toggle">
+    <div class="sidebar-toggle-line-wrap">
+      <span class="sidebar-toggle-line sidebar-toggle-line-first"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-middle"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-last"></span>
+    </div>
+  </div>
+
+  <aside id="sidebar" class="sidebar">
+    
+    <div class="sidebar-inner">
+
+      
+
+      
+        <ul class="sidebar-nav motion-element">
+          <li class="sidebar-nav-toc sidebar-nav-active" data-target="post-toc-wrap">
+            Table of Contents
+          </li>
+          <li class="sidebar-nav-overview" data-target="site-overview-wrap">
+            Overview
+          </li>
+        </ul>
+      
+
+      <section class="site-overview-wrap sidebar-panel">
+        <div class="site-overview">
+          <div class="site-author motion-element" itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+            
+              <p class="site-author-name" itemprop="name">zhmin</p>
+              <p class="site-description motion-element" itemprop="description"></p>
+          </div>
+
+          <nav class="site-state motion-element">
+
+            
+              <div class="site-state-item site-state-posts">
+              
+                <a href="/archives/">
+              
+                  <span class="site-state-item-count">63</span>
+                  <span class="site-state-item-name">posts</span>
+                </a>
+              </div>
+            
+
+            
+              
+              
+              <div class="site-state-item site-state-categories">
+                <a href="/categories/index.html">
+                  <span class="site-state-item-count">12</span>
+                  <span class="site-state-item-name">categories</span>
+                </a>
+              </div>
+            
+
+            
+              
+              
+              <div class="site-state-item site-state-tags">
+                
+                  <span class="site-state-item-count">58</span>
+                  <span class="site-state-item-name">tags</span>
+                
+              </div>
+            
+
+          </nav>
+
+          
+
+          
+            <div class="links-of-author motion-element">
+                
+                  <span class="links-of-author-item">
+                    <a href="https://github.com/zhmin" target="_blank" title="GitHub">
+                      
+                        <i class="fa fa-fw fa-github"></i>GitHub</a>
+                  </span>
+                
+            </div>
+          
+
+          
+          
+
+          
+          
+
+          
+
+        </div>
+      </section>
+
+      
+      <!--noindex-->
+        <section class="post-toc-wrap motion-element sidebar-panel sidebar-panel-active">
+          <div class="post-toc">
+
+            
+              
+            
+
+            
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#前言"><span class="nav-number">1.</span> <span class="nav-text">前言</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#示例"><span class="nav-number">2.</span> <span class="nav-text">示例</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#编写函数"><span class="nav-number">2.1.</span> <span class="nav-text">编写函数</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#编译函数"><span class="nav-number">2.2.</span> <span class="nav-text">编译函数</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#创建函数"><span class="nav-number">2.3.</span> <span class="nav-text">创建函数</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#数据类型"><span class="nav-number">3.</span> <span class="nav-text">数据类型</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#基本数据传递"><span class="nav-number">4.</span> <span class="nav-text">基本数据传递</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#相关宏"><span class="nav-number">4.1.</span> <span class="nav-text">相关宏</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#复合数据传递"><span class="nav-number">5.</span> <span class="nav-text">复合数据传递</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#返回多行数据"><span class="nav-number">6.</span> <span class="nav-text">返回多行数据</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#函数调用上下文"><span class="nav-number">6.1.</span> <span class="nav-text">函数调用上下文</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#相关宏-1"><span class="nav-number">6.2.</span> <span class="nav-text">相关宏</span></a></li></ol></li></ol></div>
+            
+
+          </div>
+        </section>
+      <!--/noindex-->
+      
+
+      
+
+    </div>
+  </aside>
+
+
+        
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="footer-inner">
+        <div class="copyright">&copy; <span itemprop="copyrightYear">2019</span>
+  <span class="with-love">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">zhmin</span>
+
+  
+</div>
+
+
+
+
+
+
+
+
+
+
+
+  <script src="https://unpkg.com/mermaid@7.1.2/dist/mermaid.min.js"></script>
+  <script>
+    if (window.mermaid) {
+      mermaid.initialize({"startOnload":true,"theme":"forest"});
+    }
+  </script>
+
+
+
+<script async src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+<span id="busuanzi_container_site_pv">
+    访问量<span id="busuanzi_value_site_pv"></span>
+</span>
+<span class="post-meta-divider">|</span>
+<span id="busuanzi_container_site_uv">
+  访客数<span id="busuanzi_value_site_uv"></span>
+</span>
+
+        
+
+
+
+
+
+
+
+        
+      </div>
+    </footer>
+
+    
+      <div class="back-to-top">
+        <i class="fa fa-arrow-up"></i>
+        
+      </div>
+    
+
+    
+
+  </div>
+
+  
+
+<script type="text/javascript">
+  if (Object.prototype.toString.call(window.Promise) !== '[object Function]') {
+    window.Promise = null;
+  }
+</script>
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery/index.js?v=2.1.3"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fastclick/lib/fastclick.min.js?v=1.0.6"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery_lazyload/jquery.lazyload.js?v=1.9.7"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.ui.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fancybox/source/jquery.fancybox.pack.js?v=2.1.5"></script>
+  
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/utils.js?v=5.1.4"></script>
+
+  <script type="text/javascript" src="/js/src/motion.js?v=5.1.4"></script>
+
+
+
+  
+  
+
+  
+  <script type="text/javascript" src="/js/src/scrollspy.js?v=5.1.4"></script>
+<script type="text/javascript" src="/js/src/post-details.js?v=5.1.4"></script>
+
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/bootstrap.js?v=5.1.4"></script>
+
+
+
+  
+
+
+  
+
+
+
+
+	
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+  <script src="//cdn1.lncld.net/static/js/3.0.4/av-min.js"></script>
+  <script src="//unpkg.com/valine/dist/Valine.min.js"></script>
+  
+  <script type="text/javascript">
+    var GUEST = ['nick','mail','link'];
+    var guest = 'nick';
+    guest = guest.split(',').filter(item=>{
+      return GUEST.indexOf(item)>-1;
+    });
+    new Valine({
+        el: '#comments' ,
+        verify: false,
+        notify: false,
+        appId: 'iYiPQlDR2X2zg2QIql2UEe2o-gzGzoHsz',
+        appKey: 'EW8G4sftwX1pef1zS9EsOeKE',
+        placeholder: 'comment here',
+        avatar:'mm',
+        guest_info:guest,
+        pageSize:'10' || 10,
+    });
+  </script>
+
+
+
+  
+
+
+
+
+
+  
+
+  
+  <script src="https://cdn1.lncld.net/static/js/av-core-mini-0.6.4.js"></script>
+  <script>AV.initialize("iYiPQlDR2X2zg2QIql2UEe2o-gzGzoHsz", "EW8G4sftwX1pef1zS9EsOeKE");</script>
+  <script>
+    function showTime(Counter) {
+      var query = new AV.Query(Counter);
+      var entries = [];
+      var $visitors = $(".leancloud_visitors");
+
+      $visitors.each(function () {
+        entries.push( $(this).attr("id").trim() );
+      });
+
+      query.containedIn('url', entries);
+      query.find()
+        .done(function (results) {
+          var COUNT_CONTAINER_REF = '.leancloud-visitors-count';
+
+          if (results.length === 0) {
+            $visitors.find(COUNT_CONTAINER_REF).text(0);
+            return;
+          }
+
+          for (var i = 0; i < results.length; i++) {
+            var item = results[i];
+            var url = item.get('url');
+            var time = item.get('time');
+            var element = document.getElementById(url);
+
+            $(element).find(COUNT_CONTAINER_REF).text(time);
+          }
+          for(var i = 0; i < entries.length; i++) {
+            var url = entries[i];
+            var element = document.getElementById(url);
+            var countSpan = $(element).find(COUNT_CONTAINER_REF);
+            if( countSpan.text() == '') {
+              countSpan.text(0);
+            }
+          }
+        })
+        .fail(function (object, error) {
+          console.log("Error: " + error.code + " " + error.message);
+        });
+    }
+
+    function addCount(Counter) {
+      var $visitors = $(".leancloud_visitors");
+      var url = $visitors.attr('id').trim();
+      var title = $visitors.attr('data-flag-title').trim();
+      var query = new AV.Query(Counter);
+
+      query.equalTo("url", url);
+      query.find({
+        success: function(results) {
+          if (results.length > 0) {
+            var counter = results[0];
+            counter.fetchWhenSave(true);
+            counter.increment("time");
+            counter.save(null, {
+              success: function(counter) {
+                var $element = $(document.getElementById(url));
+                $element.find('.leancloud-visitors-count').text(counter.get('time'));
+              },
+              error: function(counter, error) {
+                console.log('Failed to save Visitor num, with error message: ' + error.message);
+              }
+            });
+          } else {
+            var newcounter = new Counter();
+            /* Set ACL */
+            var acl = new AV.ACL();
+            acl.setPublicReadAccess(true);
+            acl.setPublicWriteAccess(true);
+            newcounter.setACL(acl);
+            /* End Set ACL */
+            newcounter.set("title", title);
+            newcounter.set("url", url);
+            newcounter.set("time", 1);
+            newcounter.save(null, {
+              success: function(newcounter) {
+                var $element = $(document.getElementById(url));
+                $element.find('.leancloud-visitors-count').text(newcounter.get('time'));
+              },
+              error: function(newcounter, error) {
+                console.log('Failed to create');
+              }
+            });
+          }
+        },
+        error: function(error) {
+          console.log('Error:' + error.code + " " + error.message);
+        }
+      });
+    }
+
+    $(function() {
+      var Counter = AV.Object.extend("Counter");
+      if ($('.leancloud_visitors').length == 1) {
+        addCount(Counter);
+      } else if ($('.post-title-link').length > 1) {
+        showTime(Counter);
+      }
+    });
+  </script>
+
+
+
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+</body>
+</html>
