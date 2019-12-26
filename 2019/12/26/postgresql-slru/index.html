@@ -1,0 +1,979 @@
+<!DOCTYPE html>
+
+
+
+  
+
+
+<html class="theme-next mist use-motion" lang="">
+<head><meta name="generator" content="Hexo 3.8.0">
+  <meta charset="UTF-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="theme-color" content="#222">
+
+
+
+
+
+
+
+
+
+<meta http-equiv="Cache-Control" content="no-transform">
+<meta http-equiv="Cache-Control" content="no-siteapp">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+  <link href="/lib/fancybox/source/jquery.fancybox.css?v=2.1.5" rel="stylesheet" type="text/css">
+
+
+
+
+
+
+
+<link href="/lib/font-awesome/css/font-awesome.min.css?v=4.6.2" rel="stylesheet" type="text/css">
+
+<link href="/css/main.css?v=5.1.4" rel="stylesheet" type="text/css">
+
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png?v=5.1.4">
+
+
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png?v=5.1.4">
+
+
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png?v=5.1.4">
+
+
+  <link rel="mask-icon" href="/images/logo.svg?v=5.1.4" color="#222">
+
+
+
+
+
+  <meta name="keywords" content="postgresql, slru,">
+
+
+
+
+
+
+
+
+
+
+<meta name="description" content="前言简单的 lru 缓存管理（简称 slru），用于持久化数据并且提供 lru 算法来缓存。slru  在 postgresql 存在着多处使用，比如存储事务状态的 clog 日志，就是使用 slru 来管理的。 缓存和文件的对应关系文件的数据都是存储在 page 里，每个 page 的大小都是相同的。这些连续的 page 就构成了文件。 一个缓存对应着一个 page，所以缓存的大小和 page">
+<meta name="keywords" content="postgresql, slru">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Postgresql slru 缓存和存储">
+<meta property="og:url" content="https://zhmin.github.io/2019/12/26/postgresql-slru/index.html">
+<meta property="og:site_name" content="学习笔记">
+<meta property="og:description" content="前言简单的 lru 缓存管理（简称 slru），用于持久化数据并且提供 lru 算法来缓存。slru  在 postgresql 存在着多处使用，比如存储事务状态的 clog 日志，就是使用 slru 来管理的。 缓存和文件的对应关系文件的数据都是存储在 page 里，每个 page 的大小都是相同的。这些连续的 page 就构成了文件。 一个缓存对应着一个 page，所以缓存的大小和 page">
+<meta property="og:locale" content="default">
+<meta property="og:updated_time" content="2019-12-26T12:17:41.170Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Postgresql slru 缓存和存储">
+<meta name="twitter:description" content="前言简单的 lru 缓存管理（简称 slru），用于持久化数据并且提供 lru 算法来缓存。slru  在 postgresql 存在着多处使用，比如存储事务状态的 clog 日志，就是使用 slru 来管理的。 缓存和文件的对应关系文件的数据都是存储在 page 里，每个 page 的大小都是相同的。这些连续的 page 就构成了文件。 一个缓存对应着一个 page，所以缓存的大小和 page">
+
+
+
+<script type="text/javascript" id="hexo.configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '/',
+    scheme: 'Mist',
+    version: '5.1.4',
+    sidebar: {"position":"left","display":"hide","offset":12,"b2t":false,"scrollpercent":false,"onmobile":false},
+    fancybox: true,
+    tabs: true,
+    motion: {"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},
+    duoshuo: {
+      userId: '0',
+      author: 'Author'
+    },
+    algolia: {
+      applicationID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    }
+  };
+</script>
+
+
+
+  <link rel="canonical" href="https://zhmin.github.io/2019/12/26/postgresql-slru/">
+
+
+
+
+
+  <title>Postgresql slru 缓存和存储 | 学习笔记</title>
+  
+
+
+
+
+
+
+
+
+</head>
+
+<body itemscope="" itemtype="http://schema.org/WebPage" lang="default">
+
+  
+  
+    
+  
+
+  <div class="container sidebar-position-left page-post-detail">
+    <div class="headband"></div>
+
+    <header id="header" class="header" itemscope="" itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-wrapper">
+  <div class="site-meta ">
+    
+
+    <div class="custom-logo-site-title">
+      <a href="/" class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">学习笔记</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+      
+        <h1 class="site-subtitle" itemprop="description"></h1>
+      
+  </div>
+
+  <div class="site-nav-toggle">
+    <button>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+    </button>
+  </div>
+</div>
+
+<nav class="site-nav">
+  
+
+  
+    <ul id="menu" class="menu">
+      
+        
+        <li class="menu-item menu-item-home">
+          <a href="/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-home"></i> <br>
+            
+            Home
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-categories">
+          <a href="/categories/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-th"></i> <br>
+            
+            Categories
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-archives">
+          <a href="/archives/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-archive"></i> <br>
+            
+            Archives
+          </a>
+        </li>
+      
+
+      
+    </ul>
+  
+
+  
+</nav>
+
+
+
+ </div>
+    </header>
+
+    <main id="main" class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          <div id="content" class="content">
+            
+
+  <div id="posts" class="posts-expand">
+    
+
+  
+
+  
+  
+  
+
+  <article class="post post-type-normal" itemscope="" itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block">
+    <link itemprop="mainEntityOfPage" href="https://zhmin.github.io/2019/12/26/postgresql-slru/">
+
+    <span hidden itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="zhmin">
+      <meta itemprop="description" content="">
+      <meta itemprop="image" content="/images/avatar.gif">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope="" itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="学习笔记">
+    </span>
+
+    
+      <header class="post-header">
+
+        
+        
+          <h2 class="post-title" itemprop="name headline">Postgresql slru 缓存和存储</h2>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">Posted on</span>
+              
+              <time title="Post created" itemprop="dateCreated datePublished" datetime="2019-12-26T20:10:47+08:00">
+                2019-12-26
+              </time>
+            
+
+            
+
+            
+          </span>
+
+          
+            <span class="post-category">
+            
+              <span class="post-meta-divider">|</span>
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">In</span>
+              
+              
+                <span itemprop="about" itemscope="" itemtype="http://schema.org/Thing">
+                  <a href="/categories/postgresql/" itemprop="url" rel="index">
+                    <span itemprop="name">postgresql</span>
+                  </a>
+                </span>
+
+                
+                
+              
+            </span>
+          
+
+          
+            
+              <span class="post-comments-count">
+                <span class="post-meta-divider">|</span>
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-comment-o"></i>
+                </span>
+                <a href="/2019/12/26/postgresql-slru/#comments" itemprop="discussionUrl">
+                  <span class="post-comments-count valine-comment-count" data-xid="/2019/12/26/postgresql-slru/" itemprop="commentCount"></span>
+                </a>
+              </span>
+            
+          
+
+          
+          
+             <span id="/2019/12/26/postgresql-slru/" class="leancloud_visitors" data-flag-title="Postgresql slru 缓存和存储">
+               <span class="post-meta-divider">|</span>
+               <span class="post-meta-item-icon">
+                 <i class="fa fa-eye"></i>
+               </span>
+               
+                 <span class="post-meta-item-text">Visitors&#58;</span>
+               
+                 <span class="leancloud-visitors-count"></span>
+             </span>
+          
+
+          
+
+          
+
+          
+
+        </div>
+      </header>
+    
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+      
+
+      
+        <h2 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h2><p>简单的 lru 缓存管理（简称 slru），用于持久化数据并且提供 lru 算法来缓存。slru  在 postgresql 存在着多处使用，比如存储事务状态的 clog 日志，就是使用 slru 来管理的。</p>
+<h2 id="缓存和文件的对应关系"><a href="#缓存和文件的对应关系" class="headerlink" title="缓存和文件的对应关系"></a>缓存和文件的对应关系</h2><p>文件的数据都是存储在 page 里，每个 page 的大小都是相同的。这些连续的 page 就构成了文件。</p>
+<p>一个缓存对应着一个 page，所以缓存的大小和 page 的大小是相同的。</p>
+<h2 id="结构体"><a href="#结构体" class="headerlink" title="结构体"></a>结构体</h2><p>slru 需要负责文件和缓存两个方面，所以会有两个配置。</p>
+<h3 id="文件配置"><a href="#文件配置" class="headerlink" title="文件配置"></a>文件配置</h3><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> <span class="title">SlruCtlData</span></span></span><br><span class="line"><span class="class">&#123;</span></span><br><span class="line">	SlruShared	shared;           <span class="comment">// 缓存</span></span><br><span class="line">	<span class="keyword">bool</span>		do_fsync;        <span class="comment">// 写入数据时，是否需要fsync</span></span><br><span class="line">	<span class="keyword">bool</span>		(*PagePrecedes) (<span class="keyword">int</span>, <span class="keyword">int</span>);</span><br><span class="line">	<span class="keyword">char</span>		Dir[<span class="number">64</span>];         <span class="comment">// 数据存储的目录</span></span><br><span class="line">&#125; SlruCtlData;</span><br></pre></td></tr></table></figure>
+<h3 id="缓存配置"><a href="#缓存配置" class="headerlink" title="缓存配置"></a>缓存配置</h3><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> <span class="title">SlruSharedData</span></span></span><br><span class="line"><span class="class">&#123;</span></span><br><span class="line">	LWLock	   *ControlLock;        <span class="comment">/* 用于保存成员的锁 */</span></span><br><span class="line">	</span><br><span class="line">	<span class="keyword">int</span>			num_slots;         <span class="comment">/* buffer数目 */</span></span><br><span class="line">	<span class="keyword">char</span>	  **page_buffer;       <span class="comment">/* buffer数组地址 */</span></span><br><span class="line">	SlruPageStatus *page_status;   <span class="comment">/* buffer状态数组*/</span></span><br><span class="line">	<span class="keyword">bool</span>	   *page_dirty;       <span class="comment">/* 哪些buffer为脏页 */</span></span><br><span class="line">	<span class="keyword">int</span>		   *page_number;      <span class="comment">/* buffer对应的page num */</span></span><br><span class="line">	<span class="keyword">int</span>		   *page_lru_count;   <span class="comment">/* 表示buffer的新旧程度，越小表示数据越旧，越有可能被替换 */</span></span><br><span class="line">	XLogRecPtr *group_lsn;   <span class="comment">/* 缓存里的数据对应的xlog日志的位置 */</span></span><br><span class="line">	<span class="keyword">int</span>			lsn_groups_per_page;  <span class="comment">/* 每个缓存包含的xlog日志位置的数量 */</span></span><br><span class="line">	<span class="keyword">int</span>			cur_lru_count;        <span class="comment">/* 用于设置buffer的新旧程度 */</span></span><br><span class="line">	<span class="keyword">int</span>			latest_page_number;   <span class="comment">/* 文件中最新的page num */</span></span><br><span class="line">	<span class="keyword">int</span>			lwlock_tranche_id;</span><br><span class="line">	<span class="keyword">char</span>		lwlock_tranche_name[SLRU_MAX_NAME_LENGTH];</span><br><span class="line">	LWLockPadded *buffer_locks;   <span class="comment">/* buffer读写锁数组 */</span></span><br><span class="line">&#125; SlruSharedData;</span><br></pre></td></tr></table></figure>
+<p>缓存的状态有下面四种，由<code>SlruPageStatus</code>表示</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">typedef</span> <span class="keyword">enum</span></span><br><span class="line">&#123;</span><br><span class="line">	SLRU_PAGE_EMPTY,			<span class="comment">/* 空闲状态 */</span></span><br><span class="line">	SLRU_PAGE_READ_IN_PROGRESS, <span class="comment">/* 正在读取数据到缓存 */</span></span><br><span class="line">	SLRU_PAGE_VALID,			<span class="comment">/* 正常状态，里面包含了数据，没有进行读写操作 */</span></span><br><span class="line">	SLRU_PAGE_WRITE_IN_PROGRESS <span class="comment">/* 缓存正在写入文件 */</span></span><br><span class="line">&#125; SlruPageStatus;</span><br></pre></td></tr></table></figure>
+<h2 id="设置最新访问"><a href="#设置最新访问" class="headerlink" title="设置最新访问"></a>设置最新访问</h2><p>既然 slru 使用 lru 算法来管理缓存，那么我们需要了解下它是如何实现的。postgresql 提供了 <code>SlruRecentlyUsed</code>宏，来标记缓存为最近被访问了，通过它的定义就可以知道实现原理了。</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// share参数是SlruSharedData类型，slotno参数指明哪个buffer</span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">define</span> SlruRecentlyUsed(shared, slotno)	</span></span><br><span class="line"><span class="keyword">do</span> &#123; </span><br><span class="line">    <span class="comment">// 获取cur_lru_count数值</span></span><br><span class="line">    <span class="keyword">int</span>		new_lru_count = (shared)-&gt;cur_lru_count; </span><br><span class="line">    <span class="keyword">if</span> (new_lru_count != (shared)-&gt;page_lru_count[slotno]) &#123;</span><br><span class="line">        <span class="comment">// 自增cur_lru_count数值</span></span><br><span class="line">        (shared)-&gt;cur_lru_count = ++new_lru_count;</span><br><span class="line">        <span class="comment">// 更新指定buffer的page_lru_count</span></span><br><span class="line">        (shared)-&gt;page_lru_count[slotno] = new_lru_count; </span><br><span class="line">    &#125; </span><br><span class="line">&#125; <span class="keyword">while</span> (<span class="number">0</span>)</span><br></pre></td></tr></table></figure>
+<p><code>SlruRecentlyUsed</code>宏只是将全局的<code>cur_lru_count</code>自增，然后提高指定 buffer 的<code>page_lru_count</code>。这里需要注意<code>page_lru_count</code>属性，通过它的大小，就可以判断出缓存是否最近被访问了。<code>page_lru_count</code>越大，就代表着数据最近被使用过。当要替换掉长时间不在访问的 buffer 时，就选择<code>page_lru_count</code>值小的。</p>
+<p>当每次读取到缓存时，就会调用<code>SlruRecentlyUsed</code>设置为最近访问。</p>
+<h2 id="挑选空闲缓存"><a href="#挑选空闲缓存" class="headerlink" title="挑选空闲缓存"></a>挑选空闲缓存</h2><p>当我们需要读取指定 page 的数据时，需要经过下图的步骤。整体思想分为三部分：</p>
+<ol>
+<li>如果 page 数据已经存储在缓存中，则直接返回</li>
+<li>如果有空闲状态的缓存，则直接返回</li>
+<li>如果有不处于读写的缓存，则从中挑选出一个</li>
+<li>等待缓存读写完成</li>
+</ol>
+<pre class="mermaid">graph TD;
+    start(开始)
+    in_buffers[/查找缓存数组, 是否已经包含指定page的数据/]
+    empty_buffer[/查找空闲缓存/]
+    valid_buffer[/查找有效缓存/]
+    find_oldest_buffer[从中查找最久没被访问的缓存]
+    is_buffer_dirty[/缓存是否为脏页/]
+    flush_buffer[刷新缓存到文件]
+    invalid_buffer[查找处于读写中的缓存]
+    wait_buffer_io[等待缓存读写完成]
+    find_oldest_buffer2[从中查找最久没被访问的缓存]
+    return_buffer[返回此缓存]
+    return(结束)
+
+
+    start-->in_buffers
+    in_buffers-- 已存在 -->return_buffer
+    in_buffers-- 不存在 -->empty_buffer
+    empty_buffer-- 存在 -->return_buffer
+    empty_buffer-- 存在 -->valid_buffer
+    valid_buffer-- 存在 -->find_oldest_buffer
+    find_oldest_buffer-->is_buffer_dirty
+    is_buffer_dirty--不是脏页-->return_buffer
+    is_buffer_dirty--是脏页-->flush_buffer
+    flush_buffer--重新寻找-->start
+    valid_buffer--不存在-->invalid_buffer
+    invalid_buffer-->find_oldest_buffer2
+    find_oldest_buffer2-->wait_buffer_io
+    wait_buffer_io--重新寻找-->start
+    return_buffer-->return</pre>
+
+
+
+
+
+<h2 id="文件读写"><a href="#文件读写" class="headerlink" title="文件读写"></a>文件读写</h2><h3 id="文件格式"><a href="#文件格式" class="headerlink" title="文件格式"></a>文件格式</h3><p>我们以<code>pg_xact</code>目录为例，它使用 slru 存储事务状态信息。</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">[root@pt-java data]# ls pg_xact/</span><br><span class="line">0000 0001</span><br></pre></td></tr></table></figure>
+<p>这个目录存在了多个文件，这些文件称作 segment，文件名称表示 segment 的编号，由4 个十六进制数字组成。数据都是存储在<code>page</code>单元里，<code>page</code>的大小是固定的，默认 8KB。多个<code>page</code>组织成了一个 segment 文件，每个 segment 文件的大小也是固定的，它包含了相同数目的<code>page</code>。</p>
+<h3 id="读取数据"><a href="#读取数据" class="headerlink" title="读取数据"></a>读取数据</h3><p><code>SlruPhysicalReadPage</code>负责读取指定 page 的数据。它会确定数据位于哪个 segment 文件，还有所在文件的偏移量。然后打开文件读取。</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/*</span></span><br><span class="line"><span class="comment"> * 参数pageno指定page的编号</span></span><br><span class="line"><span class="comment"> * 参数slotno指定读取数据到哪个buffer</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line"><span class="function"><span class="keyword">static</span> <span class="keyword">bool</span> <span class="title">SlruPhysicalReadPage</span><span class="params">(SlruCtl ctl, <span class="keyword">int</span> pageno, <span class="keyword">int</span> slotno)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    <span class="comment">// SLRU_PAGES_PER_SEGMENT表示segment文件包含的page数目，默认为32</span></span><br><span class="line">    <span class="comment">// 计算属于哪个segment文件</span></span><br><span class="line">    <span class="keyword">int</span>			segno = pageno / SLRU_PAGES_PER_SEGMENT;</span><br><span class="line">    <span class="comment">// 计算属于文件内的第几个page</span></span><br><span class="line">    <span class="keyword">int</span>			rpageno = pageno % SLRU_PAGES_PER_SEGMENT;</span><br><span class="line">    <span class="comment">// BLCKSZ表示page的大小，默认8K</span></span><br><span class="line">    <span class="keyword">int</span>			offset = rpageno * BLCKSZ;</span><br><span class="line">    </span><br><span class="line">    <span class="comment">// 生成segment文件路径，文件目录等于SlruCtl的Dir成员，文件名格式为segno的16进制数</span></span><br><span class="line">    SlruFileName(ctl, path, segno);</span><br><span class="line">    <span class="comment">// 打开文件，并且移动读取位置，然后读取到缓存</span></span><br><span class="line">    fd = OpenTransientFile(path, O_RDONLY | PG_BINARY);</span><br><span class="line">    lseek(fd, (<span class="keyword">off_t</span>) offset, SEEK_SET);</span><br><span class="line">    read(fd, shared-&gt;page_buffer[slotno], BLCKSZ);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h3 id="写入数据"><a href="#写入数据" class="headerlink" title="写入数据"></a>写入数据</h3><p><code>SlruPhysicalWritePage</code>负责将刷新指定缓存到磁盘。它的原理同读取数据相同，也是先定位文件的位置，然后打开文件写入。这里多了一个参数<code>SlruFlush</code>，用于一次性刷新所有脏页时，避免重复打开相同文件。</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">static</span> <span class="keyword">bool</span> <span class="title">SlruPhysicalWritePage</span><span class="params">(SlruCtl ctl, <span class="keyword">int</span> pageno, <span class="keyword">int</span> slotno, SlruFlush fdata)</span></span>;</span><br></pre></td></tr></table></figure>
+<p>在写入磁盘之前，会将这个缓存里所有数据，对应的 xlog 刷新文件中。最简单的一种实现方式，就是找到 xlog 位置最大的值，然后调用<code>XLogFlush</code>函数，将指定位置之前的 xlog 都刷新。</p>
+<h2 id="读写锁"><a href="#读写锁" class="headerlink" title="读写锁"></a>读写锁</h2><p>slru 在读取数据或者写入数据的时候，为了防止并发引起的错误，都采用了锁机制。它有两种锁，一种是<code>SlruSharedData</code>的<code>ControlLock</code>全局锁，另一种是每个缓存对应的读写锁。</p>
+<p><code>ControlLock</code>是读写锁<code>LwLock</code>，在读取数据时或者刷新缓存到文件的时候，都会获取它的写锁。它是所有缓存共享的，所以叫做全局锁。</p>
+<h3 id="刷新缓存"><a href="#刷新缓存" class="headerlink" title="刷新缓存"></a>刷新缓存</h3><p>刷新缓存的流程：</p>
+<ol>
+<li>获取<code>ControlLock</code>的全局锁</li>
+<li>设置缓存的状态为正在写入中，并且清除脏页标记</li>
+<li>获取缓存的写锁</li>
+<li>释放<code>ControlLock</code>的全局锁，因为刷新磁盘的时间会很长，这里释放全局锁提高并发性能</li>
+<li>刷新缓存到文件</li>
+<li>重新获取<code>ControlLock</code>全局锁，因为接下来要修改缓存的状态</li>
+<li>设置缓存的状态为有效状态</li>
+<li>释放缓存的写锁</li>
+<li>释放<code>ControlLock</code>全局锁</li>
+</ol>
+<h3 id="读取数据-1"><a href="#读取数据-1" class="headerlink" title="读取数据"></a>读取数据</h3><p>读取数据到缓存的流程：</p>
+<ol>
+<li>获取<code>ControlLock</code>的全局锁</li>
+<li>挑选出替换的缓存，更新缓存的状态为正在读</li>
+<li>获取缓存的写锁</li>
+<li><p>释放<code>ControlLock</code>的全局锁，因为刷新磁盘的时间会很长，这里释放全局锁提高并发性能</p>
+</li>
+<li><p>从文件中读取数据到缓存</p>
+</li>
+<li>重新获取<code>ControlLock</code>全局锁，因为接下来要修改缓存的状态</li>
+<li>设置缓存的状态为有效状态</li>
+<li>释放<code>ControlLock</code>全局锁</li>
+<li>释放缓存的写锁</li>
+<li>并且设置缓存为最近访问</li>
+</ol>
+
+      
+    </div>
+    
+    
+    
+
+    
+
+    
+
+    
+
+    <footer class="post-footer">
+      
+        <div class="post-tags">
+          
+            <a href="/tags/postgresql-slru/" rel="tag"># postgresql, slru</a>
+          
+        </div>
+      
+
+      
+      
+      
+
+      
+        <div class="post-nav">
+          <div class="post-nav-next post-nav-item">
+            
+              <a href="/2019/12/17/postgresql-c-function/" rel="next" title="Postgresql 编写自定义 C 函数">
+                <i class="fa fa-chevron-left"></i> Postgresql 编写自定义 C 函数
+              </a>
+            
+          </div>
+
+          <span class="post-nav-divider"></span>
+
+          <div class="post-nav-prev post-nav-item">
+            
+          </div>
+        </div>
+      
+
+      
+      
+    </footer>
+  </div>
+  
+  
+  
+  </article>
+
+
+
+    <div class="post-spread">
+      
+    </div>
+  </div>
+
+
+          </div>
+          
+
+
+          
+
+  
+    <div class="comments" id="comments">
+    </div>
+  
+
+
+
+        </div>
+        
+          
+  
+  <div class="sidebar-toggle">
+    <div class="sidebar-toggle-line-wrap">
+      <span class="sidebar-toggle-line sidebar-toggle-line-first"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-middle"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-last"></span>
+    </div>
+  </div>
+
+  <aside id="sidebar" class="sidebar">
+    
+    <div class="sidebar-inner">
+
+      
+
+      
+        <ul class="sidebar-nav motion-element">
+          <li class="sidebar-nav-toc sidebar-nav-active" data-target="post-toc-wrap">
+            Table of Contents
+          </li>
+          <li class="sidebar-nav-overview" data-target="site-overview-wrap">
+            Overview
+          </li>
+        </ul>
+      
+
+      <section class="site-overview-wrap sidebar-panel">
+        <div class="site-overview">
+          <div class="site-author motion-element" itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+            
+              <p class="site-author-name" itemprop="name">zhmin</p>
+              <p class="site-description motion-element" itemprop="description"></p>
+          </div>
+
+          <nav class="site-state motion-element">
+
+            
+              <div class="site-state-item site-state-posts">
+              
+                <a href="/archives/">
+              
+                  <span class="site-state-item-count">64</span>
+                  <span class="site-state-item-name">posts</span>
+                </a>
+              </div>
+            
+
+            
+              
+              
+              <div class="site-state-item site-state-categories">
+                <a href="/categories/index.html">
+                  <span class="site-state-item-count">12</span>
+                  <span class="site-state-item-name">categories</span>
+                </a>
+              </div>
+            
+
+            
+              
+              
+              <div class="site-state-item site-state-tags">
+                
+                  <span class="site-state-item-count">59</span>
+                  <span class="site-state-item-name">tags</span>
+                
+              </div>
+            
+
+          </nav>
+
+          
+
+          
+            <div class="links-of-author motion-element">
+                
+                  <span class="links-of-author-item">
+                    <a href="https://github.com/zhmin" target="_blank" title="GitHub">
+                      
+                        <i class="fa fa-fw fa-github"></i>GitHub</a>
+                  </span>
+                
+            </div>
+          
+
+          
+          
+
+          
+          
+
+          
+
+        </div>
+      </section>
+
+      
+      <!--noindex-->
+        <section class="post-toc-wrap motion-element sidebar-panel sidebar-panel-active">
+          <div class="post-toc">
+
+            
+              
+            
+
+            
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#前言"><span class="nav-number">1.</span> <span class="nav-text">前言</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#缓存和文件的对应关系"><span class="nav-number">2.</span> <span class="nav-text">缓存和文件的对应关系</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#结构体"><span class="nav-number">3.</span> <span class="nav-text">结构体</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#文件配置"><span class="nav-number">3.1.</span> <span class="nav-text">文件配置</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#缓存配置"><span class="nav-number">3.2.</span> <span class="nav-text">缓存配置</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#设置最新访问"><span class="nav-number">4.</span> <span class="nav-text">设置最新访问</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#挑选空闲缓存"><span class="nav-number">5.</span> <span class="nav-text">挑选空闲缓存</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#文件读写"><span class="nav-number">6.</span> <span class="nav-text">文件读写</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#文件格式"><span class="nav-number">6.1.</span> <span class="nav-text">文件格式</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#读取数据"><span class="nav-number">6.2.</span> <span class="nav-text">读取数据</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#写入数据"><span class="nav-number">6.3.</span> <span class="nav-text">写入数据</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#读写锁"><span class="nav-number">7.</span> <span class="nav-text">读写锁</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#刷新缓存"><span class="nav-number">7.1.</span> <span class="nav-text">刷新缓存</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#读取数据-1"><span class="nav-number">7.2.</span> <span class="nav-text">读取数据</span></a></li></ol></li></ol></div>
+            
+
+          </div>
+        </section>
+      <!--/noindex-->
+      
+
+      
+
+    </div>
+  </aside>
+
+
+        
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="footer-inner">
+        <div class="copyright">&copy; <span itemprop="copyrightYear">2019</span>
+  <span class="with-love">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">zhmin</span>
+
+  
+</div>
+
+
+
+
+
+
+
+
+
+
+
+  <script src="https://unpkg.com/mermaid@8.4.4/dist/mermaid.min.js"></script>
+  <script>
+    if (window.mermaid) {
+      mermaid.initialize({"startOnload":true,"theme":"forest"});
+    }
+  </script>
+
+
+
+<script async src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+<span id="busuanzi_container_site_pv">
+    访问量<span id="busuanzi_value_site_pv"></span>
+</span>
+<span class="post-meta-divider">|</span>
+<span id="busuanzi_container_site_uv">
+  访客数<span id="busuanzi_value_site_uv"></span>
+</span>
+
+        
+
+
+
+
+
+
+
+        
+      </div>
+    </footer>
+
+    
+      <div class="back-to-top">
+        <i class="fa fa-arrow-up"></i>
+        
+      </div>
+    
+
+    
+
+  </div>
+
+  
+
+<script type="text/javascript">
+  if (Object.prototype.toString.call(window.Promise) !== '[object Function]') {
+    window.Promise = null;
+  }
+</script>
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery/index.js?v=2.1.3"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fastclick/lib/fastclick.min.js?v=1.0.6"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery_lazyload/jquery.lazyload.js?v=1.9.7"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.ui.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fancybox/source/jquery.fancybox.pack.js?v=2.1.5"></script>
+  
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/utils.js?v=5.1.4"></script>
+
+  <script type="text/javascript" src="/js/src/motion.js?v=5.1.4"></script>
+
+
+
+  
+  
+
+  
+  <script type="text/javascript" src="/js/src/scrollspy.js?v=5.1.4"></script>
+<script type="text/javascript" src="/js/src/post-details.js?v=5.1.4"></script>
+
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/bootstrap.js?v=5.1.4"></script>
+
+
+
+  
+
+
+  
+
+
+
+
+	
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+  <script src="//cdn1.lncld.net/static/js/3.0.4/av-min.js"></script>
+  <script src="//unpkg.com/valine/dist/Valine.min.js"></script>
+  
+  <script type="text/javascript">
+    var GUEST = ['nick','mail','link'];
+    var guest = 'nick';
+    guest = guest.split(',').filter(item=>{
+      return GUEST.indexOf(item)>-1;
+    });
+    new Valine({
+        el: '#comments' ,
+        verify: false,
+        notify: false,
+        appId: 'iYiPQlDR2X2zg2QIql2UEe2o-gzGzoHsz',
+        appKey: 'EW8G4sftwX1pef1zS9EsOeKE',
+        placeholder: 'comment here',
+        avatar:'mm',
+        guest_info:guest,
+        pageSize:'10' || 10,
+    });
+  </script>
+
+
+
+  
+
+
+
+
+
+  
+
+  
+  <script src="https://cdn1.lncld.net/static/js/av-core-mini-0.6.4.js"></script>
+  <script>AV.initialize("iYiPQlDR2X2zg2QIql2UEe2o-gzGzoHsz", "EW8G4sftwX1pef1zS9EsOeKE");</script>
+  <script>
+    function showTime(Counter) {
+      var query = new AV.Query(Counter);
+      var entries = [];
+      var $visitors = $(".leancloud_visitors");
+
+      $visitors.each(function () {
+        entries.push( $(this).attr("id").trim() );
+      });
+
+      query.containedIn('url', entries);
+      query.find()
+        .done(function (results) {
+          var COUNT_CONTAINER_REF = '.leancloud-visitors-count';
+
+          if (results.length === 0) {
+            $visitors.find(COUNT_CONTAINER_REF).text(0);
+            return;
+          }
+
+          for (var i = 0; i < results.length; i++) {
+            var item = results[i];
+            var url = item.get('url');
+            var time = item.get('time');
+            var element = document.getElementById(url);
+
+            $(element).find(COUNT_CONTAINER_REF).text(time);
+          }
+          for(var i = 0; i < entries.length; i++) {
+            var url = entries[i];
+            var element = document.getElementById(url);
+            var countSpan = $(element).find(COUNT_CONTAINER_REF);
+            if( countSpan.text() == '') {
+              countSpan.text(0);
+            }
+          }
+        })
+        .fail(function (object, error) {
+          console.log("Error: " + error.code + " " + error.message);
+        });
+    }
+
+    function addCount(Counter) {
+      var $visitors = $(".leancloud_visitors");
+      var url = $visitors.attr('id').trim();
+      var title = $visitors.attr('data-flag-title').trim();
+      var query = new AV.Query(Counter);
+
+      query.equalTo("url", url);
+      query.find({
+        success: function(results) {
+          if (results.length > 0) {
+            var counter = results[0];
+            counter.fetchWhenSave(true);
+            counter.increment("time");
+            counter.save(null, {
+              success: function(counter) {
+                var $element = $(document.getElementById(url));
+                $element.find('.leancloud-visitors-count').text(counter.get('time'));
+              },
+              error: function(counter, error) {
+                console.log('Failed to save Visitor num, with error message: ' + error.message);
+              }
+            });
+          } else {
+            var newcounter = new Counter();
+            /* Set ACL */
+            var acl = new AV.ACL();
+            acl.setPublicReadAccess(true);
+            acl.setPublicWriteAccess(true);
+            newcounter.setACL(acl);
+            /* End Set ACL */
+            newcounter.set("title", title);
+            newcounter.set("url", url);
+            newcounter.set("time", 1);
+            newcounter.save(null, {
+              success: function(newcounter) {
+                var $element = $(document.getElementById(url));
+                $element.find('.leancloud-visitors-count').text(newcounter.get('time'));
+              },
+              error: function(newcounter, error) {
+                console.log('Failed to create');
+              }
+            });
+          }
+        },
+        error: function(error) {
+          console.log('Error:' + error.code + " " + error.message);
+        }
+      });
+    }
+
+    $(function() {
+      var Counter = AV.Object.extend("Counter");
+      if ($('.leancloud_visitors').length == 1) {
+        addCount(Counter);
+      } else if ($('.post-title-link').length > 1) {
+        showTime(Counter);
+      }
+    });
+  </script>
+
+
+
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+</body>
+</html>

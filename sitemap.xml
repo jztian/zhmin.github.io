@@ -2,9 +2,16 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   
   <url>
+    <loc>https://zhmin.github.io/2019/12/26/postgresql-slru/</loc>
+    
+    <lastmod>2019-12-26T12:17:41.170Z</lastmod>
+    
+  </url>
+  
+  <url>
     <loc>https://zhmin.github.io/2019/12/17/postgresql-c-function/</loc>
     
-    <lastmod>2019-12-17T14:20:00.968Z</lastmod>
+    <lastmod>2019-12-26T12:10:11.663Z</lastmod>
     
   </url>
   
