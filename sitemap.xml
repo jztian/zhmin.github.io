@@ -2,6 +2,13 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   
   <url>
+    <loc>https://zhmin.github.io/2020/01/05/openwrt-v2ray/</loc>
+    
+    <lastmod>2020-01-05T13:04:11.454Z</lastmod>
+    
+  </url>
+  
+  <url>
     <loc>https://zhmin.github.io/2019/12/26/postgresql-slru/</loc>
     
     <lastmod>2019-12-26T12:17:41.170Z</lastmod>
