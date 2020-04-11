@@ -388,7 +388,8 @@
     IN_TRANSACTION -->|发送事务提交请求| COMMITTING_TRANSACTION
     COMMITTING_TRANSACTION -->|事务提成功| READY
     IN_TRANSACTION -->|发送事务回滚请求| ABORTING_TRANSACTION
-    ABORTING_TRANSACTION -->|事务回滚成功| READY</pre>
+    ABORTING_TRANSACTION -->|事务回滚成功| READY 
+</pre>
 
 <p>状态</p>
 <figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">private</span> <span class="keyword">enum</span> State &#123;</span><br><span class="line">    UNINITIALIZED,</span><br><span class="line">    INITIALIZING,</span><br><span class="line">    READY,</span><br><span class="line">    IN_TRANSACTION,</span><br><span class="line">    COMMITTING_TRANSACTION,</span><br><span class="line">    ABORTING_TRANSACTION,</span><br><span class="line">    ABORTABLE_ERROR,</span><br><span class="line">    FATAL_ERROR;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
@@ -410,7 +411,8 @@
     PrepareCommit -->|持久化成功| CompleteCommit
     PrepareAbort -->|持久化成功| CompleteAbort
     CompleteAbort -->|发送消息给分区并且接收到响应| Ongoing
-    CompleteCommit -->|发送消息给分区并且接收到响应| Ongoing</pre>
+    CompleteCommit -->|发送消息给分区并且接收到响应| Ongoing 
+</pre>
 
 
 
@@ -640,7 +642,7 @@
               
                 <a href="/archives/">
               
-                  <span class="site-state-item-count">67</span>
+                  <span class="site-state-item-count">68</span>
                   <span class="site-state-item-name">posts</span>
                 </a>
               </div>
@@ -744,7 +746,7 @@
 
 
 
-  <script src="https://unpkg.com/mermaid@7.1.2/dist/mermaid.min.js"></script>
+  <script src="https://unpkg.com/mermaid@8/dist/mermaid.min.js"></script>
   <script>
     if (window.mermaid) {
       mermaid.initialize({"startOnload":true,"theme":"forest"});

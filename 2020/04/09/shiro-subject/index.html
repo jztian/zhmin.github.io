@@ -1,0 +1,998 @@
+<!DOCTYPE html>
+
+
+
+  
+
+
+<html class="theme-next mist use-motion" lang="">
+<head><meta name="generator" content="Hexo 3.8.0">
+  <meta charset="UTF-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="theme-color" content="#222">
+
+
+
+
+
+
+
+
+
+<meta http-equiv="Cache-Control" content="no-transform">
+<meta http-equiv="Cache-Control" content="no-siteapp">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+  <link href="/lib/fancybox/source/jquery.fancybox.css?v=2.1.5" rel="stylesheet" type="text/css">
+
+
+
+
+
+
+
+<link href="/lib/font-awesome/css/font-awesome.min.css?v=4.6.2" rel="stylesheet" type="text/css">
+
+<link href="/css/main.css?v=5.1.4" rel="stylesheet" type="text/css">
+
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png?v=5.1.4">
+
+
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png?v=5.1.4">
+
+
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png?v=5.1.4">
+
+
+  <link rel="mask-icon" href="/images/logo.svg?v=5.1.4" color="#222">
+
+
+
+
+
+  <meta name="keywords" content="shiro,">
+
+
+
+
+
+
+
+
+
+
+<meta name="description" content="前言Subject是 我们在 shiro 框架中，第一个介绍的概念。它表示用户，存储了用户身份认证的相关配置信息。除此之外，还支持登录，退出，session 等接口操作。本篇文章会先介绍Subject的种类，然后介绍它是如何创建的，以及登录操作等。 Subject 类图Subject主要分为两类，一种是在非 Web 环境下使用，另一种是在 Web 环境下使用，包含了 java Servlet相关的">
+<meta name="keywords" content="shiro">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Apache Shiro Subject 原理">
+<meta property="og:url" content="https://zhmin.github.io/2020/04/09/shiro-subject/index.html">
+<meta property="og:site_name" content="学习笔记">
+<meta property="og:description" content="前言Subject是 我们在 shiro 框架中，第一个介绍的概念。它表示用户，存储了用户身份认证的相关配置信息。除此之外，还支持登录，退出，session 等接口操作。本篇文章会先介绍Subject的种类，然后介绍它是如何创建的，以及登录操作等。 Subject 类图Subject主要分为两类，一种是在非 Web 环境下使用，另一种是在 Web 环境下使用，包含了 java Servlet相关的">
+<meta property="og:locale" content="default">
+<meta property="og:updated_time" content="2020-04-11T05:38:32.900Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Apache Shiro Subject 原理">
+<meta name="twitter:description" content="前言Subject是 我们在 shiro 框架中，第一个介绍的概念。它表示用户，存储了用户身份认证的相关配置信息。除此之外，还支持登录，退出，session 等接口操作。本篇文章会先介绍Subject的种类，然后介绍它是如何创建的，以及登录操作等。 Subject 类图Subject主要分为两类，一种是在非 Web 环境下使用，另一种是在 Web 环境下使用，包含了 java Servlet相关的">
+
+
+
+<script type="text/javascript" id="hexo.configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '/',
+    scheme: 'Mist',
+    version: '5.1.4',
+    sidebar: {"position":"left","display":"hide","offset":12,"b2t":false,"scrollpercent":false,"onmobile":false},
+    fancybox: true,
+    tabs: true,
+    motion: {"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},
+    duoshuo: {
+      userId: '0',
+      author: 'Author'
+    },
+    algolia: {
+      applicationID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    }
+  };
+</script>
+
+
+
+  <link rel="canonical" href="https://zhmin.github.io/2020/04/09/shiro-subject/">
+
+
+
+
+
+  <title>Apache Shiro Subject 原理 | 学习笔记</title>
+  
+
+
+
+
+
+
+
+
+</head>
+
+<body itemscope="" itemtype="http://schema.org/WebPage" lang="default">
+
+  
+  
+    
+  
+
+  <div class="container sidebar-position-left page-post-detail">
+    <div class="headband"></div>
+
+    <header id="header" class="header" itemscope="" itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-wrapper">
+  <div class="site-meta ">
+    
+
+    <div class="custom-logo-site-title">
+      <a href="/" class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">学习笔记</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+      
+        <h1 class="site-subtitle" itemprop="description"></h1>
+      
+  </div>
+
+  <div class="site-nav-toggle">
+    <button>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+    </button>
+  </div>
+</div>
+
+<nav class="site-nav">
+  
+
+  
+    <ul id="menu" class="menu">
+      
+        
+        <li class="menu-item menu-item-home">
+          <a href="/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-home"></i> <br>
+            
+            Home
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-categories">
+          <a href="/categories/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-th"></i> <br>
+            
+            Categories
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-archives">
+          <a href="/archives/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-archive"></i> <br>
+            
+            Archives
+          </a>
+        </li>
+      
+
+      
+    </ul>
+  
+
+  
+</nav>
+
+
+
+ </div>
+    </header>
+
+    <main id="main" class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          <div id="content" class="content">
+            
+
+  <div id="posts" class="posts-expand">
+    
+
+  
+
+  
+  
+  
+
+  <article class="post post-type-normal" itemscope="" itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block">
+    <link itemprop="mainEntityOfPage" href="https://zhmin.github.io/2020/04/09/shiro-subject/">
+
+    <span hidden itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="zhmin">
+      <meta itemprop="description" content="">
+      <meta itemprop="image" content="/images/avatar.gif">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope="" itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="学习笔记">
+    </span>
+
+    
+      <header class="post-header">
+
+        
+        
+          <h2 class="post-title" itemprop="name headline">Apache Shiro Subject 原理</h2>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">Posted on</span>
+              
+              <time title="Post created" itemprop="dateCreated datePublished" datetime="2020-04-09T22:40:41+08:00">
+                2020-04-09
+              </time>
+            
+
+            
+
+            
+          </span>
+
+          
+            <span class="post-category">
+            
+              <span class="post-meta-divider">|</span>
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">In</span>
+              
+              
+                <span itemprop="about" itemscope="" itemtype="http://schema.org/Thing">
+                  <a href="/categories/shiro/" itemprop="url" rel="index">
+                    <span itemprop="name">shiro</span>
+                  </a>
+                </span>
+
+                
+                
+              
+            </span>
+          
+
+          
+            
+              <span class="post-comments-count">
+                <span class="post-meta-divider">|</span>
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-comment-o"></i>
+                </span>
+                <a href="/2020/04/09/shiro-subject/#comments" itemprop="discussionUrl">
+                  <span class="post-comments-count valine-comment-count" data-xid="/2020/04/09/shiro-subject/" itemprop="commentCount"></span>
+                </a>
+              </span>
+            
+          
+
+          
+          
+             <span id="/2020/04/09/shiro-subject/" class="leancloud_visitors" data-flag-title="Apache Shiro Subject 原理">
+               <span class="post-meta-divider">|</span>
+               <span class="post-meta-item-icon">
+                 <i class="fa fa-eye"></i>
+               </span>
+               
+                 <span class="post-meta-item-text">Visitors&#58;</span>
+               
+                 <span class="leancloud-visitors-count"></span>
+             </span>
+          
+
+          
+
+          
+
+          
+
+        </div>
+      </header>
+    
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+      
+
+      
+        <h2 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h2><p><code>Subject</code>是 我们在 shiro 框架中，第一个介绍的概念。它表示用户，存储了用户身份认证的相关配置信息。除此之外，还支持登录，退出，session 等接口操作。本篇文章会先介绍<code>Subject</code>的种类，然后介绍它是如何创建的，以及登录操作等。</p>
+<h2 id="Subject-类图"><a href="#Subject-类图" class="headerlink" title="Subject 类图"></a>Subject 类图</h2><p><code>Subject</code>主要分为两类，一种是在非 Web 环境下使用，另一种是在 Web 环境下使用，包含了 java <code>Servlet</code>相关的信息。<code>Subject</code>的整个类图如下所示：</p>
+<pre class="mermaid">classDiagram
+    class Subject
+    &lt;&lt;interface>> Subject
+
+    class DelegatingSubject
+    Subject &lt;|-- DelegatingSubject
+
+    class WebDelegatingSubject
+    DelegatingSubject &lt;|-- WebDelegatingSubject
+
+    class WebSubject
+    &lt;&lt;interface>> WebSubject
+    Subject &lt;|-- WebSubject
+
+    class RequestPairSource
+    &lt;&lt;interface>> RequestPairSource
+    RequestPairSource &lt;|-- WebSubject
+
+    class WebDelegatingSubject
+    WebSubject &lt;|-- WebDelegatingSubject 
+</pre>
+
+
+
+<p><code>Subject</code>最为最顶层的接口，定义了用户基本信息的接口、登录相关和权限相关的接口。</p>
+<p><code>DelegatingSubject</code>实现了<code>Subject</code>接口，在非 Web 环境下使用。</p>
+<p><code>WebDelegatingSubject</code>则是在 Web 环境下使用，需要依赖于<code>Servlet</code>。</p>
+<h2 id="Subject-实例化"><a href="#Subject-实例化" class="headerlink" title="Subject  实例化"></a>Subject  实例化</h2><h3 id="工厂类-SubjectFactory"><a href="#工厂类-SubjectFactory" class="headerlink" title="工厂类 SubjectFactory"></a>工厂类 SubjectFactory</h3><p><code>SubjectFactory</code>接口时负责创建并且初始化<code>Subject</code></p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">interface</span> <span class="title">SubjectFactory</span> </span>&#123;</span><br><span class="line">	<span class="comment">// 创建 Subject, SubjectContex表示初始化参数</span></span><br><span class="line">    <span class="function">Subject <span class="title">createSubject</span><span class="params">(SubjectContext context)</span></span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>它有两个子类，<code>DefaultSubjectFactory</code>使用在非 Web 环境下，会创建<code>DelegatingSubject</code>实例。<code>DefaultWebSubjectFactory</code>则对应在 Web 环境下，会创建<code>WebDelegatingSubject</code>实例。</p>
+<h3 id="初始化参数-SubjectContext"><a href="#初始化参数-SubjectContext" class="headerlink" title="初始化参数  SubjectContext"></a>初始化参数  SubjectContext</h3><p><code>SubjectContext</code>用于初始化<code>Subject</code>的，不同的子类对应着不同类型的<code>Subject</code>。比如下面的<code>DefaultSubjectContext</code>用作非 Web 环境下的<code>DelegatingSubject</code>初始化，而<code>DefaultWebSubjectContext</code>用于 Web 环境下的<code>WebDelegatingSubject</code>初始化。</p>
+<pre class="mermaid">classDiagram
+    class SubjectContext
+    &lt;&lt;interface>> SubjectContext
+
+    class Map
+    &lt;&lt;interface>> Map
+    Map &lt;|-- SubjectContext
+
+    class WebSubjectContext
+    &lt;&lt;interface>> WebSubjectContext
+    SubjectContext &lt;|-- WebSubjectContext
+
+    class RequestPairSource
+    &lt;&lt;interface>> RequestPairSource
+    RequestPairSource &lt;|-- WebSubjectContext
+
+    class DefaultSubjectContext
+    SubjectContext &lt;|-- DefaultSubjectContext
+
+    class DefaultWebSubjectContext
+    DefaultSubjectContext &lt;|-- DefaultWebSubjectContext
+    WebSubjectContext &lt;|-- DefaultWebSubjectContext 
+</pre>
+
+
+
+<p><code>SubjectContext</code>提供了<code>SecurityManager</code>、<code>Session</code>、身份凭证<code>AuthenticationToken</code>、身份信息<code>AuthenticationInfo</code>、客户端 ip 等参数。</p>
+<p><code>DefaultSubjectContext</code>实现了<code>SubjectContext</code>接口，它相当于<code>JavaBean</code>，是上述这些信息的集合类。</p>
+<p><code>DefaultSubjectContext</code>只是在<code>DefaultSubjectContext</code>基础之上，添加了<code>ServletRequest</code>和<code>ServletResponse</code>的操作。</p>
+<h2 id="Subject-持久化"><a href="#Subject-持久化" class="headerlink" title="Subject 持久化"></a>Subject 持久化</h2><p><code>SubjectDAO</code>接口定义了<code>Subject</code>的持久化</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">interface</span> <span class="title">SubjectDAO</span> </span>&#123;</span><br><span class="line">    </span><br><span class="line">    <span class="comment">// 存储</span></span><br><span class="line">    <span class="function">Subject <span class="title">save</span><span class="params">(Subject subject)</span></span>;</span><br><span class="line">    </span><br><span class="line">    <span class="comment">// 删除</span></span><br><span class="line">    <span class="function"><span class="keyword">void</span> <span class="title">delete</span><span class="params">(Subject subject)</span></span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>目前只有一个实现类<code>DefaultSubjectDAO</code>，它的原理也比较简单，使用了 session 存储信息。它只是存储了用户的身份信息和是否已经成功认证。</p>
+<table>
+<thead>
+<tr>
+<th>session 属性名</th>
+<th>类型</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>DefaultSubjectContext.AUTHENTICATED_SESSION_KEY</code></td>
+<td><code>PrincipalCollection</code></td>
+<td>身份列表（一个用户可能有多个身份）</td>
+</tr>
+<tr>
+<td><code>DefaultSubjectContext.AUTHENTICATED_SESSION_KEY</code></td>
+<td>Boolean</td>
+<td>是否通过身份认证</td>
+</tr>
+</tbody>
+</table>
+<h2 id="login-原理"><a href="#login-原理" class="headerlink" title="login 原理"></a>login 原理</h2><p>现在我们来看看从<code>Subject.login</code>方法开始，看看整个 login 的过程。<code>Subject</code>的<code>login</code>方法只有<code>DelegatingSubject</code>子类实现了，它只是将请求转发给<code>DefaultSecurityManager</code>处理。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">DefaultSecurityManager</span> <span class="keyword">extends</span> <span class="title">SessionsSecurityManager</span> </span>&#123;</span><br><span class="line">    </span><br><span class="line">    <span class="function"><span class="keyword">public</span> Subject <span class="title">login</span><span class="params">(Subject subject, AuthenticationToken token)</span> <span class="keyword">throws</span> AuthenticationException </span>&#123;</span><br><span class="line">        <span class="comment">// 执行身份验证，如果验证失败则会抛出异常</span></span><br><span class="line">        AuthenticationInfo info = authenticate(token);</span><br><span class="line">        <span class="comment">// 验证成功后，创建新的Subject实例</span></span><br><span class="line">        Subject loggedIn = createSubject(token, info, subject);</span><br><span class="line">        <span class="keyword">return</span> loggedIn;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>再继续看看<code>Subject</code>的创建过程</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">DefaultSecurityManager</span> <span class="keyword">extends</span> <span class="title">SessionsSecurityManager</span> </span>&#123;</span><br><span class="line"></span><br><span class="line">    <span class="function"><span class="keyword">protected</span> Subject <span class="title">createSubject</span><span class="params">(AuthenticationToken token, AuthenticationInfo info, Subject existing)</span> </span>&#123;</span><br><span class="line">        <span class="comment">// 创建并且初始化SubjectContext</span></span><br><span class="line">        SubjectContext context = createSubjectContext();</span><br><span class="line">        context.setAuthenticated(<span class="keyword">true</span>);</span><br><span class="line">        context.setAuthenticationToken(token);</span><br><span class="line">        context.setAuthenticationInfo(info);</span><br><span class="line">        context.setSecurityManager(<span class="keyword">this</span>);</span><br><span class="line">        <span class="keyword">if</span> (existing != <span class="keyword">null</span>) &#123;</span><br><span class="line">            context.setSubject(existing);</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="comment">// 使用SubjectContext创建Subject</span></span><br><span class="line">        <span class="keyword">return</span> createSubject(context);</span><br><span class="line">    &#125;</span><br><span class="line">    </span><br><span class="line">    <span class="function"><span class="keyword">public</span> Subject <span class="title">createSubject</span><span class="params">(SubjectContext subjectContext)</span> </span>&#123;</span><br><span class="line">        <span class="comment">// .... 继续设置SubjectContext</span></span><br><span class="line">        </span><br><span class="line">        <span class="comment">// 创建Subject</span></span><br><span class="line">        Subject subject = doCreateSubject(context);</span><br><span class="line">        </span><br><span class="line">        <span class="comment">// 持久化Subject </span></span><br><span class="line">        save(subject);</span><br><span class="line">        <span class="keyword">return</span> subject;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>上面调用了两个方法<code>doCreateSubject</code>和<code>save</code>方法，最后来看看它们的原理</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">DefaultSecurityManager</span> <span class="keyword">extends</span> <span class="title">SessionsSecurityManager</span> </span>&#123;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 使用SubjectFactory创建</span></span><br><span class="line">    <span class="function"><span class="keyword">protected</span> Subject <span class="title">doCreateSubject</span><span class="params">(SubjectContext context)</span> </span>&#123;</span><br><span class="line">        <span class="keyword">return</span> getSubjectFactory().createSubject(context);</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">//使用SubjectDAO持久化</span></span><br><span class="line">    <span class="function"><span class="keyword">protected</span> <span class="keyword">void</span> <span class="title">save</span><span class="params">(Subject subject)</span> </span>&#123;</span><br><span class="line">        <span class="keyword">this</span>.subjectDAO.save(subject);</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>整个 login 流程如下图所示：</p>
+<pre class="mermaid">sequenceDiagram
+    participant Subject
+    participant DefaultSecurityManager
+    participant Authenticator
+    participant SubjectFactory
+    participant SubjectDAO
+    Subject->>+DefaultSecurityManager: login
+    DefaultSecurityManager->>+Authenticator: authenticate
+    Authenticator-->>-DefaultSecurityManager: AuthenticationInfo
+    DefaultSecurityManager->>+SubjectFactory: createSubject
+    SubjectFactory-->>-DefaultSecurityManager: Subject
+    DefaultSecurityManager->>+SubjectDAO: save
+    SubjectDAO-->>-DefaultSecurityManager: 
+    DefaultSecurityManager-->>-Subject: . 
+</pre>
+
+<h2 id="logout-原理"><a href="#logout-原理" class="headerlink" title="logout 原理"></a>logout 原理</h2><p>在执行<code>Subject.logout</code>方法完成登出操作后，shrio 会将<code>Subject</code>的信息都设置为空，并且会删除关联的 session。</p>
+
+      
+    </div>
+    
+    
+    
+
+    
+
+    
+
+    
+
+    <footer class="post-footer">
+      
+        <div class="post-tags">
+          
+            <a href="/tags/shiro/" rel="tag"># shiro</a>
+          
+        </div>
+      
+
+      
+      
+      
+
+      
+        <div class="post-nav">
+          <div class="post-nav-next post-nav-item">
+            
+              <a href="/2020/04/08/shiro-architecture/" rel="next" title="Apache Shiro 框架介绍">
+                <i class="fa fa-chevron-left"></i> Apache Shiro 框架介绍
+              </a>
+            
+          </div>
+
+          <span class="post-nav-divider"></span>
+
+          <div class="post-nav-prev post-nav-item">
+            
+          </div>
+        </div>
+      
+
+      
+      
+    </footer>
+  </div>
+  
+  
+  
+  </article>
+
+
+
+    <div class="post-spread">
+      
+    </div>
+  </div>
+
+
+          </div>
+          
+
+
+          
+
+  
+    <div class="comments" id="comments">
+    </div>
+  
+
+
+
+        </div>
+        
+          
+  
+  <div class="sidebar-toggle">
+    <div class="sidebar-toggle-line-wrap">
+      <span class="sidebar-toggle-line sidebar-toggle-line-first"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-middle"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-last"></span>
+    </div>
+  </div>
+
+  <aside id="sidebar" class="sidebar">
+    
+    <div class="sidebar-inner">
+
+      
+
+      
+        <ul class="sidebar-nav motion-element">
+          <li class="sidebar-nav-toc sidebar-nav-active" data-target="post-toc-wrap">
+            Table of Contents
+          </li>
+          <li class="sidebar-nav-overview" data-target="site-overview-wrap">
+            Overview
+          </li>
+        </ul>
+      
+
+      <section class="site-overview-wrap sidebar-panel">
+        <div class="site-overview">
+          <div class="site-author motion-element" itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+            
+              <p class="site-author-name" itemprop="name">zhmin</p>
+              <p class="site-description motion-element" itemprop="description"></p>
+          </div>
+
+          <nav class="site-state motion-element">
+
+            
+              <div class="site-state-item site-state-posts">
+              
+                <a href="/archives/">
+              
+                  <span class="site-state-item-count">68</span>
+                  <span class="site-state-item-name">posts</span>
+                </a>
+              </div>
+            
+
+            
+              
+              
+              <div class="site-state-item site-state-categories">
+                <a href="/categories/index.html">
+                  <span class="site-state-item-count">15</span>
+                  <span class="site-state-item-name">categories</span>
+                </a>
+              </div>
+            
+
+            
+              
+              
+              <div class="site-state-item site-state-tags">
+                
+                  <span class="site-state-item-count">62</span>
+                  <span class="site-state-item-name">tags</span>
+                
+              </div>
+            
+
+          </nav>
+
+          
+
+          
+            <div class="links-of-author motion-element">
+                
+                  <span class="links-of-author-item">
+                    <a href="https://github.com/zhmin" target="_blank" title="GitHub">
+                      
+                        <i class="fa fa-fw fa-github"></i>GitHub</a>
+                  </span>
+                
+            </div>
+          
+
+          
+          
+
+          
+          
+
+          
+
+        </div>
+      </section>
+
+      
+      <!--noindex-->
+        <section class="post-toc-wrap motion-element sidebar-panel sidebar-panel-active">
+          <div class="post-toc">
+
+            
+              
+            
+
+            
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#前言"><span class="nav-number">1.</span> <span class="nav-text">前言</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Subject-类图"><span class="nav-number">2.</span> <span class="nav-text">Subject 类图</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Subject-实例化"><span class="nav-number">3.</span> <span class="nav-text">Subject  实例化</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#工厂类-SubjectFactory"><span class="nav-number">3.1.</span> <span class="nav-text">工厂类 SubjectFactory</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#初始化参数-SubjectContext"><span class="nav-number">3.2.</span> <span class="nav-text">初始化参数  SubjectContext</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Subject-持久化"><span class="nav-number">4.</span> <span class="nav-text">Subject 持久化</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#login-原理"><span class="nav-number">5.</span> <span class="nav-text">login 原理</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#logout-原理"><span class="nav-number">6.</span> <span class="nav-text">logout 原理</span></a></li></ol></div>
+            
+
+          </div>
+        </section>
+      <!--/noindex-->
+      
+
+      
+
+    </div>
+  </aside>
+
+
+        
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="footer-inner">
+        <div class="copyright">&copy; <span itemprop="copyrightYear">2020</span>
+  <span class="with-love">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">zhmin</span>
+
+  
+</div>
+
+
+
+
+
+
+
+
+
+
+
+  <script src="https://unpkg.com/mermaid@8/dist/mermaid.min.js"></script>
+  <script>
+    if (window.mermaid) {
+      mermaid.initialize({"startOnload":true,"theme":"forest"});
+    }
+  </script>
+
+
+
+<script async src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+<span id="busuanzi_container_site_pv">
+    访问量<span id="busuanzi_value_site_pv"></span>
+</span>
+<span class="post-meta-divider">|</span>
+<span id="busuanzi_container_site_uv">
+  访客数<span id="busuanzi_value_site_uv"></span>
+</span>
+
+        
+
+
+
+
+
+
+
+        
+      </div>
+    </footer>
+
+    
+      <div class="back-to-top">
+        <i class="fa fa-arrow-up"></i>
+        
+      </div>
+    
+
+    
+
+  </div>
+
+  
+
+<script type="text/javascript">
+  if (Object.prototype.toString.call(window.Promise) !== '[object Function]') {
+    window.Promise = null;
+  }
+</script>
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery/index.js?v=2.1.3"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fastclick/lib/fastclick.min.js?v=1.0.6"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery_lazyload/jquery.lazyload.js?v=1.9.7"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.ui.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fancybox/source/jquery.fancybox.pack.js?v=2.1.5"></script>
+  
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/utils.js?v=5.1.4"></script>
+
+  <script type="text/javascript" src="/js/src/motion.js?v=5.1.4"></script>
+
+
+
+  
+  
+
+  
+  <script type="text/javascript" src="/js/src/scrollspy.js?v=5.1.4"></script>
+<script type="text/javascript" src="/js/src/post-details.js?v=5.1.4"></script>
+
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/bootstrap.js?v=5.1.4"></script>
+
+
+
+  
+
+
+  
+
+
+
+
+	
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+  <script src="//cdn1.lncld.net/static/js/3.0.4/av-min.js"></script>
+  <script src="//unpkg.com/valine/dist/Valine.min.js"></script>
+  
+  <script type="text/javascript">
+    var GUEST = ['nick','mail','link'];
+    var guest = 'nick';
+    guest = guest.split(',').filter(item=>{
+      return GUEST.indexOf(item)>-1;
+    });
+    new Valine({
+        el: '#comments' ,
+        verify: false,
+        notify: false,
+        appId: 'iYiPQlDR2X2zg2QIql2UEe2o-gzGzoHsz',
+        appKey: 'EW8G4sftwX1pef1zS9EsOeKE',
+        placeholder: 'comment here',
+        avatar:'mm',
+        guest_info:guest,
+        pageSize:'10' || 10,
+    });
+  </script>
+
+
+
+  
+
+
+
+
+
+  
+
+  
+  <script src="https://cdn1.lncld.net/static/js/av-core-mini-0.6.4.js"></script>
+  <script>AV.initialize("iYiPQlDR2X2zg2QIql2UEe2o-gzGzoHsz", "EW8G4sftwX1pef1zS9EsOeKE");</script>
+  <script>
+    function showTime(Counter) {
+      var query = new AV.Query(Counter);
+      var entries = [];
+      var $visitors = $(".leancloud_visitors");
+
+      $visitors.each(function () {
+        entries.push( $(this).attr("id").trim() );
+      });
+
+      query.containedIn('url', entries);
+      query.find()
+        .done(function (results) {
+          var COUNT_CONTAINER_REF = '.leancloud-visitors-count';
+
+          if (results.length === 0) {
+            $visitors.find(COUNT_CONTAINER_REF).text(0);
+            return;
+          }
+
+          for (var i = 0; i < results.length; i++) {
+            var item = results[i];
+            var url = item.get('url');
+            var time = item.get('time');
+            var element = document.getElementById(url);
+
+            $(element).find(COUNT_CONTAINER_REF).text(time);
+          }
+          for(var i = 0; i < entries.length; i++) {
+            var url = entries[i];
+            var element = document.getElementById(url);
+            var countSpan = $(element).find(COUNT_CONTAINER_REF);
+            if( countSpan.text() == '') {
+              countSpan.text(0);
+            }
+          }
+        })
+        .fail(function (object, error) {
+          console.log("Error: " + error.code + " " + error.message);
+        });
+    }
+
+    function addCount(Counter) {
+      var $visitors = $(".leancloud_visitors");
+      var url = $visitors.attr('id').trim();
+      var title = $visitors.attr('data-flag-title').trim();
+      var query = new AV.Query(Counter);
+
+      query.equalTo("url", url);
+      query.find({
+        success: function(results) {
+          if (results.length > 0) {
+            var counter = results[0];
+            counter.fetchWhenSave(true);
+            counter.increment("time");
+            counter.save(null, {
+              success: function(counter) {
+                var $element = $(document.getElementById(url));
+                $element.find('.leancloud-visitors-count').text(counter.get('time'));
+              },
+              error: function(counter, error) {
+                console.log('Failed to save Visitor num, with error message: ' + error.message);
+              }
+            });
+          } else {
+            var newcounter = new Counter();
+            /* Set ACL */
+            var acl = new AV.ACL();
+            acl.setPublicReadAccess(true);
+            acl.setPublicWriteAccess(true);
+            newcounter.setACL(acl);
+            /* End Set ACL */
+            newcounter.set("title", title);
+            newcounter.set("url", url);
+            newcounter.set("time", 1);
+            newcounter.save(null, {
+              success: function(newcounter) {
+                var $element = $(document.getElementById(url));
+                $element.find('.leancloud-visitors-count').text(newcounter.get('time'));
+              },
+              error: function(newcounter, error) {
+                console.log('Failed to create');
+              }
+            });
+          }
+        },
+        error: function(error) {
+          console.log('Error:' + error.code + " " + error.message);
+        }
+      });
+    }
+
+    $(function() {
+      var Counter = AV.Object.extend("Counter");
+      if ($('.leancloud_visitors').length == 1) {
+        addCount(Counter);
+      } else if ($('.post-title-link').length > 1) {
+        showTime(Counter);
+      }
+    });
+  </script>
+
+
+
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+</body>
+</html>
