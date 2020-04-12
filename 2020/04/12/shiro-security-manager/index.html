@@ -1,0 +1,1030 @@
+<!DOCTYPE html>
+
+
+
+  
+
+
+<html class="theme-next mist use-motion" lang="">
+<head><meta name="generator" content="Hexo 3.8.0">
+  <meta charset="UTF-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="theme-color" content="#222">
+
+
+
+
+
+
+
+
+
+<meta http-equiv="Cache-Control" content="no-transform">
+<meta http-equiv="Cache-Control" content="no-siteapp">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+  <link href="/lib/fancybox/source/jquery.fancybox.css?v=2.1.5" rel="stylesheet" type="text/css">
+
+
+
+
+
+
+
+<link href="/lib/font-awesome/css/font-awesome.min.css?v=4.6.2" rel="stylesheet" type="text/css">
+
+<link href="/css/main.css?v=5.1.4" rel="stylesheet" type="text/css">
+
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png?v=5.1.4">
+
+
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png?v=5.1.4">
+
+
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png?v=5.1.4">
+
+
+  <link rel="mask-icon" href="/images/logo.svg?v=5.1.4" color="#222">
+
+
+
+
+
+  <meta name="keywords" content="securityManager,">
+
+
+
+
+
+
+
+
+
+
+<meta name="description" content="前言从前篇 shiro 架构文章中，可以了解到 SecurityManager 是 shrio 框架中最核心的部分，它作连接了认证，权限，session 多个模块。本篇文章会介绍 SecurityManager 的设计思想，和多个模块之间的衔接。 设计模式SecurityManager 的设计使用了门面模式，如下图所示：  SecurityManager  作为门面类，封装下面的多个子模块。 Se">
+<meta name="keywords" content="securityManager">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Apache Shiro SecurityManager 原理">
+<meta property="og:url" content="https://zhmin.github.io/2020/04/12/shiro-security-manager/index.html">
+<meta property="og:site_name" content="学习笔记">
+<meta property="og:description" content="前言从前篇 shiro 架构文章中，可以了解到 SecurityManager 是 shrio 框架中最核心的部分，它作连接了认证，权限，session 多个模块。本篇文章会介绍 SecurityManager 的设计思想，和多个模块之间的衔接。 设计模式SecurityManager 的设计使用了门面模式，如下图所示：  SecurityManager  作为门面类，封装下面的多个子模块。 Se">
+<meta property="og:locale" content="default">
+<meta property="og:image" content="https://zhmin.github.io/2020/04/12/shiro-security-manager/shrio-facade.svg">
+<meta property="og:image" content="https://zhmin.github.io/2020/04/12/shiro-security-manager/shrio-security-authenticator.svg">
+<meta property="og:updated_time" content="2020-04-12T12:39:08.544Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Apache Shiro SecurityManager 原理">
+<meta name="twitter:description" content="前言从前篇 shiro 架构文章中，可以了解到 SecurityManager 是 shrio 框架中最核心的部分，它作连接了认证，权限，session 多个模块。本篇文章会介绍 SecurityManager 的设计思想，和多个模块之间的衔接。 设计模式SecurityManager 的设计使用了门面模式，如下图所示：  SecurityManager  作为门面类，封装下面的多个子模块。 Se">
+<meta name="twitter:image" content="https://zhmin.github.io/2020/04/12/shiro-security-manager/shrio-facade.svg">
+
+
+
+<script type="text/javascript" id="hexo.configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '/',
+    scheme: 'Mist',
+    version: '5.1.4',
+    sidebar: {"position":"left","display":"hide","offset":12,"b2t":false,"scrollpercent":false,"onmobile":false},
+    fancybox: true,
+    tabs: true,
+    motion: {"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},
+    duoshuo: {
+      userId: '0',
+      author: 'Author'
+    },
+    algolia: {
+      applicationID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    }
+  };
+</script>
+
+
+
+  <link rel="canonical" href="https://zhmin.github.io/2020/04/12/shiro-security-manager/">
+
+
+
+
+
+  <title>Apache Shiro SecurityManager 原理 | 学习笔记</title>
+  
+
+
+
+
+
+
+
+
+</head>
+
+<body itemscope="" itemtype="http://schema.org/WebPage" lang="default">
+
+  
+  
+    
+  
+
+  <div class="container sidebar-position-left page-post-detail">
+    <div class="headband"></div>
+
+    <header id="header" class="header" itemscope="" itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-wrapper">
+  <div class="site-meta ">
+    
+
+    <div class="custom-logo-site-title">
+      <a href="/" class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">学习笔记</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+      
+        <h1 class="site-subtitle" itemprop="description"></h1>
+      
+  </div>
+
+  <div class="site-nav-toggle">
+    <button>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+    </button>
+  </div>
+</div>
+
+<nav class="site-nav">
+  
+
+  
+    <ul id="menu" class="menu">
+      
+        
+        <li class="menu-item menu-item-home">
+          <a href="/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-home"></i> <br>
+            
+            Home
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-categories">
+          <a href="/categories/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-th"></i> <br>
+            
+            Categories
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-archives">
+          <a href="/archives/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-archive"></i> <br>
+            
+            Archives
+          </a>
+        </li>
+      
+
+      
+    </ul>
+  
+
+  
+</nav>
+
+
+
+ </div>
+    </header>
+
+    <main id="main" class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          <div id="content" class="content">
+            
+
+  <div id="posts" class="posts-expand">
+    
+
+  
+
+  
+  
+  
+
+  <article class="post post-type-normal" itemscope="" itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block">
+    <link itemprop="mainEntityOfPage" href="https://zhmin.github.io/2020/04/12/shiro-security-manager/">
+
+    <span hidden itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="zhmin">
+      <meta itemprop="description" content="">
+      <meta itemprop="image" content="/images/avatar.gif">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope="" itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="学习笔记">
+    </span>
+
+    
+      <header class="post-header">
+
+        
+        
+          <h2 class="post-title" itemprop="name headline">Apache Shiro SecurityManager 原理</h2>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">Posted on</span>
+              
+              <time title="Post created" itemprop="dateCreated datePublished" datetime="2020-04-12T20:28:40+08:00">
+                2020-04-12
+              </time>
+            
+
+            
+
+            
+          </span>
+
+          
+            <span class="post-category">
+            
+              <span class="post-meta-divider">|</span>
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">In</span>
+              
+              
+                <span itemprop="about" itemscope="" itemtype="http://schema.org/Thing">
+                  <a href="/categories/shiro/" itemprop="url" rel="index">
+                    <span itemprop="name">shiro</span>
+                  </a>
+                </span>
+
+                
+                
+              
+            </span>
+          
+
+          
+            
+              <span class="post-comments-count">
+                <span class="post-meta-divider">|</span>
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-comment-o"></i>
+                </span>
+                <a href="/2020/04/12/shiro-security-manager/#comments" itemprop="discussionUrl">
+                  <span class="post-comments-count valine-comment-count" data-xid="/2020/04/12/shiro-security-manager/" itemprop="commentCount"></span>
+                </a>
+              </span>
+            
+          
+
+          
+          
+             <span id="/2020/04/12/shiro-security-manager/" class="leancloud_visitors" data-flag-title="Apache Shiro SecurityManager 原理">
+               <span class="post-meta-divider">|</span>
+               <span class="post-meta-item-icon">
+                 <i class="fa fa-eye"></i>
+               </span>
+               
+                 <span class="post-meta-item-text">Visitors&#58;</span>
+               
+                 <span class="leancloud-visitors-count"></span>
+             </span>
+          
+
+          
+
+          
+
+          
+
+        </div>
+      </header>
+    
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+      
+
+      
+        <h2 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h2><p>从前篇 shiro 架构文章中，可以了解到 SecurityManager 是 shrio 框架中最核心的部分，它作连接了认证，权限，session 多个模块。本篇文章会介绍 SecurityManager 的设计思想，和多个模块之间的衔接。</p>
+<h2 id="设计模式"><a href="#设计模式" class="headerlink" title="设计模式"></a>设计模式</h2><p>SecurityManager 的设计使用了门面模式，如下图所示：</p>
+<p><img src="/2020/04/12/shiro-security-manager/shrio-facade.svg"></p>
+<p>SecurityManager  作为门面类，封装下面的多个子模块。</p>
+<h2 id="SecurityManager-类图"><a href="#SecurityManager-类图" class="headerlink" title="SecurityManager  类图"></a>SecurityManager  类图</h2><p>再来看看它的类图设计：</p>
+<pre class="mermaid">classDiagram
+    class Authenticator
+    &lt;&lt;interface>> Authenticator
+    class Authorizer
+    &lt;&lt;interface>> Authorizer
+    class SessionManager
+    &lt;&lt;interface>> SessionManager
+    class SecurityManager
+    &lt;&lt;interface>> SecurityManager
+
+    Authenticator &lt;|-- SecurityManager
+    Authorizer &lt;|-- SecurityManager
+    SessionManager &lt;|-- SecurityManager
+
+    class Destroyable
+    &lt;&lt;interface>> Destroyable
+    class CacheManagerAware
+    &lt;&lt;interface>> CacheManagerAware
+    class EventBusAware
+    &lt;&lt;interface>> EventBusAware
+
+    class CachingSecurityManager
+    &lt;&lt;abstract>> CachingSecurityManager
+    Destroyable &lt;|-- CachingSecurityManager
+    CacheManagerAware &lt;|-- CachingSecurityManager
+    EventBusAware &lt;|-- CachingSecurityManager
+
+    class RealmSecurityManager
+    &lt;&lt;abstract>> RealmSecurityManager
+
+    SecurityManager &lt;|-- CachingSecurityManager
+    CachingSecurityManager &lt;|-- RealmSecurityManager
+
+    class AuthenticatingSecurityManager
+    &lt;&lt;abstract>> AuthenticatingSecurityManager
+    RealmSecurityManager &lt;|-- AuthenticatingSecurityManager
+
+    class AuthorizingSecurityManager
+    &lt;&lt;abstract>> AuthorizingSecurityManager
+    AuthenticatingSecurityManager &lt;|-- AuthorizingSecurityManager
+
+    class SessionsSecurityManager
+    &lt;&lt;abstract>> SessionsSecurityManager
+    AuthorizingSecurityManager &lt;|-- SessionsSecurityManager
+
+    class DefaultSecurityManager
+    SessionsSecurityManager &lt;|-- DefaultSecurityManager
+
+    class DefaultWebSecurityManager
+    DefaultSecurityManager &lt;|-- DefaultWebSecurityManager 
+</pre>
+
+
+
+<p>上图虽然涉及到了多个类，层级比较多，但是它的设计思想不难。首先注意到最上层的<code>SecurityManager</code>接口，它继承了三个接口，</p>
+<ol>
+<li><code>Authenticator</code>，身份认证</li>
+<li><code>Authorizer</code>，权限认证</li>
+<li><code>SessionManager</code>，session 管理</li>
+</ol>
+<p>然后继续看下面的子类，每一个子类都实现了特定的接口。</p>
+<ol>
+<li><code>AuthenticatingSecurityManager</code>层实现了<code>Authenticator</code>接口，支持用户身份认证。</li>
+<li><code>AuthorizingSecurityManager</code>层实现了<code>Authorizer</code>接口，支持权限验证。</li>
+<li><code>SessionsSecurityManager</code>层实现了<code>SessionManager</code>接口，支持 session，注意到这里session不仅仅包含web的session。</li>
+</ol>
+<p>这三个类都是用了策略模式，来实现对应的接口。以<code>AuthenticatingSecurityManager</code>为例，它实现了<code>Authenticator</code>接口，但都是转发给别的<code>Authenticator</code>实例完成，如下图所示</p>
+<p><img src="/2020/04/12/shiro-security-manager/shrio-security-authenticator.svg"></p>
+<p>下面是<code>AuthenticatingSecurityManager</code>实现的代码</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="keyword">abstract</span> <span class="class"><span class="keyword">class</span> <span class="title">AuthenticatingSecurityManager</span> <span class="keyword">extends</span> <span class="title">RealmSecurityManager</span> </span>&#123;</span><br><span class="line">    </span><br><span class="line">    <span class="keyword">private</span> Authenticator authenticator;</span><br><span class="line">    </span><br><span class="line">    <span class="function"><span class="keyword">public</span> AuthenticationInfo <span class="title">authenticate</span><span class="params">(AuthenticationToken token)</span> <span class="keyword">throws</span> AuthenticationException </span>&#123;</span><br><span class="line">        <span class="comment">// 调用了其它Authenticator的方法</span></span><br><span class="line">        <span class="keyword">return</span> <span class="keyword">this</span>.authenticator.authenticate(token);</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p><code>DefaultSecurityManager</code>是 shiro 默认的实现类。</p>
+<p><code>DefaultWebSecurityManager</code>用于在 Web 环境下，增加了 http 的操作。</p>
+<h2 id="身份认证模块"><a href="#身份认证模块" class="headerlink" title="身份认证模块"></a>身份认证模块</h2><p>身份认证作为 shiro 最基础的模块，这里需要讲述下它的原理和如何集成到 SecurityManager。</p>
+<h3 id="Authenticator-接口"><a href="#Authenticator-接口" class="headerlink" title="Authenticator 接口"></a>Authenticator 接口</h3><p>认证接口由<code>Authenticator</code>接口表示</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">interface</span> <span class="title">Authenticator</span> </span>&#123;</span><br><span class="line">    </span><br><span class="line">    <span class="comment">// authenticationToken 包含了验证信息，</span></span><br><span class="line">    <span class="comment">// 如果验证失败，会抛出异常。如果验证成功，则会返回用户身份信息 AuthenticationInfo</span></span><br><span class="line">    <span class="function"><span class="keyword">public</span> AuthenticationInfo <span class="title">authenticate</span><span class="params">(AuthenticationToken authenticationToken)</span></span></span><br><span class="line"><span class="function">            <span class="keyword">throws</span> AuthenticationException</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p><code>Authenticator</code>也有多个子类：</p>
+<pre class="mermaid">classDiagram
+    class Authenticator
+    &lt;&lt;Interface>> Authenticator
+
+    class AbstractAuthenticator
+    &lt;&lt;abstract>> AbstractAuthenticator
+
+    Authenticator &lt;|-- AbstractAuthenticator
+
+    class ModularRealmAuthenticator
+    AbstractAuthenticator &lt;|-- ModularRealmAuthenticator 
+</pre>
+
+<p><code>AbstractAuthenticator</code>抽象类，支持认证成功和失败时的回调。这里需要重要的介绍下<code>ModularRealmAuthenticator</code>子类，它作为 shrio 默认的实现类，并且负责连接着<code>DefaultSecurityManager</code>和<code>Realm</code>。</p>
+<p><code>ModularRealmAuthenticator</code>有个重要的功能，能支持不同的认证策略。举个例子，小明既是公司A的技术总监，同时也是公司B的技术总监，并且两个公司有着独立的身份认证。</p>
+<p>现在小明登录到一个系统，这个系统要求只要是技术总监身份，就可以登录，那么认证策略为至少一次认证成功。</p>
+<p>如果该系统要求必须是两个公司的技术总监身份，才能登录，那么认证策略为全部都要成功。</p>
+<p>shrio 目前支持的策略如下所示：</p>
+<table>
+<thead>
+<tr>
+<th>认证策略类</th>
+<th>含义</th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>AtLeastOneSuccessfulStrategy</code></td>
+<td>会进行所有的身份认证，并聚集认证结果（默认策略）</td>
+<td></td>
+</tr>
+<tr>
+<td><code>AllSuccessfulStrategy</code></td>
+<td>必须全部认证成功</td>
+<td></td>
+</tr>
+<tr>
+<td><code>FirstSuccessfulStrategy</code></td>
+<td>只使用第一个身份认证成功的结果，并且支持自定义退出认证链</td>
+</tr>
+</tbody>
+</table>
+<p>继续来看看<code>ModularRealmAuthenticator</code>的内部，它管理者多个身份认证，这个就是<code>Realm</code>接口，在后面会介绍。下面的代码可以看到它有一个列表来保存<code>Realm</code></p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">ModularRealmAuthenticator</span> <span class="keyword">extends</span> <span class="title">AbstractAuthenticator</span> </span>&#123;</span><br><span class="line">    <span class="comment">// 身份认证，用户可以自己实现</span></span><br><span class="line">    <span class="keyword">private</span> Collection&lt;Realm&gt; realms;</span><br><span class="line">    </span><br><span class="line">    <span class="comment">// 认证策略</span></span><br><span class="line">    <span class="keyword">private</span> AuthenticationStrategy authenticationStrategy;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h3 id="集成-Authenticator"><a href="#集成-Authenticator" class="headerlink" title="集成 Authenticator"></a>集成 Authenticator</h3><p>我们再回到<code>SecurityManager</code>，看看它是如何与<code>ModularRealmAuthenticator</code>集成的。这里通过查看<code>SecurityManager</code>的两个子类就可以知道。</p>
+<p>首先<code>RealmSecurityManager</code>支持设置<code>Realm</code>列表，注意到<code>afterRealmsSet</code>函数的调用。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="keyword">abstract</span> <span class="class"><span class="keyword">class</span> <span class="title">RealmSecurityManager</span> <span class="keyword">extends</span> <span class="title">CachingSecurityManager</span> </span>&#123;</span><br><span class="line">    </span><br><span class="line">    <span class="keyword">private</span> Collection&lt;Realm&gt; realms;</span><br><span class="line">    </span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">setRealms</span><span class="params">(Collection&lt;Realm&gt; realms)</span> </span>&#123;</span><br><span class="line">        <span class="keyword">this</span>.realms = realms;</span><br><span class="line">        afterRealmsSet();</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>然后看看<code>AuthenticatingSecurityManager</code>的实现</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="keyword">abstract</span> <span class="class"><span class="keyword">class</span> <span class="title">AuthenticatingSecurityManager</span> <span class="keyword">extends</span> <span class="title">RealmSecurityManager</span> </span>&#123;</span><br><span class="line">    </span><br><span class="line">    <span class="keyword">private</span> Authenticator authenticator;</span><br><span class="line">    </span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="title">AuthenticatingSecurityManager</span><span class="params">()</span> </span>&#123;</span><br><span class="line">        <span class="keyword">super</span>();</span><br><span class="line">        <span class="comment">// 实例化ModularRealmAuthenticator</span></span><br><span class="line">        <span class="keyword">this</span>.authenticator = <span class="keyword">new</span> ModularRealmAuthenticator();</span><br><span class="line">    &#125;</span><br><span class="line">    </span><br><span class="line">    <span class="comment">// 重载afterRealmsSet函数</span></span><br><span class="line">    <span class="function"><span class="keyword">protected</span> <span class="keyword">void</span> <span class="title">afterRealmsSet</span><span class="params">()</span> </span>&#123;</span><br><span class="line">        <span class="keyword">super</span>.afterRealmsSet();</span><br><span class="line">        <span class="keyword">if</span> (<span class="keyword">this</span>.authenticator <span class="keyword">instanceof</span> ModularRealmAuthenticator) &#123;</span><br><span class="line">            <span class="comment">// 将 Realm列表存储到 ModularRealmAuthenticator</span></span><br><span class="line">            ((ModularRealmAuthenticator) <span class="keyword">this</span>.authenticator).setRealms(getRealms());</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h2 id="权限校检"><a href="#权限校检" class="headerlink" title="权限校检"></a>权限校检</h2><p>权限校检同样作为 shiro 最基础的模块，这里也需要讲述下它的原理和如何集成到 SecurityManager。</p>
+<h3 id="Authorizer-接口"><a href="#Authorizer-接口" class="headerlink" title="Authorizer 接口"></a>Authorizer 接口</h3><p>权限校检接口由<code>Authorizer</code>接口表示，下面列举它的一些方法</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">interface</span> <span class="title">Authorizer</span> </span>&#123;</span><br><span class="line">    </span><br><span class="line">    <span class="function"><span class="keyword">boolean</span> <span class="title">isPermitted</span><span class="params">(PrincipalCollection principals, String permission)</span></span>;</span><br><span class="line">    </span><br><span class="line">    <span class="function"><span class="keyword">boolean</span> <span class="title">isPermitted</span><span class="params">(PrincipalCollection subjectPrincipal, Permission permission)</span></span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p><code>Authorizer</code>也有一个很重要的子类<code>ModularRealmAuthorizer</code>，作为 shrio 默认的实现类，同样管理着多个权限校检。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">ModularRealmAuthorizer</span> <span class="keyword">implements</span> <span class="title">Authorizer</span> </span>&#123;</span><br><span class="line">    </span><br><span class="line">    <span class="comment">// Realm 列表</span></span><br><span class="line">    <span class="keyword">protected</span> Collection&lt;Realm&gt; realms;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 循环遍历Realm，如果其中有一个权限校检成功，那么就会认为权限通过</span></span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">boolean</span> <span class="title">isPermitted</span><span class="params">(PrincipalCollection principals, String permission)</span> </span>&#123;</span><br><span class="line">        <span class="keyword">for</span> (Realm realm : getRealms()) &#123;</span><br><span class="line">            <span class="keyword">if</span> (!(realm <span class="keyword">instanceof</span> Authorizer)) <span class="keyword">continue</span>;</span><br><span class="line">            <span class="keyword">if</span> (((Authorizer) realm).isPermitted(principals, permission)) &#123;</span><br><span class="line">                <span class="keyword">return</span> <span class="keyword">true</span>;</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="keyword">return</span> <span class="keyword">false</span>;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>注意到上述的权限校检，这里同身份认证不同，只支持一种策略，那就是只要匹配其中的一个权限校检，就认为权限校检成功。</p>
+<h3 id="集成-SecurityManager"><a href="#集成-SecurityManager" class="headerlink" title="集成 SecurityManager"></a>集成 SecurityManager</h3><p>我们来看看它与<code>SecurityManager</code>集成原理，是由<code>AuthorizingSecurityManager</code>类负责的。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="keyword">abstract</span> <span class="class"><span class="keyword">class</span> <span class="title">AuthorizingSecurityManager</span> <span class="keyword">extends</span> <span class="title">AuthenticatingSecurityManager</span> </span>&#123;</span><br><span class="line">    </span><br><span class="line">    <span class="keyword">private</span> Authorizer authorizer;</span><br><span class="line">    </span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="title">AuthorizingSecurityManager</span><span class="params">()</span> </span>&#123;</span><br><span class="line">        <span class="keyword">super</span>();</span><br><span class="line">        <span class="comment">// 实例化ModularRealmAuthorizer</span></span><br><span class="line">        <span class="keyword">this</span>.authorizer = <span class="keyword">new</span> ModularRealmAuthorizer();</span><br><span class="line">    &#125;</span><br><span class="line">    </span><br><span class="line">    <span class="comment">// 重载afterRealmsSet方法</span></span><br><span class="line">    <span class="function"><span class="keyword">protected</span> <span class="keyword">void</span> <span class="title">afterRealmsSet</span><span class="params">()</span> </span>&#123;</span><br><span class="line">        <span class="keyword">super</span>.afterRealmsSet();</span><br><span class="line">        <span class="keyword">if</span> (<span class="keyword">this</span>.authorizer <span class="keyword">instanceof</span> ModularRealmAuthorizer) &#123;</span><br><span class="line">            <span class="comment">// 设置 ModularRealmAuthorizer 的 Realm 列表</span></span><br><span class="line">            ((ModularRealmAuthorizer) <span class="keyword">this</span>.authorizer).setRealms(getRealms());</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    </span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">boolean</span> <span class="title">isPermitted</span><span class="params">(PrincipalCollection principals, String permissionString)</span> </span>&#123;</span><br><span class="line">        <span class="comment">// 权限校检直接交给authorizer处理</span></span><br><span class="line">        <span class="keyword">return</span> <span class="keyword">this</span>.authorizer.isPermitted(principals, permissionString);</span><br><span class="line">    &#125;</span><br><span class="line">    </span><br><span class="line">    <span class="comment">//...... 其余的权限校检接口的实现，都是转发给authorizer处理</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+      
+    </div>
+    
+    
+    
+
+    
+
+    
+
+    
+
+    <footer class="post-footer">
+      
+        <div class="post-tags">
+          
+            <a href="/tags/securityManager/" rel="tag"># securityManager</a>
+          
+        </div>
+      
+
+      
+      
+      
+
+      
+        <div class="post-nav">
+          <div class="post-nav-next post-nav-item">
+            
+              <a href="/2020/04/09/shiro-subject/" rel="next" title="Apache Shiro Subject 原理">
+                <i class="fa fa-chevron-left"></i> Apache Shiro Subject 原理
+              </a>
+            
+          </div>
+
+          <span class="post-nav-divider"></span>
+
+          <div class="post-nav-prev post-nav-item">
+            
+          </div>
+        </div>
+      
+
+      
+      
+    </footer>
+  </div>
+  
+  
+  
+  </article>
+
+
+
+    <div class="post-spread">
+      
+    </div>
+  </div>
+
+
+          </div>
+          
+
+
+          
+
+  
+    <div class="comments" id="comments">
+    </div>
+  
+
+
+
+        </div>
+        
+          
+  
+  <div class="sidebar-toggle">
+    <div class="sidebar-toggle-line-wrap">
+      <span class="sidebar-toggle-line sidebar-toggle-line-first"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-middle"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-last"></span>
+    </div>
+  </div>
+
+  <aside id="sidebar" class="sidebar">
+    
+    <div class="sidebar-inner">
+
+      
+
+      
+        <ul class="sidebar-nav motion-element">
+          <li class="sidebar-nav-toc sidebar-nav-active" data-target="post-toc-wrap">
+            Table of Contents
+          </li>
+          <li class="sidebar-nav-overview" data-target="site-overview-wrap">
+            Overview
+          </li>
+        </ul>
+      
+
+      <section class="site-overview-wrap sidebar-panel">
+        <div class="site-overview">
+          <div class="site-author motion-element" itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+            
+              <p class="site-author-name" itemprop="name">zhmin</p>
+              <p class="site-description motion-element" itemprop="description"></p>
+          </div>
+
+          <nav class="site-state motion-element">
+
+            
+              <div class="site-state-item site-state-posts">
+              
+                <a href="/archives/">
+              
+                  <span class="site-state-item-count">69</span>
+                  <span class="site-state-item-name">posts</span>
+                </a>
+              </div>
+            
+
+            
+              
+              
+              <div class="site-state-item site-state-categories">
+                <a href="/categories/index.html">
+                  <span class="site-state-item-count">15</span>
+                  <span class="site-state-item-name">categories</span>
+                </a>
+              </div>
+            
+
+            
+              
+              
+              <div class="site-state-item site-state-tags">
+                
+                  <span class="site-state-item-count">63</span>
+                  <span class="site-state-item-name">tags</span>
+                
+              </div>
+            
+
+          </nav>
+
+          
+
+          
+            <div class="links-of-author motion-element">
+                
+                  <span class="links-of-author-item">
+                    <a href="https://github.com/zhmin" target="_blank" title="GitHub">
+                      
+                        <i class="fa fa-fw fa-github"></i>GitHub</a>
+                  </span>
+                
+            </div>
+          
+
+          
+          
+
+          
+          
+
+          
+
+        </div>
+      </section>
+
+      
+      <!--noindex-->
+        <section class="post-toc-wrap motion-element sidebar-panel sidebar-panel-active">
+          <div class="post-toc">
+
+            
+              
+            
+
+            
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#前言"><span class="nav-number">1.</span> <span class="nav-text">前言</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#设计模式"><span class="nav-number">2.</span> <span class="nav-text">设计模式</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#SecurityManager-类图"><span class="nav-number">3.</span> <span class="nav-text">SecurityManager  类图</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#身份认证模块"><span class="nav-number">4.</span> <span class="nav-text">身份认证模块</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#Authenticator-接口"><span class="nav-number">4.1.</span> <span class="nav-text">Authenticator 接口</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#集成-Authenticator"><span class="nav-number">4.2.</span> <span class="nav-text">集成 Authenticator</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#权限校检"><span class="nav-number">5.</span> <span class="nav-text">权限校检</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#Authorizer-接口"><span class="nav-number">5.1.</span> <span class="nav-text">Authorizer 接口</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#集成-SecurityManager"><span class="nav-number">5.2.</span> <span class="nav-text">集成 SecurityManager</span></a></li></ol></li></ol></div>
+            
+
+          </div>
+        </section>
+      <!--/noindex-->
+      
+
+      
+
+    </div>
+  </aside>
+
+
+        
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="footer-inner">
+        <div class="copyright">&copy; <span itemprop="copyrightYear">2020</span>
+  <span class="with-love">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">zhmin</span>
+
+  
+</div>
+
+
+
+
+
+
+
+
+
+
+
+  <script src="https://unpkg.com/mermaid@8/dist/mermaid.min.js"></script>
+  <script>
+    if (window.mermaid) {
+      mermaid.initialize({"startOnload":true,"theme":"forest"});
+    }
+  </script>
+
+
+
+<script async src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+<span id="busuanzi_container_site_pv">
+    访问量<span id="busuanzi_value_site_pv"></span>
+</span>
+<span class="post-meta-divider">|</span>
+<span id="busuanzi_container_site_uv">
+  访客数<span id="busuanzi_value_site_uv"></span>
+</span>
+
+        
+
+
+
+
+
+
+
+        
+      </div>
+    </footer>
+
+    
+      <div class="back-to-top">
+        <i class="fa fa-arrow-up"></i>
+        
+      </div>
+    
+
+    
+
+  </div>
+
+  
+
+<script type="text/javascript">
+  if (Object.prototype.toString.call(window.Promise) !== '[object Function]') {
+    window.Promise = null;
+  }
+</script>
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery/index.js?v=2.1.3"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fastclick/lib/fastclick.min.js?v=1.0.6"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery_lazyload/jquery.lazyload.js?v=1.9.7"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.ui.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fancybox/source/jquery.fancybox.pack.js?v=2.1.5"></script>
+  
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/utils.js?v=5.1.4"></script>
+
+  <script type="text/javascript" src="/js/src/motion.js?v=5.1.4"></script>
+
+
+
+  
+  
+
+  
+  <script type="text/javascript" src="/js/src/scrollspy.js?v=5.1.4"></script>
+<script type="text/javascript" src="/js/src/post-details.js?v=5.1.4"></script>
+
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/bootstrap.js?v=5.1.4"></script>
+
+
+
+  
+
+
+  
+
+
+
+
+	
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+  <script src="//cdn1.lncld.net/static/js/3.0.4/av-min.js"></script>
+  <script src="//unpkg.com/valine/dist/Valine.min.js"></script>
+  
+  <script type="text/javascript">
+    var GUEST = ['nick','mail','link'];
+    var guest = 'nick';
+    guest = guest.split(',').filter(item=>{
+      return GUEST.indexOf(item)>-1;
+    });
+    new Valine({
+        el: '#comments' ,
+        verify: false,
+        notify: false,
+        appId: 'iYiPQlDR2X2zg2QIql2UEe2o-gzGzoHsz',
+        appKey: 'EW8G4sftwX1pef1zS9EsOeKE',
+        placeholder: 'comment here',
+        avatar:'mm',
+        guest_info:guest,
+        pageSize:'10' || 10,
+    });
+  </script>
+
+
+
+  
+
+
+
+
+
+  
+
+  
+  <script src="https://cdn1.lncld.net/static/js/av-core-mini-0.6.4.js"></script>
+  <script>AV.initialize("iYiPQlDR2X2zg2QIql2UEe2o-gzGzoHsz", "EW8G4sftwX1pef1zS9EsOeKE");</script>
+  <script>
+    function showTime(Counter) {
+      var query = new AV.Query(Counter);
+      var entries = [];
+      var $visitors = $(".leancloud_visitors");
+
+      $visitors.each(function () {
+        entries.push( $(this).attr("id").trim() );
+      });
+
+      query.containedIn('url', entries);
+      query.find()
+        .done(function (results) {
+          var COUNT_CONTAINER_REF = '.leancloud-visitors-count';
+
+          if (results.length === 0) {
+            $visitors.find(COUNT_CONTAINER_REF).text(0);
+            return;
+          }
+
+          for (var i = 0; i < results.length; i++) {
+            var item = results[i];
+            var url = item.get('url');
+            var time = item.get('time');
+            var element = document.getElementById(url);
+
+            $(element).find(COUNT_CONTAINER_REF).text(time);
+          }
+          for(var i = 0; i < entries.length; i++) {
+            var url = entries[i];
+            var element = document.getElementById(url);
+            var countSpan = $(element).find(COUNT_CONTAINER_REF);
+            if( countSpan.text() == '') {
+              countSpan.text(0);
+            }
+          }
+        })
+        .fail(function (object, error) {
+          console.log("Error: " + error.code + " " + error.message);
+        });
+    }
+
+    function addCount(Counter) {
+      var $visitors = $(".leancloud_visitors");
+      var url = $visitors.attr('id').trim();
+      var title = $visitors.attr('data-flag-title').trim();
+      var query = new AV.Query(Counter);
+
+      query.equalTo("url", url);
+      query.find({
+        success: function(results) {
+          if (results.length > 0) {
+            var counter = results[0];
+            counter.fetchWhenSave(true);
+            counter.increment("time");
+            counter.save(null, {
+              success: function(counter) {
+                var $element = $(document.getElementById(url));
+                $element.find('.leancloud-visitors-count').text(counter.get('time'));
+              },
+              error: function(counter, error) {
+                console.log('Failed to save Visitor num, with error message: ' + error.message);
+              }
+            });
+          } else {
+            var newcounter = new Counter();
+            /* Set ACL */
+            var acl = new AV.ACL();
+            acl.setPublicReadAccess(true);
+            acl.setPublicWriteAccess(true);
+            newcounter.setACL(acl);
+            /* End Set ACL */
+            newcounter.set("title", title);
+            newcounter.set("url", url);
+            newcounter.set("time", 1);
+            newcounter.save(null, {
+              success: function(newcounter) {
+                var $element = $(document.getElementById(url));
+                $element.find('.leancloud-visitors-count').text(newcounter.get('time'));
+              },
+              error: function(newcounter, error) {
+                console.log('Failed to create');
+              }
+            });
+          }
+        },
+        error: function(error) {
+          console.log('Error:' + error.code + " " + error.message);
+        }
+      });
+    }
+
+    $(function() {
+      var Counter = AV.Object.extend("Counter");
+      if ($('.leancloud_visitors').length == 1) {
+        addCount(Counter);
+      } else if ($('.post-title-link').length > 1) {
+        showTime(Counter);
+      }
+    });
+  </script>
+
+
+
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+</body>
+</html>
