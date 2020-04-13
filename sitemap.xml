@@ -2,6 +2,13 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   
   <url>
+    <loc>https://zhmin.github.io/2020/04/13/shiro-realm/</loc>
+    
+    <lastmod>2020-04-13T15:13:43.219Z</lastmod>
+    
+  </url>
+  
+  <url>
     <loc>https://zhmin.github.io/2020/04/12/shiro-security-manager/</loc>
     
     <lastmod>2020-04-12T12:39:08.544Z</lastmod>

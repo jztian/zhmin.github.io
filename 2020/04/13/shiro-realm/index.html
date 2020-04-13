@@ -1,0 +1,1031 @@
+<!DOCTYPE html>
+
+
+
+  
+
+
+<html class="theme-next mist use-motion" lang="">
+<head><meta name="generator" content="Hexo 3.8.0">
+  <meta charset="UTF-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="theme-color" content="#222">
+
+
+
+
+
+
+
+
+
+<meta http-equiv="Cache-Control" content="no-transform">
+<meta http-equiv="Cache-Control" content="no-siteapp">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+  <link href="/lib/fancybox/source/jquery.fancybox.css?v=2.1.5" rel="stylesheet" type="text/css">
+
+
+
+
+
+
+
+<link href="/lib/font-awesome/css/font-awesome.min.css?v=4.6.2" rel="stylesheet" type="text/css">
+
+<link href="/css/main.css?v=5.1.4" rel="stylesheet" type="text/css">
+
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png?v=5.1.4">
+
+
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png?v=5.1.4">
+
+
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png?v=5.1.4">
+
+
+  <link rel="mask-icon" href="/images/logo.svg?v=5.1.4" color="#222">
+
+
+
+
+
+  <meta name="keywords" content="realm,">
+
+
+
+
+
+
+
+
+
+
+<meta name="description" content="前言在 shiro 框架的文章中，了解到Realm是用作获取用户身份信息和权限信息的。shiro 将这块分离出来，使得我们可以自定义，以适应不同的场景。比如用户的信息可以存储数据库中，也在外面添加了一层缓存，我们可以实现自己的Realm，完成缓存和数据库的读取操作。 Realm 接口先来看看Realm接口的定义，它的方法只有三个，涉及到了AuthenticationToken和Authentica">
+<meta name="keywords" content="realm">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Apache Shiro Realm 原理和自定义">
+<meta property="og:url" content="https://zhmin.github.io/2020/04/13/shiro-realm/index.html">
+<meta property="og:site_name" content="学习笔记">
+<meta property="og:description" content="前言在 shiro 框架的文章中，了解到Realm是用作获取用户身份信息和权限信息的。shiro 将这块分离出来，使得我们可以自定义，以适应不同的场景。比如用户的信息可以存储数据库中，也在外面添加了一层缓存，我们可以实现自己的Realm，完成缓存和数据库的读取操作。 Realm 接口先来看看Realm接口的定义，它的方法只有三个，涉及到了AuthenticationToken和Authentica">
+<meta property="og:locale" content="default">
+<meta property="og:updated_time" content="2020-04-13T15:13:43.219Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Apache Shiro Realm 原理和自定义">
+<meta name="twitter:description" content="前言在 shiro 框架的文章中，了解到Realm是用作获取用户身份信息和权限信息的。shiro 将这块分离出来，使得我们可以自定义，以适应不同的场景。比如用户的信息可以存储数据库中，也在外面添加了一层缓存，我们可以实现自己的Realm，完成缓存和数据库的读取操作。 Realm 接口先来看看Realm接口的定义，它的方法只有三个，涉及到了AuthenticationToken和Authentica">
+
+
+
+<script type="text/javascript" id="hexo.configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '/',
+    scheme: 'Mist',
+    version: '5.1.4',
+    sidebar: {"position":"left","display":"hide","offset":12,"b2t":false,"scrollpercent":false,"onmobile":false},
+    fancybox: true,
+    tabs: true,
+    motion: {"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},
+    duoshuo: {
+      userId: '0',
+      author: 'Author'
+    },
+    algolia: {
+      applicationID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    }
+  };
+</script>
+
+
+
+  <link rel="canonical" href="https://zhmin.github.io/2020/04/13/shiro-realm/">
+
+
+
+
+
+  <title>Apache Shiro Realm 原理和自定义 | 学习笔记</title>
+  
+
+
+
+
+
+
+
+
+</head>
+
+<body itemscope="" itemtype="http://schema.org/WebPage" lang="default">
+
+  
+  
+    
+  
+
+  <div class="container sidebar-position-left page-post-detail">
+    <div class="headband"></div>
+
+    <header id="header" class="header" itemscope="" itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-wrapper">
+  <div class="site-meta ">
+    
+
+    <div class="custom-logo-site-title">
+      <a href="/" class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">学习笔记</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+      
+        <h1 class="site-subtitle" itemprop="description"></h1>
+      
+  </div>
+
+  <div class="site-nav-toggle">
+    <button>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+    </button>
+  </div>
+</div>
+
+<nav class="site-nav">
+  
+
+  
+    <ul id="menu" class="menu">
+      
+        
+        <li class="menu-item menu-item-home">
+          <a href="/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-home"></i> <br>
+            
+            Home
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-categories">
+          <a href="/categories/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-th"></i> <br>
+            
+            Categories
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-archives">
+          <a href="/archives/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-archive"></i> <br>
+            
+            Archives
+          </a>
+        </li>
+      
+
+      
+    </ul>
+  
+
+  
+</nav>
+
+
+
+ </div>
+    </header>
+
+    <main id="main" class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          <div id="content" class="content">
+            
+
+  <div id="posts" class="posts-expand">
+    
+
+  
+
+  
+  
+  
+
+  <article class="post post-type-normal" itemscope="" itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block">
+    <link itemprop="mainEntityOfPage" href="https://zhmin.github.io/2020/04/13/shiro-realm/">
+
+    <span hidden itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="zhmin">
+      <meta itemprop="description" content="">
+      <meta itemprop="image" content="/images/avatar.gif">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope="" itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="学习笔记">
+    </span>
+
+    
+      <header class="post-header">
+
+        
+        
+          <h2 class="post-title" itemprop="name headline">Apache Shiro Realm 原理和自定义</h2>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">Posted on</span>
+              
+              <time title="Post created" itemprop="dateCreated datePublished" datetime="2020-04-13T23:08:32+08:00">
+                2020-04-13
+              </time>
+            
+
+            
+
+            
+          </span>
+
+          
+            <span class="post-category">
+            
+              <span class="post-meta-divider">|</span>
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">In</span>
+              
+              
+                <span itemprop="about" itemscope="" itemtype="http://schema.org/Thing">
+                  <a href="/categories/shiro/" itemprop="url" rel="index">
+                    <span itemprop="name">shiro</span>
+                  </a>
+                </span>
+
+                
+                
+              
+            </span>
+          
+
+          
+            
+              <span class="post-comments-count">
+                <span class="post-meta-divider">|</span>
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-comment-o"></i>
+                </span>
+                <a href="/2020/04/13/shiro-realm/#comments" itemprop="discussionUrl">
+                  <span class="post-comments-count valine-comment-count" data-xid="/2020/04/13/shiro-realm/" itemprop="commentCount"></span>
+                </a>
+              </span>
+            
+          
+
+          
+          
+             <span id="/2020/04/13/shiro-realm/" class="leancloud_visitors" data-flag-title="Apache Shiro Realm 原理和自定义">
+               <span class="post-meta-divider">|</span>
+               <span class="post-meta-item-icon">
+                 <i class="fa fa-eye"></i>
+               </span>
+               
+                 <span class="post-meta-item-text">Visitors&#58;</span>
+               
+                 <span class="leancloud-visitors-count"></span>
+             </span>
+          
+
+          
+
+          
+
+          
+
+        </div>
+      </header>
+    
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+      
+
+      
+        <h2 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h2><p>在 shiro 框架的文章中，了解到<code>Realm</code>是用作获取用户身份信息和权限信息的。shiro 将这块分离出来，使得我们可以自定义，以适应不同的场景。比如用户的信息可以存储数据库中，也在外面添加了一层缓存，我们可以实现自己的<code>Realm</code>，完成缓存和数据库的读取操作。</p>
+<h2 id="Realm-接口"><a href="#Realm-接口" class="headerlink" title="Realm 接口"></a>Realm 接口</h2><p>先来看看<code>Realm</code>接口的定义，它的方法只有三个，涉及到了<code>AuthenticationToken</code>和<code>AuthenticationInfo</code>两个概念。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">interface</span> <span class="title">Realm</span> </span>&#123;</span><br><span class="line">    <span class="comment">// 返回唯一名称，作为该Realm的标识</span></span><br><span class="line">    <span class="function">String <span class="title">getName</span><span class="params">()</span></span>;</span><br><span class="line">    </span><br><span class="line">    <span class="comment">// 判断是否支持此类认证</span></span><br><span class="line">    <span class="function"><span class="keyword">boolean</span> <span class="title">supports</span><span class="params">(AuthenticationToken token)</span></span>;</span><br><span class="line">    </span><br><span class="line">    <span class="comment">// 认证逻辑实现</span></span><br><span class="line">    <span class="function">AuthenticationInfo <span class="title">getAuthenticationInfo</span><span class="params">(AuthenticationToken token)</span> <span class="keyword">throws</span> AuthenticationException</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h2 id="身份凭证"><a href="#身份凭证" class="headerlink" title="身份凭证"></a>身份凭证</h2><p><code>AuthenticationToken</code>是认证的凭证，可以简单的看作是账户名和密码。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">interface</span> <span class="title">AuthenticationToken</span> <span class="keyword">extends</span> <span class="title">Serializable</span> </span>&#123;</span><br><span class="line">    </span><br><span class="line">    <span class="comment">// 用户的唯一标识，相当于账户名</span></span><br><span class="line">    <span class="function">Object <span class="title">getPrincipal</span><span class="params">()</span></span>;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 用户的凭证，相当于密码 </span></span><br><span class="line">    <span class="function">Object <span class="title">getCredentials</span><span class="params">()</span></span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>下面是<code>AuthenticationToken</code>相关接口的类图</p>
+<pre class="mermaid">classDiagram
+    class AuthenticationToken
+    &lt;&lt;interface>> AuthenticationToken
+
+    class HostAuthenticationToken
+    &lt;&lt;interface>> HostAuthenticationToken
+    AuthenticationToken &lt;|-- HostAuthenticationToken
+
+    class RememberMeAuthenticationToken
+    &lt;&lt;interface>> RememberMeAuthenticationToken
+    AuthenticationToken &lt;|-- RememberMeAuthenticationToken
+
+    class UsernamePasswordToken
+    HostAuthenticationToken &lt;|-- UsernamePasswordToken
+    RememberMeAuthenticationToken &lt;|-- UsernamePasswordToken
+
+    class BearerToken
+    HostAuthenticationToken &lt;|-- BearerToken 
+</pre>
+
+
+
+<p><code>HostAuthenticationToken</code>添加了客户端的ip接口，<code>RememberMeAuthenticationToken</code>添加了是否需要记住我的接口。我们接着需要看看子类的实现，<code>UsernamePasswordToken</code>和<code>BearerToken</code>。</p>
+<p><code>UsernamePasswordToken</code>是用于账户名和密码的验证方式，所以它会保存这两个属性，当作<code>Principal</code>和<code>Credentials</code>。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">UsernamePasswordToken</span> </span>&#123;</span><br><span class="line">    </span><br><span class="line">    <span class="keyword">private</span> String username;</span><br><span class="line">    </span><br><span class="line">    <span class="keyword">private</span> <span class="keyword">char</span>[] password;</span><br><span class="line">   </span><br><span class="line">    <span class="comment">// 返回账户名</span></span><br><span class="line">    <span class="function"><span class="keyword">public</span> Object <span class="title">getPrincipal</span><span class="params">()</span> </span>&#123;</span><br><span class="line">        <span class="keyword">return</span> getUsername();</span><br><span class="line">    &#125;</span><br><span class="line">    </span><br><span class="line">    <span class="comment">// 返回密码</span></span><br><span class="line">    <span class="function"><span class="keyword">public</span> Object <span class="title">getCredentials</span><span class="params">()</span> </span>&#123;</span><br><span class="line">        <span class="keyword">return</span> getPassword();</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p><code>BearerToken</code>是用于基于 token 的验证方式，所以它的<code>Principal</code>和<code>Credentials</code>都是 token。当使用 jwt 验证时，就可以使用<code>BearerToken</code>。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">BearerToken</span> </span>&#123;</span><br><span class="line">    </span><br><span class="line">    <span class="keyword">private</span> <span class="keyword">final</span> String token;</span><br><span class="line">    </span><br><span class="line">    <span class="comment">// 返回 token</span></span><br><span class="line">    <span class="function"><span class="keyword">public</span> Object <span class="title">getPrincipal</span><span class="params">()</span> </span>&#123;</span><br><span class="line">        <span class="keyword">return</span> token;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 返回 token</span></span><br><span class="line">    <span class="function"><span class="keyword">public</span> Object <span class="title">getCredentials</span><span class="params">()</span> </span>&#123;</span><br><span class="line">        <span class="keyword">return</span> token;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h2 id="身份认证结果"><a href="#身份认证结果" class="headerlink" title="身份认证结果"></a>身份认证结果</h2><p><code>AuthenticationInfo</code>表示身份认证后的结果，包含了用户的身份信息。需要注意下<code>getPrincipals</code>返回的是身份集合，因为当存在多个<code>Realm</code>时，一个账户有可能是有多个身份的。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">interface</span> <span class="title">AuthenticationInfo</span> <span class="keyword">extends</span> <span class="title">Serializable</span> </span>&#123;</span><br><span class="line">    </span><br><span class="line">    <span class="comment">// 返回认证后的身份集合</span></span><br><span class="line">    <span class="function">PrincipalCollection <span class="title">getPrincipals</span><span class="params">()</span></span>;</span><br><span class="line">    </span><br><span class="line">    <span class="comment">// 返回凭证</span></span><br><span class="line">    <span class="function">Object <span class="title">getCredentials</span><span class="params">()</span></span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p><code>AuthenticationInfo</code>的相关类图如下所示，注意到右上边的<code>AuthorizationInfo</code>接口，它包含了用户的权限。</p>
+<pre class="mermaid">classDiagram
+
+    class AuthenticationInfo
+    &lt;&lt;interface>> AuthenticationInfo
+
+    class SaltedAuthenticationInfo
+    &lt;&lt;interface>> SaltedAuthenticationInfo
+    AuthenticationInfo &lt;|-- SaltedAuthenticationInfo
+
+    class MergableAuthenticationInfo
+    &lt;&lt;interface>> MergableAuthenticationInfo
+    AuthenticationInfo &lt;|-- MergableAuthenticationInfo
+
+    class SimpleAuthenticationInfo
+    SaltedAuthenticationInfo &lt;|-- SimpleAuthenticationInfo
+    MergableAuthenticationInfo &lt;|-- SimpleAuthenticationInfo
+
+    class AuthorizationInfo
+    &lt;&lt;interface>> AuthorizationInfo
+
+    class Account
+    &lt;&lt;interface>> Account
+    AuthenticationInfo &lt;|-- Account
+    AuthorizationInfo &lt;|-- Account
+
+    class SimpleAccount
+    Account &lt;|-- SimpleAccount
+    MergableAuthenticationInfo &lt;|-- SimpleAccount
+    SaltedAuthenticationInfo &lt;|-- SimpleAccount 
+</pre>
+
+<p><code>SaltedAuthenticationInfo</code>支持加盐操作，<code>MergableAuthenticationInfo</code>支持合并用户身份信息。</p>
+<p><code>SimpleAuthenticationInfo</code>也只是简单的实现，保存了对应的属性。</p>
+<p><code>SimpleAccount</code>实现了<code>AuthenticationInfo</code>接口，保存了身份信息，也实现了<code>AuthorizationInfo</code>接口，保存了用户的权限。</p>
+<h2 id="Realm-子类"><a href="#Realm-子类" class="headerlink" title="Realm 子类"></a>Realm 子类</h2><p>现在可以回过来看看 Realm 的子类，首先来看看它的类图</p>
+<pre class="mermaid">classDiagram
+    class Realm
+    &lt;&lt;interface>> Realm
+
+    class CachingRealm
+    &lt;&lt;abstract>> CachingRealm
+
+    Realm &lt;|-- CachingRealm
+
+    class AuthenticatingRealm
+    &lt;&lt;abstract>> AuthenticatingRealm
+
+    CachingRealm &lt;|-- AuthenticatingRealm
+
+    class AuthorizingRealm
+    &lt;&lt;abstract>> AuthorizingRealm
+
+    class Authorizer
+    &lt;&lt;interface>> Authorizer
+
+    Authorizer &lt;|-- AuthorizingRealm
+    AuthenticatingRealm &lt;|-- AuthorizingRealm 
+</pre>
+
+
+
+<p><code>CachingRealm</code>提供了缓存管理，在后续子类中会用到。</p>
+<p><code>AuthenticatingRealm</code>实现了身份认证。</p>
+<p><code>AuthorizingRealm</code>实现了权限检查。</p>
+<p>由于<code>CachingRealm</code>类比较简单，这里就不做详细介绍了，对于<code>AuthenticatingRealm</code>和<code>AuthorizingRealm</code>需要详细介绍。</p>
+<p>我们先来仔细看看<code>AuthenticatingRealm</code>的原理，它负责返回用户的身份信息，并且会将结果缓存。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="keyword">abstract</span> <span class="class"><span class="keyword">class</span> <span class="title">AuthenticatingRealm</span> <span class="keyword">extends</span> <span class="title">CachingRealm</span> <span class="keyword">implements</span> <span class="title">Initializable</span> </span>&#123;</span><br><span class="line">    </span><br><span class="line">    <span class="comment">// 表示这个Realm所能处理的 token 类型</span></span><br><span class="line">    <span class="keyword">private</span> Class&lt;? extends AuthenticationToken&gt; authenticationTokenClass;</span><br><span class="line">    </span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">boolean</span> <span class="title">supports</span><span class="params">(AuthenticationToken token)</span> </span>&#123;</span><br><span class="line">        <span class="keyword">return</span> token != <span class="keyword">null</span> &amp;&amp; getAuthenticationTokenClass().isAssignableFrom(token.getClass());</span><br><span class="line">    &#125;</span><br><span class="line">    </span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">final</span> AuthenticationInfo <span class="title">getAuthenticationInfo</span><span class="params">(AuthenticationToken token)</span> <span class="keyword">throws</span> AuthenticationException </span>&#123;</span><br><span class="line">        <span class="comment">// 先从缓存里查找对应的身份信息</span></span><br><span class="line">        AuthenticationInfo info = getCachedAuthenticationInfo(token);</span><br><span class="line">        <span class="keyword">if</span> (info == <span class="keyword">null</span>) &#123;</span><br><span class="line">            <span class="comment">// 如果缓存没有，则需要调用doGetAuthenticationInfo方法执行身份验证</span></span><br><span class="line">            <span class="comment">// 子类需要实现此方法</span></span><br><span class="line">            info = doGetAuthenticationInfo(token);</span><br><span class="line">            <span class="keyword">if</span> (token != <span class="keyword">null</span> &amp;&amp; info != <span class="keyword">null</span>) &#123;</span><br><span class="line">                <span class="comment">// 将结果存到缓存</span></span><br><span class="line">                cacheAuthenticationInfoIfPossible(token, info);</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="keyword">if</span> (info != <span class="keyword">null</span>) &#123;</span><br><span class="line">            <span class="comment">// 验证token是否和身份信息info一致</span></span><br><span class="line">            assertCredentialsMatch(token, info);</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="keyword">return</span> info;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>继续看<code>AuthorizingRealm</code>的原理，它实现了<code>Authorizer</code>接口，负责返回用户的权限，并且也缓存结果。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="keyword">abstract</span> <span class="class"><span class="keyword">class</span> <span class="title">AuthorizingRealm</span> <span class="keyword">extends</span> <span class="title">AuthenticatingRealm</span> <span class="keyword">implements</span> <span class="title">Authorizer</span> </span>&#123;</span><br><span class="line">    </span><br><span class="line">    <span class="function"><span class="keyword">protected</span> AuthorizationInfo <span class="title">getAuthorizationInfo</span><span class="params">(PrincipalCollection principals)</span> </span>&#123;</span><br><span class="line">        AuthorizationInfo info = <span class="keyword">null</span>;</span><br><span class="line">        <span class="comment">// 先从缓存中查询用户权限</span></span><br><span class="line">        Cache&lt;Object, AuthorizationInfo&gt; cache = getAvailableAuthorizationCache();</span><br><span class="line">        Object key = getAuthorizationCacheKey(principals);</span><br><span class="line">        info = cache.get(key);</span><br><span class="line"></span><br><span class="line">        <span class="keyword">if</span> (info == <span class="keyword">null</span>) &#123;</span><br><span class="line">            <span class="comment">// 如果缓存中没有找到，则调用doGetAuthorizationInfo方法获取，</span></span><br><span class="line">            <span class="comment">// 子类需要实现此方法</span></span><br><span class="line">            info = doGetAuthorizationInfo(principals);</span><br><span class="line">            <span class="keyword">if</span> (info != <span class="keyword">null</span> &amp;&amp; cache != <span class="keyword">null</span>) &#123;</span><br><span class="line">                Object key = getAuthorizationCacheKey(principals);</span><br><span class="line">                cache.put(key, info);</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="keyword">return</span> info;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h2 id="系统自带-Realm"><a href="#系统自带-Realm" class="headerlink" title="系统自带 Realm"></a>系统自带 Realm</h2><p>shrio 已经实现了多个 Realm 的子类，如下图所示。</p>
+<pre class="mermaid">classDiagram
+    class AuthorizingRealm
+
+    class SimpleAccountRealm
+    AuthorizingRealm &lt;|-- SimpleAccountRealm
+
+
+    class TextConfigurationRealm
+    SimpleAccountRealm &lt;|-- TextConfigurationRealm
+
+    class IniRealm
+    TextConfigurationRealm &lt;|-- IniRealm
+
+    class PropertiesRealm
+    TextConfigurationRealm &lt;|-- PropertiesRealm
+
+    class JdbcRealm
+    AuthorizingRealm &lt;|-- JdbcRealm
+
+    class SaltAwareJdbcRealm
+    JdbcRealm &lt;|-- SaltAwareJdbcRealm
+
+    class AbstractLdapRealm
+    &lt;&lt;abstract>> AbstractLdapRealm
+    AuthorizingRealm &lt;|-- AbstractLdapRealm
+
+    class ActiveDirectoryRealm
+    AbstractLdapRealm &lt;|-- ActiveDirectoryRealm 
+</pre>
+
+<p>这些子类按照使用场景分为三类，左边以<code>SimpleAccountRealm</code>为父类的，表示用户信息都存储到内存里。<code>TextConfigurationRealm</code>表示从文件中加载信息到内存，它的子类<code>IniRealm</code>表示读取<code>ini</code>格式的配置文件，<code>PropertiesRealm</code>表示读取<code>properties</code>格式的配置文件。</p>
+<p>中间以<code>JdbcRealm</code>为父类的，表示用户信息存储在数据库中。它的子类<code>SaltAwareJdbcRealm</code>在其基础之上，增加了盐，可以看作是一种加密手段。</p>
+<p>右边以<code>AbstractLdapRealm</code>为父类的，表示用户信息存储在<code>ldap</code>服务中。<code>ActiveDirectoryRealm</code>表示采用了<code>ActiveDirectory</code>服务，它是<code>ldap</code>实现的一种。</p>
+<h2 id="自定义-Realm"><a href="#自定义-Realm" class="headerlink" title="自定义 Realm"></a>自定义 Realm</h2><p>上面介绍了<code>Realm</code>的设计思想，这里会介绍我们该如何使用<code>Realm</code>。我们在自定义<code>Realm</code>时，只需要继承<code>AuthorizingRealm</code>，然后实现它的两个方法即可。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">class</span> <span class="title">AuthorizingRealm</span> </span>&#123;</span><br><span class="line">    </span><br><span class="line">    <span class="comment">// 进行身份验证，返回身份信息</span></span><br><span class="line">    <span class="function"><span class="keyword">protected</span> AuthenticationInfo <span class="title">doGetAuthenticationInfo</span><span class="params">(AuthenticationToken token)</span> <span class="keyword">throws</span> AuthenticationException</span>;</span><br><span class="line">    </span><br><span class="line">    <span class="comment">// 返回用户的权限</span></span><br><span class="line">    <span class="function"><span class="keyword">protected</span> <span class="keyword">abstract</span> AuthorizationInfo <span class="title">doGetAuthorizationInfo</span><span class="params">(PrincipalCollection principals)</span></span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>这里写个简单的例子，只允许<code>admin</code>用户登录，它只有<code>read</code>权限。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">class</span> <span class="title">MyRealm</span> <span class="keyword">extends</span> <span class="title">AuthorizingRealm</span> </span>&#123;</span><br><span class="line">    </span><br><span class="line">    <span class="function"><span class="keyword">protected</span> AuthenticationInfo <span class="title">doGetAuthenticationInfo</span><span class="params">(AuthenticationToken token)</span> <span class="keyword">throws</span> AuthenticationException </span>&#123;</span><br><span class="line">        </span><br><span class="line">    	String username = token.;</span><br><span class="line">        String password = token.;</span><br><span class="line">        <span class="keyword">if</span>(username.equals(<span class="string">"admin"</span>) &amp;&amp; username.equals(<span class="string">"admin"</span>)) &#123;</span><br><span class="line">            <span class="keyword">return</span> <span class="keyword">new</span> SimpleAuthenticationInfo(username, password, <span class="string">"myrealm"</span>);</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="comment">// 如果认证失败，则抛出异常</span></span><br><span class="line">        <span class="keyword">throw</span> <span class="keyword">new</span> AuthenticationException();</span><br><span class="line">    &#125;</span><br><span class="line">    </span><br><span class="line">    <span class="function"><span class="keyword">protected</span> AuthorizationInfo <span class="title">doGetAuthorizationInfo</span><span class="params">(PrincipalCollection principals)</span> </span>&#123;</span><br><span class="line">        String username = (String) principalCollection.getPrimaryPrincipal();</span><br><span class="line">        SimpleAuthorizationInfo info = <span class="keyword">new</span> SimpleAuthorizationInfo();</span><br><span class="line">        <span class="keyword">if</span> (username.equals(<span class="string">"admin"</span>)) &#123;</span><br><span class="line">			info.addStringPermission(<span class="string">"read"</span>);            </span><br><span class="line">        &#125;</span><br><span class="line">        <span class="keyword">return</span> info;</span><br><span class="line">    &#125;</span><br><span class="line">    </span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+      
+    </div>
+    
+    
+    
+
+    
+
+    
+
+    
+
+    <footer class="post-footer">
+      
+        <div class="post-tags">
+          
+            <a href="/tags/realm/" rel="tag"># realm</a>
+          
+        </div>
+      
+
+      
+      
+      
+
+      
+        <div class="post-nav">
+          <div class="post-nav-next post-nav-item">
+            
+              <a href="/2020/04/12/shiro-security-manager/" rel="next" title="Apache Shiro SecurityManager 原理">
+                <i class="fa fa-chevron-left"></i> Apache Shiro SecurityManager 原理
+              </a>
+            
+          </div>
+
+          <span class="post-nav-divider"></span>
+
+          <div class="post-nav-prev post-nav-item">
+            
+          </div>
+        </div>
+      
+
+      
+      
+    </footer>
+  </div>
+  
+  
+  
+  </article>
+
+
+
+    <div class="post-spread">
+      
+    </div>
+  </div>
+
+
+          </div>
+          
+
+
+          
+
+  
+    <div class="comments" id="comments">
+    </div>
+  
+
+
+
+        </div>
+        
+          
+  
+  <div class="sidebar-toggle">
+    <div class="sidebar-toggle-line-wrap">
+      <span class="sidebar-toggle-line sidebar-toggle-line-first"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-middle"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-last"></span>
+    </div>
+  </div>
+
+  <aside id="sidebar" class="sidebar">
+    
+    <div class="sidebar-inner">
+
+      
+
+      
+        <ul class="sidebar-nav motion-element">
+          <li class="sidebar-nav-toc sidebar-nav-active" data-target="post-toc-wrap">
+            Table of Contents
+          </li>
+          <li class="sidebar-nav-overview" data-target="site-overview-wrap">
+            Overview
+          </li>
+        </ul>
+      
+
+      <section class="site-overview-wrap sidebar-panel">
+        <div class="site-overview">
+          <div class="site-author motion-element" itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+            
+              <p class="site-author-name" itemprop="name">zhmin</p>
+              <p class="site-description motion-element" itemprop="description"></p>
+          </div>
+
+          <nav class="site-state motion-element">
+
+            
+              <div class="site-state-item site-state-posts">
+              
+                <a href="/archives/">
+              
+                  <span class="site-state-item-count">70</span>
+                  <span class="site-state-item-name">posts</span>
+                </a>
+              </div>
+            
+
+            
+              
+              
+              <div class="site-state-item site-state-categories">
+                <a href="/categories/index.html">
+                  <span class="site-state-item-count">15</span>
+                  <span class="site-state-item-name">categories</span>
+                </a>
+              </div>
+            
+
+            
+              
+              
+              <div class="site-state-item site-state-tags">
+                
+                  <span class="site-state-item-count">64</span>
+                  <span class="site-state-item-name">tags</span>
+                
+              </div>
+            
+
+          </nav>
+
+          
+
+          
+            <div class="links-of-author motion-element">
+                
+                  <span class="links-of-author-item">
+                    <a href="https://github.com/zhmin" target="_blank" title="GitHub">
+                      
+                        <i class="fa fa-fw fa-github"></i>GitHub</a>
+                  </span>
+                
+            </div>
+          
+
+          
+          
+
+          
+          
+
+          
+
+        </div>
+      </section>
+
+      
+      <!--noindex-->
+        <section class="post-toc-wrap motion-element sidebar-panel sidebar-panel-active">
+          <div class="post-toc">
+
+            
+              
+            
+
+            
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#前言"><span class="nav-number">1.</span> <span class="nav-text">前言</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Realm-接口"><span class="nav-number">2.</span> <span class="nav-text">Realm 接口</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#身份凭证"><span class="nav-number">3.</span> <span class="nav-text">身份凭证</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#身份认证结果"><span class="nav-number">4.</span> <span class="nav-text">身份认证结果</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Realm-子类"><span class="nav-number">5.</span> <span class="nav-text">Realm 子类</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#系统自带-Realm"><span class="nav-number">6.</span> <span class="nav-text">系统自带 Realm</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#自定义-Realm"><span class="nav-number">7.</span> <span class="nav-text">自定义 Realm</span></a></li></ol></div>
+            
+
+          </div>
+        </section>
+      <!--/noindex-->
+      
+
+      
+
+    </div>
+  </aside>
+
+
+        
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="footer-inner">
+        <div class="copyright">&copy; <span itemprop="copyrightYear">2020</span>
+  <span class="with-love">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">zhmin</span>
+
+  
+</div>
+
+
+
+
+
+
+
+
+
+
+
+  <script src="https://unpkg.com/mermaid@8/dist/mermaid.min.js"></script>
+  <script>
+    if (window.mermaid) {
+      mermaid.initialize({"startOnload":true,"theme":"forest"});
+    }
+  </script>
+
+
+
+<script async src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+<span id="busuanzi_container_site_pv">
+    访问量<span id="busuanzi_value_site_pv"></span>
+</span>
+<span class="post-meta-divider">|</span>
+<span id="busuanzi_container_site_uv">
+  访客数<span id="busuanzi_value_site_uv"></span>
+</span>
+
+        
+
+
+
+
+
+
+
+        
+      </div>
+    </footer>
+
+    
+      <div class="back-to-top">
+        <i class="fa fa-arrow-up"></i>
+        
+      </div>
+    
+
+    
+
+  </div>
+
+  
+
+<script type="text/javascript">
+  if (Object.prototype.toString.call(window.Promise) !== '[object Function]') {
+    window.Promise = null;
+  }
+</script>
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery/index.js?v=2.1.3"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fastclick/lib/fastclick.min.js?v=1.0.6"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery_lazyload/jquery.lazyload.js?v=1.9.7"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.ui.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fancybox/source/jquery.fancybox.pack.js?v=2.1.5"></script>
+  
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/utils.js?v=5.1.4"></script>
+
+  <script type="text/javascript" src="/js/src/motion.js?v=5.1.4"></script>
+
+
+
+  
+  
+
+  
+  <script type="text/javascript" src="/js/src/scrollspy.js?v=5.1.4"></script>
+<script type="text/javascript" src="/js/src/post-details.js?v=5.1.4"></script>
+
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/bootstrap.js?v=5.1.4"></script>
+
+
+
+  
+
+
+  
+
+
+
+
+	
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+  <script src="//cdn1.lncld.net/static/js/3.0.4/av-min.js"></script>
+  <script src="//unpkg.com/valine/dist/Valine.min.js"></script>
+  
+  <script type="text/javascript">
+    var GUEST = ['nick','mail','link'];
+    var guest = 'nick';
+    guest = guest.split(',').filter(item=>{
+      return GUEST.indexOf(item)>-1;
+    });
+    new Valine({
+        el: '#comments' ,
+        verify: false,
+        notify: false,
+        appId: 'iYiPQlDR2X2zg2QIql2UEe2o-gzGzoHsz',
+        appKey: 'EW8G4sftwX1pef1zS9EsOeKE',
+        placeholder: 'comment here',
+        avatar:'mm',
+        guest_info:guest,
+        pageSize:'10' || 10,
+    });
+  </script>
+
+
+
+  
+
+
+
+
+
+  
+
+  
+  <script src="https://cdn1.lncld.net/static/js/av-core-mini-0.6.4.js"></script>
+  <script>AV.initialize("iYiPQlDR2X2zg2QIql2UEe2o-gzGzoHsz", "EW8G4sftwX1pef1zS9EsOeKE");</script>
+  <script>
+    function showTime(Counter) {
+      var query = new AV.Query(Counter);
+      var entries = [];
+      var $visitors = $(".leancloud_visitors");
+
+      $visitors.each(function () {
+        entries.push( $(this).attr("id").trim() );
+      });
+
+      query.containedIn('url', entries);
+      query.find()
+        .done(function (results) {
+          var COUNT_CONTAINER_REF = '.leancloud-visitors-count';
+
+          if (results.length === 0) {
+            $visitors.find(COUNT_CONTAINER_REF).text(0);
+            return;
+          }
+
+          for (var i = 0; i < results.length; i++) {
+            var item = results[i];
+            var url = item.get('url');
+            var time = item.get('time');
+            var element = document.getElementById(url);
+
+            $(element).find(COUNT_CONTAINER_REF).text(time);
+          }
+          for(var i = 0; i < entries.length; i++) {
+            var url = entries[i];
+            var element = document.getElementById(url);
+            var countSpan = $(element).find(COUNT_CONTAINER_REF);
+            if( countSpan.text() == '') {
+              countSpan.text(0);
+            }
+          }
+        })
+        .fail(function (object, error) {
+          console.log("Error: " + error.code + " " + error.message);
+        });
+    }
+
+    function addCount(Counter) {
+      var $visitors = $(".leancloud_visitors");
+      var url = $visitors.attr('id').trim();
+      var title = $visitors.attr('data-flag-title').trim();
+      var query = new AV.Query(Counter);
+
+      query.equalTo("url", url);
+      query.find({
+        success: function(results) {
+          if (results.length > 0) {
+            var counter = results[0];
+            counter.fetchWhenSave(true);
+            counter.increment("time");
+            counter.save(null, {
+              success: function(counter) {
+                var $element = $(document.getElementById(url));
+                $element.find('.leancloud-visitors-count').text(counter.get('time'));
+              },
+              error: function(counter, error) {
+                console.log('Failed to save Visitor num, with error message: ' + error.message);
+              }
+            });
+          } else {
+            var newcounter = new Counter();
+            /* Set ACL */
+            var acl = new AV.ACL();
+            acl.setPublicReadAccess(true);
+            acl.setPublicWriteAccess(true);
+            newcounter.setACL(acl);
+            /* End Set ACL */
+            newcounter.set("title", title);
+            newcounter.set("url", url);
+            newcounter.set("time", 1);
+            newcounter.save(null, {
+              success: function(newcounter) {
+                var $element = $(document.getElementById(url));
+                $element.find('.leancloud-visitors-count').text(newcounter.get('time'));
+              },
+              error: function(newcounter, error) {
+                console.log('Failed to create');
+              }
+            });
+          }
+        },
+        error: function(error) {
+          console.log('Error:' + error.code + " " + error.message);
+        }
+      });
+    }
+
+    $(function() {
+      var Counter = AV.Object.extend("Counter");
+      if ($('.leancloud_visitors').length == 1) {
+        addCount(Counter);
+      } else if ($('.post-title-link').length > 1) {
+        showTime(Counter);
+      }
+    });
+  </script>
+
+
+
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+</body>
+</html>
