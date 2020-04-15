@@ -1,0 +1,1080 @@
+<!DOCTYPE html>
+
+
+
+  
+
+
+<html class="theme-next mist use-motion" lang="">
+<head><meta name="generator" content="Hexo 3.8.0">
+  <meta charset="UTF-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="theme-color" content="#222">
+
+
+
+
+
+
+
+
+
+<meta http-equiv="Cache-Control" content="no-transform">
+<meta http-equiv="Cache-Control" content="no-siteapp">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+  <link href="/lib/fancybox/source/jquery.fancybox.css?v=2.1.5" rel="stylesheet" type="text/css">
+
+
+
+
+
+
+
+<link href="/lib/font-awesome/css/font-awesome.min.css?v=4.6.2" rel="stylesheet" type="text/css">
+
+<link href="/css/main.css?v=5.1.4" rel="stylesheet" type="text/css">
+
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png?v=5.1.4">
+
+
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png?v=5.1.4">
+
+
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png?v=5.1.4">
+
+
+  <link rel="mask-icon" href="/images/logo.svg?v=5.1.4" color="#222">
+
+
+
+
+
+  <meta name="keywords" content="shiro, filter,">
+
+
+
+
+
+
+
+
+
+
+<meta name="description" content="前言shiro 最常见的使用场景就是在 spring web 里面，本篇文章会讲解 shiro 如何集成 spring web 的原理。shiro 会自定义 Filter 嵌入到 servlet 中，当每次请求到来时，会先经过 shiro filter。shiro filter 会解析请求提取出 cookie，然后根据 cookie 完成对此请求的用户身份确认和权限检查，下面会详细介绍整个原理。">
+<meta name="keywords" content="shiro, filter">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Apache Shiro Filter 原理">
+<meta property="og:url" content="https://zhmin.github.io/2020/04/15/shiro-filter/index.html">
+<meta property="og:site_name" content="学习笔记">
+<meta property="og:description" content="前言shiro 最常见的使用场景就是在 spring web 里面，本篇文章会讲解 shiro 如何集成 spring web 的原理。shiro 会自定义 Filter 嵌入到 servlet 中，当每次请求到来时，会先经过 shiro filter。shiro filter 会解析请求提取出 cookie，然后根据 cookie 完成对此请求的用户身份确认和权限检查，下面会详细介绍整个原理。">
+<meta property="og:locale" content="default">
+<meta property="og:updated_time" content="2020-04-15T13:47:05.972Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Apache Shiro Filter 原理">
+<meta name="twitter:description" content="前言shiro 最常见的使用场景就是在 spring web 里面，本篇文章会讲解 shiro 如何集成 spring web 的原理。shiro 会自定义 Filter 嵌入到 servlet 中，当每次请求到来时，会先经过 shiro filter。shiro filter 会解析请求提取出 cookie，然后根据 cookie 完成对此请求的用户身份确认和权限检查，下面会详细介绍整个原理。">
+
+
+
+<script type="text/javascript" id="hexo.configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '/',
+    scheme: 'Mist',
+    version: '5.1.4',
+    sidebar: {"position":"left","display":"hide","offset":12,"b2t":false,"scrollpercent":false,"onmobile":false},
+    fancybox: true,
+    tabs: true,
+    motion: {"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},
+    duoshuo: {
+      userId: '0',
+      author: 'Author'
+    },
+    algolia: {
+      applicationID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    }
+  };
+</script>
+
+
+
+  <link rel="canonical" href="https://zhmin.github.io/2020/04/15/shiro-filter/">
+
+
+
+
+
+  <title>Apache Shiro Filter 原理 | 学习笔记</title>
+  
+
+
+
+
+
+
+
+
+</head>
+
+<body itemscope="" itemtype="http://schema.org/WebPage" lang="default">
+
+  
+  
+    
+  
+
+  <div class="container sidebar-position-left page-post-detail">
+    <div class="headband"></div>
+
+    <header id="header" class="header" itemscope="" itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-wrapper">
+  <div class="site-meta ">
+    
+
+    <div class="custom-logo-site-title">
+      <a href="/" class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">学习笔记</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+      
+        <h1 class="site-subtitle" itemprop="description"></h1>
+      
+  </div>
+
+  <div class="site-nav-toggle">
+    <button>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+    </button>
+  </div>
+</div>
+
+<nav class="site-nav">
+  
+
+  
+    <ul id="menu" class="menu">
+      
+        
+        <li class="menu-item menu-item-home">
+          <a href="/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-home"></i> <br>
+            
+            Home
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-categories">
+          <a href="/categories/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-th"></i> <br>
+            
+            Categories
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-archives">
+          <a href="/archives/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-archive"></i> <br>
+            
+            Archives
+          </a>
+        </li>
+      
+
+      
+    </ul>
+  
+
+  
+</nav>
+
+
+
+ </div>
+    </header>
+
+    <main id="main" class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          <div id="content" class="content">
+            
+
+  <div id="posts" class="posts-expand">
+    
+
+  
+
+  
+  
+  
+
+  <article class="post post-type-normal" itemscope="" itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block">
+    <link itemprop="mainEntityOfPage" href="https://zhmin.github.io/2020/04/15/shiro-filter/">
+
+    <span hidden itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="zhmin">
+      <meta itemprop="description" content="">
+      <meta itemprop="image" content="/images/avatar.gif">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope="" itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="学习笔记">
+    </span>
+
+    
+      <header class="post-header">
+
+        
+        
+          <h2 class="post-title" itemprop="name headline">Apache Shiro Filter 原理</h2>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">Posted on</span>
+              
+              <time title="Post created" itemprop="dateCreated datePublished" datetime="2020-04-15T21:13:08+08:00">
+                2020-04-15
+              </time>
+            
+
+            
+
+            
+          </span>
+
+          
+            <span class="post-category">
+            
+              <span class="post-meta-divider">|</span>
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">In</span>
+              
+              
+                <span itemprop="about" itemscope="" itemtype="http://schema.org/Thing">
+                  <a href="/categories/shiro/" itemprop="url" rel="index">
+                    <span itemprop="name">shiro</span>
+                  </a>
+                </span>
+
+                
+                
+              
+            </span>
+          
+
+          
+            
+              <span class="post-comments-count">
+                <span class="post-meta-divider">|</span>
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-comment-o"></i>
+                </span>
+                <a href="/2020/04/15/shiro-filter/#comments" itemprop="discussionUrl">
+                  <span class="post-comments-count valine-comment-count" data-xid="/2020/04/15/shiro-filter/" itemprop="commentCount"></span>
+                </a>
+              </span>
+            
+          
+
+          
+          
+             <span id="/2020/04/15/shiro-filter/" class="leancloud_visitors" data-flag-title="Apache Shiro Filter 原理">
+               <span class="post-meta-divider">|</span>
+               <span class="post-meta-item-icon">
+                 <i class="fa fa-eye"></i>
+               </span>
+               
+                 <span class="post-meta-item-text">Visitors&#58;</span>
+               
+                 <span class="leancloud-visitors-count"></span>
+             </span>
+          
+
+          
+
+          
+
+          
+
+        </div>
+      </header>
+    
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+      
+
+      
+        <h2 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h2><p>shiro 最常见的使用场景就是在 spring web 里面，本篇文章会讲解 shiro 如何集成 spring web 的原理。shiro 会自定义 Filter 嵌入到 servlet 中，当每次请求到来时，会先经过 shiro filter。shiro filter 会解析请求提取出 cookie，然后根据 cookie 完成对此请求的用户身份确认和权限检查，下面会详细介绍整个原理。</p>
+<h2 id="Servlet-Filter-原理"><a href="#Servlet-Filter-原理" class="headerlink" title="Servlet Filter 原理"></a>Servlet Filter 原理</h2><p>我们知道 spring mvc 是基于 servlet 开发的，在 servlet 中有一个比较重要的概念 <code>Filter</code>。shiro 集成 spring web 就是依靠<code>Filter</code>实现的，下面是集成 shiro 的运行流程图</p>
+<pre class="mermaid">sequenceDiagram
+    participant Tomcat
+    participant ShiroFilter
+    participant ServletFilter
+    participant Spring Servlet
+
+    Tomcat->>ShiroFilter: 
+    ShiroFilter->>ServletFilter: 
+    ServletFilter->>Spring Servlet: 
+    Spring Servlet->>Tomcat: 返回响应 
+</pre>
+
+<p>首先 tomcat 接收到请求，然后经过 ShiroFilter 验证用户身份和权限。再转发给其他<code>ServletFilter</code>处理，最后才会交给 Spring 处理。</p>
+<h2 id="Shiro-Filter-类图"><a href="#Shiro-Filter-类图" class="headerlink" title="Shiro Filter 类图"></a>Shiro Filter 类图</h2><p>Shiro 的 Filter类比较复杂，可以将其分为两类，一种是下图左边的主 Filter，它会被嵌入到<code>Servlet</code>里。而右边的 Filter 会只负责一个单独的功能，称作为独立 Filter，被主 Filter 负责管理。</p>
+<pre class="mermaid">classDiagram
+    class Filter
+    &lt;&lt;interface>> Filter
+
+    class ServletContextSupport
+
+    class AbstractFilter
+    &lt;&lt;abstract>> AbstractFilter
+
+    Filter &lt;|-- AbstractFilter
+    ServletContextSupport &lt;|-- AbstractFilter
+
+    class NameableFilter
+    &lt;&lt;abstract>> NameableFilter
+    AbstractFilter &lt;|-- NameableFilter
+
+    class OncePerRequestFilter
+    &lt;&lt;abstract>> OncePerRequestFilter
+    NameableFilter &lt;|-- OncePerRequestFilter
+
+    class AbstractShiroFilter
+    &lt;&lt;abstract>> AbstractShiroFilter
+    OncePerRequestFilter &lt;|-- AbstractShiroFilter
+
+    class SpringShiroFilter
+    AbstractShiroFilter &lt;|-- SpringShiroFilter
+
+    class AdviceFilter
+    &lt;&lt;abstract>> AdviceFilter
+    OncePerRequestFilter &lt;|-- AdviceFilter
+
+    class PathMatchingFilter
+    &lt;&lt;abstract>> PathMatchingFilter
+    AdviceFilter &lt;|-- PathMatchingFilter
+
+    class AnonymousFilter
+    PathMatchingFilter &lt;|-- AnonymousFilter
+
+    class 其他Filter
+    PathMatchingFilter &lt;|-- 其他Filter 
+</pre>
+
+
+
+<p><code>Filter</code>接口是 Servlet 中定义的，如果要添加自定义<code>Filter</code>必须要实现它。</p>
+<p><code>AbstractFilter</code>保存了<code>Servlet</code>的相关配置。</p>
+<p><code>NameableFilter</code>保存了该<code>Filter</code>的名称。</p>
+<p><code>OncePerRequestFilter</code>保证了在每次处理 http 请求时，保证该 filter 只会执行一次。 </p>
+<p><code>AbstractShiroFilter</code>是最核心的 filter，也比较复杂，下面会着重介绍。</p>
+<p><code>SpringShiroFilter</code>只是简单的继承了<code>AbstractShiroFilter</code>。</p>
+<p>右边的独立 Filter 相关类在后面会有介绍。</p>
+<h2 id="主-Filter"><a href="#主-Filter" class="headerlink" title="主 Filter"></a>主 Filter</h2><p>shrio 只会创建一个主 Filter，嵌入到<code>Servlet</code>中。然后其它的独立 Filter 会被添加到主 Filter 里，这种设计可以简化对<code>Servlet</code>的修改，并且可以自定义管理多个独立 Filter。主 Filter 会以 Chain 的方式来组织管理，如下图所示。主 Filter 根据请求的路径不同，选择不同的 FilterChain 来处理。</p>
+<p><code>AbstractShiroFilter</code>作为实现主 Filter 的核心类，需要详细讲解。它在处理请求时，会先创建<code>Subject</code>实例，然后开辟新线程来处理。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="keyword">abstract</span> <span class="class"><span class="keyword">class</span> <span class="title">AbstractShiroFilter</span> <span class="keyword">extends</span> <span class="title">OncePerRequestFilter</span> </span>&#123;</span><br><span class="line">    </span><br><span class="line">    <span class="function"><span class="keyword">protected</span> <span class="keyword">void</span> <span class="title">doFilterInternal</span><span class="params">(ServletRequest servletRequest, ServletResponse servletResponse, <span class="keyword">final</span> FilterChain chain)</span> </span>&#123;         </span><br><span class="line">        <span class="keyword">final</span> ServletRequest request = prepareServletRequest(servletRequest, servletResponse, chain);</span><br><span class="line">        <span class="keyword">final</span> ServletResponse response = prepareServletResponse(request, servletResponse, chain);</span><br><span class="line">        <span class="comment">// 创建Subject，这里会创建WebSubject类型的实例</span></span><br><span class="line">        <span class="keyword">final</span> Subject subject = createSubject(request, response);</span><br><span class="line">        subject.execute(<span class="keyword">new</span> Callable() &#123;</span><br><span class="line">            <span class="function"><span class="keyword">public</span> Object <span class="title">call</span><span class="params">()</span> <span class="keyword">throws</span> Exception </span>&#123;</span><br><span class="line">                updateSessionLastAccessTime(request, response);</span><br><span class="line">                <span class="comment">// 执行 filter chain</span></span><br><span class="line">                executeChain(request, response, chain);</span><br><span class="line">                <span class="keyword">return</span> <span class="keyword">null</span>;</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;);</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>在创建线程的时候，shiro 做了一些初始化，它会绑定当前的<code>Subject</code>和<code>SecurityManager</code>，存储到线程上下文。结合前期这篇文章，就可以看到线程安全的使用。</p>
+<p>继续看看<code>executeChain</code>的代码，可以看到 shiro 会有一个根据请求选择<code>FilterChain</code>的过程。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="keyword">abstract</span> <span class="class"><span class="keyword">class</span> <span class="title">AbstractShiroFilter</span> <span class="keyword">extends</span> <span class="title">OncePerRequestFilter</span> </span>&#123;</span><br><span class="line">    </span><br><span class="line">	<span class="function"><span class="keyword">protected</span> <span class="keyword">void</span> <span class="title">executeChain</span><span class="params">(ServletRequest request, ServletResponse response, FilterChain origChain)</span> </span>&#123;</span><br><span class="line">        <span class="comment">// 选择对应的FilterChain执行</span></span><br><span class="line">        FilterChain chain = getExecutionChain(request, response, origChain);</span><br><span class="line">        chain.doFilter(request, response);</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h2 id="FilterChain-匹配原理"><a href="#FilterChain-匹配原理" class="headerlink" title="FilterChain 匹配原理"></a>FilterChain 匹配原理</h2><p>shiro 支持根据请求来选择对应的<code>FilterChain</code>，这个功能由<code>FilterChainResolver</code>接口定义。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">interface</span> <span class="title">FilterChainResolver</span> </span>&#123;</span><br><span class="line">    <span class="comment">// 根据请求来获取对应的FilterChain</span></span><br><span class="line">    <span class="function">FilterChain <span class="title">getChain</span><span class="params">(ServletRequest request, ServletResponse response, FilterChain originalChain)</span></span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>它有两个子类，<code>PathMatchingFilterChainResolver</code>和<code>SimpleFilterChainResolver</code>，都是根据请求路径来判断的。两者的实现没什么本质区别，都是使用<code>Map</code>保存了匹配规则和对应的<code>FilterChain</code>，只不过前者将路径匹配和<code>FilterChain</code>管理分离开了。</p>
+<h3 id="SimpleFilterChainResolver-类"><a href="#SimpleFilterChainResolver-类" class="headerlink" title="SimpleFilterChainResolver 类"></a>SimpleFilterChainResolver 类</h3><p>首先来讲讲<code>SimpleFilterChainResolver</code>的原理，它非常简单</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">class</span> <span class="title">SimpleFilterChainResolver</span> <span class="keyword">implements</span> <span class="title">FilterChainResolver</span> </span>&#123;</span><br><span class="line">    <span class="comment">// key 为 匹配路径，value 为 Filter列表。</span></span><br><span class="line">    <span class="keyword">private</span> <span class="keyword">final</span> Map&lt;String, Key&lt;? extends Filter&gt;[]&gt; chains;</span><br><span class="line">    </span><br><span class="line">    <span class="function"><span class="keyword">public</span> FilterChain <span class="title">getChain</span><span class="params">(ServletRequest request, ServletResponse response, <span class="keyword">final</span> FilterChain originalChain)</span> </span>&#123;</span><br><span class="line">        <span class="comment">// 提取请求路径</span></span><br><span class="line">        String path = WebUtils.getPathWithinApplication(WebUtils.toHttp(request));</span><br><span class="line">        <span class="comment">// 然后遍历Map，直到找到第一个路径匹配的FilterChain，返回封装后的SimpleFilterChain</span></span><br><span class="line">        <span class="keyword">for</span> (<span class="keyword">final</span> String pathPattern : chains.keySet()) &#123;</span><br><span class="line">            <span class="keyword">if</span> (patternMatcher.matches(pathPattern, path)) &#123;</span><br><span class="line">                <span class="keyword">final</span> Iterator&lt;Key&lt;? extends Filter&gt;&gt; chain = Arrays.asList(chains.get(pathPattern)).iterator();</span><br><span class="line">                <span class="keyword">return</span> <span class="keyword">new</span> SimpleFilterChain(originalChain, <span class="keyword">new</span> Iterator&lt;Filter&gt;();</span><br><span class="line">                                             &#125;</span><br><span class="line">                                             &#125;</span><br></pre></td></tr></table></figure>
+<p><code>SimpleFilterChain</code>包含了两部分的<code>Filter</code>，原始的 <code>Serlvet FilterChain</code>，和上述<code>Filter</code>列表。它被调用时，会先执行<code>Filter</code>列表，然后再执行<code>Serlvet FilterChain</code>。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">class</span> <span class="title">SimpleFilterChain</span> <span class="keyword">implements</span> <span class="title">FilterChain</span> </span>&#123;</span><br><span class="line">    <span class="comment">// Serlvet 的 FilterChain </span></span><br><span class="line">    <span class="keyword">private</span> <span class="keyword">final</span> FilterChain originalChain;</span><br><span class="line">    </span><br><span class="line">    <span class="comment">// Filter 列表</span></span><br><span class="line">    <span class="keyword">private</span> <span class="keyword">final</span> Iterator&lt;? extends Filter&gt; chain;   </span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h3 id="PathMatchingFilterChainResolver类"><a href="#PathMatchingFilterChainResolver类" class="headerlink" title="PathMatchingFilterChainResolver类"></a>PathMatchingFilterChainResolver类</h3><p><code>PathMatchingFilterChainResolver</code>是 shiro 默认的实现类，它只负责匹配的功能，管理<code>FilterChain</code>的功能被分离开来了，使得我们可以自由定义<code>FilterChain</code>。</p>
+<p>管理<code>FilterChain</code>的功能由<code>FilterChainManager</code>负责，目前只有<code>DefaultFilterChainManager</code>一种实现。它的实现也非常简单，我们通过设置<code>filters</code>和<code>filterChains</code>的值，就可以完成配置。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">DefaultFilterChainManager</span> <span class="keyword">implements</span> <span class="title">FilterChainManager</span> </span>&#123;</span><br><span class="line"> </span><br><span class="line">    <span class="comment">// 保存所有的Filter，key为filter的名称，value为filter实例</span></span><br><span class="line">    <span class="keyword">private</span> Map&lt;String, Filter&gt; filters;</span><br><span class="line">    </span><br><span class="line">    <span class="comment">// 保存FilterChain，key为匹配路径，value为NamedFilterList实例，保存了filter列表</span></span><br><span class="line">    <span class="keyword">private</span> Map&lt;String, NamedFilterList&gt; filterChains;</span><br><span class="line">    </span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h2 id="独立-Filter"><a href="#独立-Filter" class="headerlink" title="独立 Filter"></a>独立 Filter</h2><p>我们再来看看独立Filter 的类图，依次从上到下看。</p>
+<p><code>AdviceFilter</code>增加了<code>preHandle</code>方法，子类可以通过实现它，来控制是否继续执行 <code>FilterChain</code>。</p>
+<p><code>PathMatchingFilter</code>增加了请求路径匹配的功能。</p>
+<p><code>AccessControlFilter</code>作为身份和权限认证的父类，提供了执行失败后的回调函数。</p>
+<pre class="mermaid">classDiagram
+    class OncePerRequestFilter
+    &lt;&lt;abstract>> OncePerRequestFilter
+
+    class AdviceFilter
+    &lt;&lt;abstract>> AdviceFilter
+    OncePerRequestFilter &lt;|-- AdviceFilter
+
+    class PathMatchingFilter
+    &lt;&lt;abstract>> PathMatchingFilter
+    AdviceFilter &lt;|-- PathMatchingFilter
+
+    class AnonymousFilter
+    PathMatchingFilter &lt;|-- AnonymousFilter
+
+    class AccessControlFilter
+    &lt;&lt;abstract>> AccessControlFilter
+    PathMatchingFilter &lt;|-- AccessControlFilter
+
+    class AuthenticationFilter
+    &lt;&lt;abstract>> AuthenticationFilter
+    AccessControlFilter &lt;|-- AuthenticationFilter
+
+    class AuthorizationFilter
+    &lt;&lt;abstract>> AuthorizationFilter
+    AccessControlFilter &lt;|-- AuthorizationFilter 
+</pre>
+
+
+
+
+
+<p>下面的类可以分为三块，</p>
+<ol>
+<li><code>AnonymousFilter</code>，表示允许匿名访问</li>
+<li><code>AuthenticationFilter</code>及其子类，表示身份认证方面的</li>
+<li><code>AuthorizationFilter</code>及其子类，表示权限检查方面的</li>
+</ol>
+<h3 id="匿名访问-Filter"><a href="#匿名访问-Filter" class="headerlink" title="匿名访问 Filter"></a>匿名访问 Filter</h3><p><code>AnonymousFilter</code>允许匿名访问，它复写了<code>onPreHandle</code>方法，总是放回 true，表示运行通过。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">AnonymousFilter</span> <span class="keyword">extends</span> <span class="title">PathMatchingFilter</span> </span>&#123;</span><br><span class="line"></span><br><span class="line">    <span class="meta">@Override</span></span><br><span class="line">    <span class="function"><span class="keyword">protected</span> <span class="keyword">boolean</span> <span class="title">onPreHandle</span><span class="params">(ServletRequest request, ServletResponse response, Object mappedValue)</span> </span>&#123;</span><br><span class="line">        <span class="keyword">return</span> <span class="keyword">true</span>;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h3 id="AccessControlFilter-类"><a href="#AccessControlFilter-类" class="headerlink" title="AccessControlFilter 类"></a>AccessControlFilter 类</h3><p><code>AccessControlFilter</code>实现了<code>onPreHandle</code>方法，并且还定义了<code>isAccessAllowed</code>和<code>onAccessDenied</code>的方法。子类需要实现<code>isAccessAllowed</code>来负责用户身份认证或者权限检查的逻辑。还需要实现<code>onAccessDenied</code>方法来执行失败后的处理逻辑。</p>
+<p><code>AccessControlFilter</code>会通过两个方法处理的接口，来决定是否要继续执行 filter chain。</p>
+<h3 id="身份认证-Filter"><a href="#身份认证-Filter" class="headerlink" title="身份认证 Filter"></a>身份认证 Filter</h3><p>身份认证的 Filter 类也比较复杂，从上到下依次介绍：</p>
+<p><code>AuthenticationFilter</code>实现了<code>isAccessAllowed</code>方法，它会判断当前的<code>Subject</code> 是否对已经认证过了。</p>
+<p><code>AuthenticatingFilter</code>提供了登录的方法。</p>
+<p><code>FormAuthenticationFilter</code>提供了表单登录的方法。当用户请求登录地址时（默认为<code>login.jsp</code>），它会自动完成登录操作，并且实现跳转页面操作。我们不用再去定义处理登录的 controller。</p>
+<p><code>BasicHttpAuthenticationFilter</code>提供了 http basic 验证方法。</p>
+<pre class="mermaid">classDiagram
+    class AuthenticatingFilter
+    &lt;&lt;abstract>> AuthenticatingFilter
+    AuthenticationFilter &lt;|-- AuthenticatingFilter
+
+    class FormAuthenticationFilter
+    AuthenticatingFilter &lt;|-- FormAuthenticationFilter
+
+    class HttpAuthenticationFilter
+    &lt;&lt;abstract>> HttpAuthenticationFilter
+    AuthenticatingFilter &lt;|-- HttpAuthenticationFilter
+
+    class BasicHttpAuthenticationFilter
+    HttpAuthenticationFilter &lt;|-- BasicHttpAuthenticationFilter 
+</pre>
+
+<p>我们也可以自定义 Filter，只需要继承<code>AuthenticationFilter</code>类，然后实现<code>onAccessDenied</code>方法即可。比如我们在实现 restful 风格的 api 时，当发现用户没登录时，只需要返回 json。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">RestfulFilter</span> <span class="keyword">extends</span> <span class="title">AuthenticationFilter</span> </span>&#123;</span><br><span class="line">    </span><br><span class="line">    <span class="keyword">private</span> <span class="keyword">final</span> String LOGIN_REQUIRED_RESPONSE = <span class="string">"&#123;\"status\": 1, \"msg\": \"login required\"&#125;"</span>;</span><br><span class="line">    </span><br><span class="line">    <span class="meta">@Override</span></span><br><span class="line">    <span class="function"><span class="keyword">protected</span> <span class="keyword">boolean</span> <span class="title">onAccessDenied</span><span class="params">(ServletRequest servletRequest, ServletResponse servletResponse)</span> <span class="keyword">throws</span> Exception </span>&#123;</span><br><span class="line">        HttpServletResponse httpServletResponse = (HttpServletResponse) servletResponse;</span><br><span class="line">        PrintWriter out = servletResponse.getWriter();</span><br><span class="line">        servletResponse.setContentType(<span class="string">"application/json;charset=utf-8"</span>);</span><br><span class="line">        servletResponse.setCharacterEncoding(<span class="string">"UTF-8"</span>);</span><br><span class="line">        out.print(LOGIN_REQUIRED_RESPONSE);</span><br><span class="line">        out.flush();</span><br><span class="line"></span><br><span class="line">        <span class="keyword">return</span> <span class="keyword">false</span>;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h3 id="权限检查-Filter"><a href="#权限检查-Filter" class="headerlink" title="权限检查 Filter"></a>权限检查 Filter</h3><p>权限认证的 Filter 类会相对简单一些，首先看看父类<code>AuthorizationFilter</code>。它实现了<code>onAccessDenied</code>方法，当权限检查没通过时，会被调用。如果用户没有认证通过的话，<code>AuthorizationFilter</code>会返回 302 响应，跳转到登录地址。如果是权限校检没通过，那么会返回 401 响应。</p>
+<p><code>AuthorizationFilter</code>还有很多子类，每个子类都会实现各自的权限校检逻辑。下面表列举了各种子类</p>
+<table>
+<thead>
+<tr>
+<th>类名</th>
+<th>检查逻辑</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>HostFilter</td>
+<td>根据用户的ip来判断，是否允许通过</td>
+</tr>
+<tr>
+<td>PermissionsAuthorizationFilter</td>
+<td>根据用户的权限来判断，是否允许通过</td>
+</tr>
+<tr>
+<td>PortFilter</td>
+<td>根据用户的端口号来判断，是否允许通过</td>
+</tr>
+<tr>
+<td>HttpMethodPermissionFilter</td>
+<td>根据用户的请求方法来判断，是否允许通过</td>
+</tr>
+<tr>
+<td>RolesAuthorizationFilter</td>
+<td>根据用户的角色来判断，是否允许通过</td>
+</tr>
+<tr>
+<td>SslFilter</td>
+<td>用户只有https请求，才会允许通过</td>
+</tr>
+</tbody>
+</table>
+<h2 id="Filter-创建"><a href="#Filter-创建" class="headerlink" title="Filter 创建"></a>Filter 创建</h2><p><code>ShiroFilterFactoryBean</code>负责创建并且始化主 Filter，我们在使用 spring 配置时，都是修改它的参数来完成。下面是它的<code>createInstance</code>方法，</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">ShiroFilterFactoryBean</span> <span class="keyword">implements</span> <span class="title">FactoryBean</span>, <span class="title">BeanPostProcessor</span> </span>&#123;</span><br><span class="line"></span><br><span class="line">    <span class="function"><span class="keyword">protected</span> AbstractShiroFilter <span class="title">createInstance</span><span class="params">()</span> <span class="keyword">throws</span> Exception </span>&#123;</span><br><span class="line">        SecurityManager securityManager = getSecurityManager();</span><br><span class="line">        <span class="comment">// 创建并且初始化FilterChainManager</span></span><br><span class="line">        FilterChainManager manager = createFilterChainManager();</span><br><span class="line">        <span class="comment">// 创建PathMatchingFilterChainResolver，并且设置FilterChainManager</span></span><br><span class="line">        PathMatchingFilterChainResolver chainResolver = <span class="keyword">new</span> PathMatchingFilterChainResolver();</span><br><span class="line">        chainResolver.setFilterChainManager(manager);</span><br><span class="line">        <span class="comment">// 返回 SpringShiroFilter 实例</span></span><br><span class="line">        <span class="keyword">return</span> <span class="keyword">new</span> SpringShiroFilter((WebSecurityManager) securityManager, chainResolver);</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>上述返回了一个SpringShiroFilter，它非常简单，只是简单的继承了<code>AbstractShiroFilter</code>。创建过程中最为核心的部分是<code>FilterChainManager</code>的创建，通过设置<code>filters</code>和<code>filterChainDefinitionMap</code>哈希表，完成配置化。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">ShiroFilterFactoryBean</span> <span class="keyword">implements</span> <span class="title">FactoryBean</span>, <span class="title">BeanPostProcessor</span> </span>&#123;</span><br><span class="line">    </span><br><span class="line">    <span class="comment">// 用户可以添加自定义的Filter，key为filter的名称，value为filter实例</span></span><br><span class="line">    <span class="keyword">private</span> Map&lt;String, Filter&gt; filters;</span><br><span class="line">    </span><br><span class="line">    <span class="comment">// 用户可以配置FilterChain，key为chain的名称，value为filter的名称列表，用逗号相连接</span></span><br><span class="line">    <span class="keyword">private</span> Map&lt;String, String&gt; filterChainDefinitionMap;</span><br><span class="line">    </span><br><span class="line">    <span class="function"><span class="keyword">protected</span> FilterChainManager <span class="title">createFilterChainManager</span><span class="params">()</span> </span>&#123;</span><br><span class="line">        DefaultFilterChainManager manager = <span class="keyword">new</span> DefaultFilterChainManager();</span><br><span class="line">        <span class="comment">// 将用户添加的Filter，保存到FilterChainManager里</span></span><br><span class="line">        Map&lt;String, Filter&gt; filters = getFilters();</span><br><span class="line">        <span class="keyword">if</span> (!CollectionUtils.isEmpty(filters)) &#123;</span><br><span class="line">            <span class="keyword">for</span> (Map.Entry&lt;String, Filter&gt; entry : filters.entrySet()) &#123;</span><br><span class="line">                String name = entry.getKey();</span><br><span class="line">                Filter filter = entry.getValue();</span><br><span class="line">                manager.addFilter(name, filter, <span class="keyword">false</span>);</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        <span class="comment">// 将用户添加的chain，保存到FilterChainManager里</span></span><br><span class="line">        Map&lt;String, String&gt; chains = getFilterChainDefinitionMap();</span><br><span class="line">        <span class="keyword">if</span> (!CollectionUtils.isEmpty(chains)) &#123;</span><br><span class="line">            <span class="keyword">for</span> (Map.Entry&lt;String, String&gt; entry : chains.entrySet()) &#123;</span><br><span class="line">                String url = entry.getKey();</span><br><span class="line">                String chainDefinition = entry.getValue();</span><br><span class="line">                manager.createChain(url, chainDefinition);</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        <span class="keyword">return</span> manager;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+      
+    </div>
+    
+    
+    
+
+    
+
+    
+
+    
+
+    <footer class="post-footer">
+      
+        <div class="post-tags">
+          
+            <a href="/tags/shiro-filter/" rel="tag"># shiro, filter</a>
+          
+        </div>
+      
+
+      
+      
+      
+
+      
+        <div class="post-nav">
+          <div class="post-nav-next post-nav-item">
+            
+              <a href="/2020/04/14/shiro-session/" rel="next" title="Apache Shiro Session 管理">
+                <i class="fa fa-chevron-left"></i> Apache Shiro Session 管理
+              </a>
+            
+          </div>
+
+          <span class="post-nav-divider"></span>
+
+          <div class="post-nav-prev post-nav-item">
+            
+          </div>
+        </div>
+      
+
+      
+      
+    </footer>
+  </div>
+  
+  
+  
+  </article>
+
+
+
+    <div class="post-spread">
+      
+    </div>
+  </div>
+
+
+          </div>
+          
+
+
+          
+
+  
+    <div class="comments" id="comments">
+    </div>
+  
+
+
+
+        </div>
+        
+          
+  
+  <div class="sidebar-toggle">
+    <div class="sidebar-toggle-line-wrap">
+      <span class="sidebar-toggle-line sidebar-toggle-line-first"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-middle"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-last"></span>
+    </div>
+  </div>
+
+  <aside id="sidebar" class="sidebar">
+    
+    <div class="sidebar-inner">
+
+      
+
+      
+        <ul class="sidebar-nav motion-element">
+          <li class="sidebar-nav-toc sidebar-nav-active" data-target="post-toc-wrap">
+            Table of Contents
+          </li>
+          <li class="sidebar-nav-overview" data-target="site-overview-wrap">
+            Overview
+          </li>
+        </ul>
+      
+
+      <section class="site-overview-wrap sidebar-panel">
+        <div class="site-overview">
+          <div class="site-author motion-element" itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+            
+              <p class="site-author-name" itemprop="name">zhmin</p>
+              <p class="site-description motion-element" itemprop="description"></p>
+          </div>
+
+          <nav class="site-state motion-element">
+
+            
+              <div class="site-state-item site-state-posts">
+              
+                <a href="/archives/">
+              
+                  <span class="site-state-item-count">72</span>
+                  <span class="site-state-item-name">posts</span>
+                </a>
+              </div>
+            
+
+            
+              
+              
+              <div class="site-state-item site-state-categories">
+                <a href="/categories/index.html">
+                  <span class="site-state-item-count">15</span>
+                  <span class="site-state-item-name">categories</span>
+                </a>
+              </div>
+            
+
+            
+              
+              
+              <div class="site-state-item site-state-tags">
+                
+                  <span class="site-state-item-count">66</span>
+                  <span class="site-state-item-name">tags</span>
+                
+              </div>
+            
+
+          </nav>
+
+          
+
+          
+            <div class="links-of-author motion-element">
+                
+                  <span class="links-of-author-item">
+                    <a href="https://github.com/zhmin" target="_blank" title="GitHub">
+                      
+                        <i class="fa fa-fw fa-github"></i>GitHub</a>
+                  </span>
+                
+            </div>
+          
+
+          
+          
+
+          
+          
+
+          
+
+        </div>
+      </section>
+
+      
+      <!--noindex-->
+        <section class="post-toc-wrap motion-element sidebar-panel sidebar-panel-active">
+          <div class="post-toc">
+
+            
+              
+            
+
+            
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#前言"><span class="nav-number">1.</span> <span class="nav-text">前言</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Servlet-Filter-原理"><span class="nav-number">2.</span> <span class="nav-text">Servlet Filter 原理</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Shiro-Filter-类图"><span class="nav-number">3.</span> <span class="nav-text">Shiro Filter 类图</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#主-Filter"><span class="nav-number">4.</span> <span class="nav-text">主 Filter</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#FilterChain-匹配原理"><span class="nav-number">5.</span> <span class="nav-text">FilterChain 匹配原理</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#SimpleFilterChainResolver-类"><span class="nav-number">5.1.</span> <span class="nav-text">SimpleFilterChainResolver 类</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#PathMatchingFilterChainResolver类"><span class="nav-number">5.2.</span> <span class="nav-text">PathMatchingFilterChainResolver类</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#独立-Filter"><span class="nav-number">6.</span> <span class="nav-text">独立 Filter</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#匿名访问-Filter"><span class="nav-number">6.1.</span> <span class="nav-text">匿名访问 Filter</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#AccessControlFilter-类"><span class="nav-number">6.2.</span> <span class="nav-text">AccessControlFilter 类</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#身份认证-Filter"><span class="nav-number">6.3.</span> <span class="nav-text">身份认证 Filter</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#权限检查-Filter"><span class="nav-number">6.4.</span> <span class="nav-text">权限检查 Filter</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Filter-创建"><span class="nav-number">7.</span> <span class="nav-text">Filter 创建</span></a></li></ol></div>
+            
+
+          </div>
+        </section>
+      <!--/noindex-->
+      
+
+      
+
+    </div>
+  </aside>
+
+
+        
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="footer-inner">
+        <div class="copyright">&copy; <span itemprop="copyrightYear">2020</span>
+  <span class="with-love">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">zhmin</span>
+
+  
+</div>
+
+
+
+
+
+
+
+
+
+
+
+  <script src="https://unpkg.com/mermaid@8/dist/mermaid.min.js"></script>
+  <script>
+    if (window.mermaid) {
+      mermaid.initialize({"startOnload":true,"theme":"forest"});
+    }
+  </script>
+
+
+
+<script async src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+<span id="busuanzi_container_site_pv">
+    访问量<span id="busuanzi_value_site_pv"></span>
+</span>
+<span class="post-meta-divider">|</span>
+<span id="busuanzi_container_site_uv">
+  访客数<span id="busuanzi_value_site_uv"></span>
+</span>
+
+        
+
+
+
+
+
+
+
+        
+      </div>
+    </footer>
+
+    
+      <div class="back-to-top">
+        <i class="fa fa-arrow-up"></i>
+        
+      </div>
+    
+
+    
+
+  </div>
+
+  
+
+<script type="text/javascript">
+  if (Object.prototype.toString.call(window.Promise) !== '[object Function]') {
+    window.Promise = null;
+  }
+</script>
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery/index.js?v=2.1.3"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fastclick/lib/fastclick.min.js?v=1.0.6"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery_lazyload/jquery.lazyload.js?v=1.9.7"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.ui.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fancybox/source/jquery.fancybox.pack.js?v=2.1.5"></script>
+  
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/utils.js?v=5.1.4"></script>
+
+  <script type="text/javascript" src="/js/src/motion.js?v=5.1.4"></script>
+
+
+
+  
+  
+
+  
+  <script type="text/javascript" src="/js/src/scrollspy.js?v=5.1.4"></script>
+<script type="text/javascript" src="/js/src/post-details.js?v=5.1.4"></script>
+
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/bootstrap.js?v=5.1.4"></script>
+
+
+
+  
+
+
+  
+
+
+
+
+	
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+  <script src="//cdn1.lncld.net/static/js/3.0.4/av-min.js"></script>
+  <script src="//unpkg.com/valine/dist/Valine.min.js"></script>
+  
+  <script type="text/javascript">
+    var GUEST = ['nick','mail','link'];
+    var guest = 'nick';
+    guest = guest.split(',').filter(item=>{
+      return GUEST.indexOf(item)>-1;
+    });
+    new Valine({
+        el: '#comments' ,
+        verify: false,
+        notify: false,
+        appId: 'iYiPQlDR2X2zg2QIql2UEe2o-gzGzoHsz',
+        appKey: 'EW8G4sftwX1pef1zS9EsOeKE',
+        placeholder: 'comment here',
+        avatar:'mm',
+        guest_info:guest,
+        pageSize:'10' || 10,
+    });
+  </script>
+
+
+
+  
+
+
+
+
+
+  
+
+  
+  <script src="https://cdn1.lncld.net/static/js/av-core-mini-0.6.4.js"></script>
+  <script>AV.initialize("iYiPQlDR2X2zg2QIql2UEe2o-gzGzoHsz", "EW8G4sftwX1pef1zS9EsOeKE");</script>
+  <script>
+    function showTime(Counter) {
+      var query = new AV.Query(Counter);
+      var entries = [];
+      var $visitors = $(".leancloud_visitors");
+
+      $visitors.each(function () {
+        entries.push( $(this).attr("id").trim() );
+      });
+
+      query.containedIn('url', entries);
+      query.find()
+        .done(function (results) {
+          var COUNT_CONTAINER_REF = '.leancloud-visitors-count';
+
+          if (results.length === 0) {
+            $visitors.find(COUNT_CONTAINER_REF).text(0);
+            return;
+          }
+
+          for (var i = 0; i < results.length; i++) {
+            var item = results[i];
+            var url = item.get('url');
+            var time = item.get('time');
+            var element = document.getElementById(url);
+
+            $(element).find(COUNT_CONTAINER_REF).text(time);
+          }
+          for(var i = 0; i < entries.length; i++) {
+            var url = entries[i];
+            var element = document.getElementById(url);
+            var countSpan = $(element).find(COUNT_CONTAINER_REF);
+            if( countSpan.text() == '') {
+              countSpan.text(0);
+            }
+          }
+        })
+        .fail(function (object, error) {
+          console.log("Error: " + error.code + " " + error.message);
+        });
+    }
+
+    function addCount(Counter) {
+      var $visitors = $(".leancloud_visitors");
+      var url = $visitors.attr('id').trim();
+      var title = $visitors.attr('data-flag-title').trim();
+      var query = new AV.Query(Counter);
+
+      query.equalTo("url", url);
+      query.find({
+        success: function(results) {
+          if (results.length > 0) {
+            var counter = results[0];
+            counter.fetchWhenSave(true);
+            counter.increment("time");
+            counter.save(null, {
+              success: function(counter) {
+                var $element = $(document.getElementById(url));
+                $element.find('.leancloud-visitors-count').text(counter.get('time'));
+              },
+              error: function(counter, error) {
+                console.log('Failed to save Visitor num, with error message: ' + error.message);
+              }
+            });
+          } else {
+            var newcounter = new Counter();
+            /* Set ACL */
+            var acl = new AV.ACL();
+            acl.setPublicReadAccess(true);
+            acl.setPublicWriteAccess(true);
+            newcounter.setACL(acl);
+            /* End Set ACL */
+            newcounter.set("title", title);
+            newcounter.set("url", url);
+            newcounter.set("time", 1);
+            newcounter.save(null, {
+              success: function(newcounter) {
+                var $element = $(document.getElementById(url));
+                $element.find('.leancloud-visitors-count').text(newcounter.get('time'));
+              },
+              error: function(newcounter, error) {
+                console.log('Failed to create');
+              }
+            });
+          }
+        },
+        error: function(error) {
+          console.log('Error:' + error.code + " " + error.message);
+        }
+      });
+    }
+
+    $(function() {
+      var Counter = AV.Object.extend("Counter");
+      if ($('.leancloud_visitors').length == 1) {
+        addCount(Counter);
+      } else if ($('.post-title-link').length > 1) {
+        showTime(Counter);
+      }
+    });
+  </script>
+
+
+
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+</body>
+</html>
