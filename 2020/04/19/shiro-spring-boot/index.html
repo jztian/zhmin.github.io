@@ -1,0 +1,1022 @@
+<!DOCTYPE html>
+
+
+
+  
+
+
+<html class="theme-next mist use-motion" lang="">
+<head><meta name="generator" content="Hexo 3.8.0">
+  <meta charset="UTF-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="theme-color" content="#222">
+
+
+
+
+
+
+
+
+
+<meta http-equiv="Cache-Control" content="no-transform">
+<meta http-equiv="Cache-Control" content="no-siteapp">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+  <link href="/lib/fancybox/source/jquery.fancybox.css?v=2.1.5" rel="stylesheet" type="text/css">
+
+
+
+
+
+
+
+<link href="/lib/font-awesome/css/font-awesome.min.css?v=4.6.2" rel="stylesheet" type="text/css">
+
+<link href="/css/main.css?v=5.1.4" rel="stylesheet" type="text/css">
+
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png?v=5.1.4">
+
+
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png?v=5.1.4">
+
+
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png?v=5.1.4">
+
+
+  <link rel="mask-icon" href="/images/logo.svg?v=5.1.4" color="#222">
+
+
+
+
+
+  <meta name="keywords" content="shiro,">
+
+
+
+
+
+
+
+
+
+
+<meta name="description" content="前言shiro 框架支持多种使用场景，并且都提供了默认配置，本篇文章会介绍 shiro 的配置原理和如何与 springboot 集成的。 默认配置类shiro 支持运行在 Web 环境下和非 Web 环境下，每种环境都有着不一样的默认配置。 非 Web 环境AbstractShiroConfiguration提供了非 Web 环境下的的默认配置。它提供了securityManager方法来创建S">
+<meta name="keywords" content="shiro">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Apache Shiro SpringBoot 集成原理">
+<meta property="og:url" content="https://zhmin.github.io/2020/04/19/shiro-spring-boot/index.html">
+<meta property="og:site_name" content="学习笔记">
+<meta property="og:description" content="前言shiro 框架支持多种使用场景，并且都提供了默认配置，本篇文章会介绍 shiro 的配置原理和如何与 springboot 集成的。 默认配置类shiro 支持运行在 Web 环境下和非 Web 环境下，每种环境都有着不一样的默认配置。 非 Web 环境AbstractShiroConfiguration提供了非 Web 环境下的的默认配置。它提供了securityManager方法来创建S">
+<meta property="og:locale" content="default">
+<meta property="og:updated_time" content="2020-04-19T08:05:42.626Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Apache Shiro SpringBoot 集成原理">
+<meta name="twitter:description" content="前言shiro 框架支持多种使用场景，并且都提供了默认配置，本篇文章会介绍 shiro 的配置原理和如何与 springboot 集成的。 默认配置类shiro 支持运行在 Web 环境下和非 Web 环境下，每种环境都有着不一样的默认配置。 非 Web 环境AbstractShiroConfiguration提供了非 Web 环境下的的默认配置。它提供了securityManager方法来创建S">
+
+
+
+<script type="text/javascript" id="hexo.configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '/',
+    scheme: 'Mist',
+    version: '5.1.4',
+    sidebar: {"position":"left","display":"hide","offset":12,"b2t":false,"scrollpercent":false,"onmobile":false},
+    fancybox: true,
+    tabs: true,
+    motion: {"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},
+    duoshuo: {
+      userId: '0',
+      author: 'Author'
+    },
+    algolia: {
+      applicationID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    }
+  };
+</script>
+
+
+
+  <link rel="canonical" href="https://zhmin.github.io/2020/04/19/shiro-spring-boot/">
+
+
+
+
+
+  <title>Apache Shiro SpringBoot 集成原理 | 学习笔记</title>
+  
+
+
+
+
+
+
+
+
+</head>
+
+<body itemscope="" itemtype="http://schema.org/WebPage" lang="default">
+
+  
+  
+    
+  
+
+  <div class="container sidebar-position-left page-post-detail">
+    <div class="headband"></div>
+
+    <header id="header" class="header" itemscope="" itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-wrapper">
+  <div class="site-meta ">
+    
+
+    <div class="custom-logo-site-title">
+      <a href="/" class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">学习笔记</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+      
+        <h1 class="site-subtitle" itemprop="description"></h1>
+      
+  </div>
+
+  <div class="site-nav-toggle">
+    <button>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+    </button>
+  </div>
+</div>
+
+<nav class="site-nav">
+  
+
+  
+    <ul id="menu" class="menu">
+      
+        
+        <li class="menu-item menu-item-home">
+          <a href="/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-home"></i> <br>
+            
+            Home
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-categories">
+          <a href="/categories/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-th"></i> <br>
+            
+            Categories
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-archives">
+          <a href="/archives/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-archive"></i> <br>
+            
+            Archives
+          </a>
+        </li>
+      
+
+      
+    </ul>
+  
+
+  
+</nav>
+
+
+
+ </div>
+    </header>
+
+    <main id="main" class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          <div id="content" class="content">
+            
+
+  <div id="posts" class="posts-expand">
+    
+
+  
+
+  
+  
+  
+
+  <article class="post post-type-normal" itemscope="" itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block">
+    <link itemprop="mainEntityOfPage" href="https://zhmin.github.io/2020/04/19/shiro-spring-boot/">
+
+    <span hidden itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="zhmin">
+      <meta itemprop="description" content="">
+      <meta itemprop="image" content="/images/avatar.gif">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope="" itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="学习笔记">
+    </span>
+
+    
+      <header class="post-header">
+
+        
+        
+          <h2 class="post-title" itemprop="name headline">Apache Shiro SpringBoot 集成原理</h2>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">Posted on</span>
+              
+              <time title="Post created" itemprop="dateCreated datePublished" datetime="2020-04-19T15:57:31+08:00">
+                2020-04-19
+              </time>
+            
+
+            
+
+            
+          </span>
+
+          
+            <span class="post-category">
+            
+              <span class="post-meta-divider">|</span>
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">In</span>
+              
+              
+                <span itemprop="about" itemscope="" itemtype="http://schema.org/Thing">
+                  <a href="/categories/shiro/" itemprop="url" rel="index">
+                    <span itemprop="name">shiro</span>
+                  </a>
+                </span>
+
+                
+                
+              
+            </span>
+          
+
+          
+            
+              <span class="post-comments-count">
+                <span class="post-meta-divider">|</span>
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-comment-o"></i>
+                </span>
+                <a href="/2020/04/19/shiro-spring-boot/#comments" itemprop="discussionUrl">
+                  <span class="post-comments-count valine-comment-count" data-xid="/2020/04/19/shiro-spring-boot/" itemprop="commentCount"></span>
+                </a>
+              </span>
+            
+          
+
+          
+          
+             <span id="/2020/04/19/shiro-spring-boot/" class="leancloud_visitors" data-flag-title="Apache Shiro SpringBoot 集成原理">
+               <span class="post-meta-divider">|</span>
+               <span class="post-meta-item-icon">
+                 <i class="fa fa-eye"></i>
+               </span>
+               
+                 <span class="post-meta-item-text">Visitors&#58;</span>
+               
+                 <span class="leancloud-visitors-count"></span>
+             </span>
+          
+
+          
+
+          
+
+          
+
+        </div>
+      </header>
+    
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+      
+
+      
+        <h2 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h2><p>shiro 框架支持多种使用场景，并且都提供了默认配置，本篇文章会介绍 shiro 的配置原理和如何与 springboot 集成的。</p>
+<h2 id="默认配置类"><a href="#默认配置类" class="headerlink" title="默认配置类"></a>默认配置类</h2><p>shiro 支持运行在 Web 环境下和非 Web 环境下，每种环境都有着不一样的默认配置。</p>
+<h3 id="非-Web-环境"><a href="#非-Web-环境" class="headerlink" title="非 Web 环境"></a>非 Web 环境</h3><p><code>AbstractShiroConfiguration</code>提供了非 Web 环境下的的默认配置。它提供了<code>securityManager</code>方法来创建<code>SecurityManager</code>实例，</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">AbstractShiroConfiguration</span> </span>&#123;</span><br><span class="line">    </span><br><span class="line">    <span class="function"><span class="keyword">protected</span> SessionsSecurityManager <span class="title">securityManager</span><span class="params">(List&lt;Realm&gt; realms)</span> </span>&#123;</span><br><span class="line">        <span class="comment">// 使用createSecurityManager创建securityManager</span></span><br><span class="line">        SessionsSecurityManager securityManager = createSecurityManager();</span><br><span class="line">        <span class="comment">// 进行securityManager的配置</span></span><br><span class="line">        securityManager.setAuthenticator(authenticator());</span><br><span class="line">        securityManager.setAuthorizer(authorizer());</span><br><span class="line">        securityManager.setRealms(realms);</span><br><span class="line">        securityManager.setSessionManager(sessionManager());</span><br><span class="line">        securityManager.setEventBus(eventBus);</span><br><span class="line"></span><br><span class="line">        <span class="keyword">if</span> (cacheManager != <span class="keyword">null</span>) &#123;</span><br><span class="line">            securityManager.setCacheManager(cacheManager);</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        <span class="keyword">return</span> securityManager;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>可以看到它在创建<code>SecurityManager</code>时，使用了很多配置参数，这些参数都是以函数的方式返回，比如<code>authenticator</code>函数返回<code>Authenticator</code>实例。这样设计使得子类就可以复写该方法，实现自定义参数配置，并且方法名和参数类型名称是相同的，这样刚好符合 spring bean 的配置规范。</p>
+<p>下面是<code>AbstractShiroConfiguration</code>提供的默认参数表，只是列举了一些重要的参数，</p>
+<table>
+<thead>
+<tr>
+<th>方法名</th>
+<th>返回类型</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>createSecurityManager</td>
+<td>DefaultSecurityManager</td>
+<td>SecurityManager 实例，作为shiro的核心门面类</td>
+</tr>
+<tr>
+<td>authenticator</td>
+<td>ModularRealmAuthenticator</td>
+<td>Authenticator 实例，作为用户身份认证</td>
+</tr>
+<tr>
+<td>authorizer</td>
+<td>ModularRealmAuthorizer</td>
+<td>Authorizer 实例，作为用户权限检查</td>
+</tr>
+<tr>
+<td>sessionManager</td>
+<td>DefaultSessionManager</td>
+<td>SessionManager 实例，作为 session 管理</td>
+</tr>
+</tbody>
+</table>
+<h3 id="Web-环境下"><a href="#Web-环境下" class="headerlink" title="Web 环境下"></a>Web 环境下</h3><p><code>AbstractShiroWebConfiguration</code>作为web 场景下的默认配置，它集成了<code>AbstractShiroConfiguration</code>，复写了一些参数的方法。下面是它的默认参数表</p>
+<table>
+<thead>
+<tr>
+<th>方法名</th>
+<th>返回类型</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>createSecurityManager</td>
+<td>DefaultWebSecurityManager</td>
+<td>SecurityManager 实例，作为shiro的核心门面类</td>
+</tr>
+<tr>
+<td>sessionManager</td>
+<td>ServletContainerSessionManager</td>
+<td>SessionManager 实例，作为 session 管理</td>
+</tr>
+</tbody>
+</table>
+<h2 id="shiro-配置类"><a href="#shiro-配置类" class="headerlink" title="shiro 配置类"></a>shiro 配置类</h2><pre class="mermaid">classDiagram
+    class AbstractShiroConfiguration
+    &lt;&lt;abstract>> AbstractShiroConfiguration
+    class ShiroConfiguration
+
+    AbstractShiroConfiguration &lt;|-- ShiroConfiguration
+
+    class AbstractShiroWebConfiguration
+    &lt;&lt;abstract>> AbstractShiroWebConfiguration
+    class ShiroWebConfiguration
+    class ShiroWebAutoConfiguration
+
+    AbstractShiroConfiguration &lt;|-- AbstractShiroWebConfiguration
+    AbstractShiroWebConfiguration &lt;|-- ShiroWebConfiguration
+    AbstractShiroWebConfiguration &lt;|-- ShiroWebAutoConfiguration
+
+    class ShiroAutoConfiguration
+    AbstractShiroConfiguration &lt;|-- ShiroAutoConfiguration 
+</pre>
+
+
+
+<p>上面已经讲解了<code>AbstractShiroConfiguration</code>和<code>AbstractShiroWebConfiguration</code>两个抽象类的原理，图中其他的类都对应了不同的使用场景。</p>
+<table>
+<thead>
+<tr>
+<th>配置类</th>
+<th>集成框架</th>
+<th>使用环境</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>ShiroConfiguration</td>
+<td>spring</td>
+<td>非 Web 环境</td>
+</tr>
+<tr>
+<td>ShiroWebConfiguration</td>
+<td>spring</td>
+<td>Web 环境</td>
+</tr>
+<tr>
+<td>ShiroAutoConfiguration</td>
+<td>spring boot</td>
+<td>非 Web 环境</td>
+</tr>
+<tr>
+<td>ShiroWebAutoConfiguration</td>
+<td>spring boot</td>
+<td>Web 环境</td>
+</tr>
+</tbody>
+</table>
+<p>这些类都添加了<code>@Configuration</code>注解，并且参数方法也都提供了<code>@Bean</code> 注解，这样方便集成 spring。下面只会讲解 springboot web 环境下的配置原理，这种场景使用最为常见。</p>
+<h2 id="SpringBoot-web-集成示例"><a href="#SpringBoot-web-集成示例" class="headerlink" title="SpringBoot web 集成示例"></a>SpringBoot web 集成示例</h2><p>虽然网上关于 spring boot 集成 shiro 的配置教程很多，但是个人觉得都不够简洁，并没有理解到 shiro 的设计思想，所以这里单独拿出来讲一下。</p>
+<h3 id="在-pom-xml-添加-shiro-spring-依赖"><a href="#在-pom-xml-添加-shiro-spring-依赖" class="headerlink" title="在 pom.xml 添加 shiro-spring 依赖"></a>在 pom.xml 添加 shiro-spring 依赖</h3><figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="tag">&lt;<span class="name">dependency</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">groupId</span>&gt;</span>org.apache.shiro<span class="tag">&lt;/<span class="name">groupId</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">artifactId</span>&gt;</span>shiro-spring-boot-web-starter<span class="tag">&lt;/<span class="name">artifactId</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">version</span>&gt;</span>1.5.2<span class="tag">&lt;/<span class="name">version</span>&gt;</span></span><br><span class="line"><span class="tag">&lt;/<span class="name">dependency</span>&gt;</span></span><br></pre></td></tr></table></figure>
+<h3 id="自定-Realm"><a href="#自定-Realm" class="headerlink" title="自定 Realm"></a>自定 Realm</h3><p>自定义Realm，负责提供身份信息和权限信息。下面假设<code>AccountService</code>类实现了用户相关的方法。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">MyRealm</span> <span class="keyword">extends</span> <span class="title">AuthorizingRealm</span> </span>&#123;</span><br><span class="line"></span><br><span class="line">    <span class="meta">@Autowired</span></span><br><span class="line">    AccountService service;</span><br><span class="line"></span><br><span class="line">    <span class="meta">@Override</span></span><br><span class="line">    <span class="function"><span class="keyword">protected</span> AuthorizationInfo <span class="title">doGetAuthorizationInfo</span><span class="params">(PrincipalCollection principalCollection)</span> </span>&#123;</span><br><span class="line">        String username = principalCollection.getPrimaryToken();</span><br><span class="line">        <span class="keyword">return</span> service.getPermission(username);</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="meta">@Override</span></span><br><span class="line">    <span class="function"><span class="keyword">protected</span> AuthenticationInfo <span class="title">doGetAuthenticationInfo</span><span class="params">(AuthenticationToken authenticationToken)</span> <span class="keyword">throws</span> AuthenticationException </span>&#123;</span><br><span class="line">        UsernamePasswordToken token = (UsernamePasswordToken) authenticationToken;</span><br><span class="line">        String username = token.getUsername();</span><br><span class="line">        String password = String.valueOf(token.getPassword());</span><br><span class="line">        <span class="keyword">if</span> (!service.checkUserPassword(username, password)) &#123;</span><br><span class="line">            <span class="keyword">throw</span> <span class="keyword">new</span> AuthenticationException();</span><br><span class="line">        &#125;</span><br><span class="line">        SimpleAuthenticationInfo info = <span class="keyword">new</span> SimpleAuthenticationInfo(username, password, <span class="string">"my_realm"</span>);</span><br><span class="line">        <span class="keyword">return</span> info;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h3 id="自定义-Filter"><a href="#自定义-Filter" class="headerlink" title="自定义  Filter"></a>自定义  Filter</h3><p>这里自定义 Filter 是为了实现 Restful 风格的接口，当发现用户没有登录，就会返回 json 数据，status 为 1 的错误码。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">RestFilter</span> <span class="keyword">extends</span> <span class="title">AuthenticationFilter</span> </span>&#123;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">public</span> <span class="keyword">final</span> String LOGIN_REQUIRED_RESPONSE = <span class="string">"&#123;\"status\" : 1&#125;"</span>;</span><br><span class="line"></span><br><span class="line">    <span class="meta">@Override</span></span><br><span class="line">    <span class="function"><span class="keyword">protected</span> <span class="keyword">boolean</span> <span class="title">onAccessDenied</span><span class="params">(ServletRequest servletRequest, ServletResponse servletResponse)</span> <span class="keyword">throws</span> Exception </span>&#123;</span><br><span class="line">        PrintWriter out = servletResponse.getWriter();</span><br><span class="line">        servletResponse.setContentType(<span class="string">"application/json;charset=utf-8"</span>);</span><br><span class="line">        servletResponse.setCharacterEncoding(<span class="string">"UTF-8"</span>);</span><br><span class="line">        out.print(LOGIN_REQUIRED_RESPONSE);</span><br><span class="line">        out.flush();</span><br><span class="line"></span><br><span class="line">        <span class="keyword">return</span> <span class="keyword">false</span>;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h3 id="配置类"><a href="#配置类" class="headerlink" title="配置类"></a>配置类</h3><p>现在来到了最核心的配置，首先返回了自定义 Realm 和 Filter。需要注意下 Filter，这里单独配置了它不会被注册到 Serlvet 里。因为我们自定义的 filter 只能由 shiro 的 主 filter 管理，所以不能注册到 Serlvet，在这篇文章有详细介绍到， <a href="/2020/04/08/shiro-architecture/" title="Apache Shiro 框架介绍">Apache Shiro 框架介绍</a> 。</p>
+<p>还有需要定义<code>ShiroFilterChainDefinition</code>，这里配置了根据请求路径，来选择哪条 FilterChain。比如<code>login</code>路径的请求，会被只包含<code>anon</code>的 FilterChain 处理，表示匿名用户都能访问。其余路径的请求，则由包含<code>RestFilter</code>的 FilterChain 处理。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">@Configuration</span></span><br><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">ShiroConfig</span> </span>&#123;</span><br><span class="line"></span><br><span class="line">    <span class="meta">@Bean</span></span><br><span class="line">    <span class="function"><span class="keyword">public</span> Realm <span class="title">realm</span><span class="params">()</span> </span>&#123;</span><br><span class="line">        <span class="keyword">return</span> <span class="keyword">new</span> MyRealm();</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="meta">@Bean</span></span><br><span class="line">    <span class="function"><span class="keyword">public</span> RestFilter <span class="title">myauth</span><span class="params">()</span> </span>&#123;</span><br><span class="line">        <span class="keyword">return</span> <span class="keyword">new</span> RestFilter();</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="meta">@Bean</span></span><br><span class="line">    <span class="function"><span class="keyword">public</span> FilterRegistrationBean <span class="title">restFilterRegistration</span><span class="params">(RestFilter filter)</span> </span>&#123;</span><br><span class="line">        FilterRegistrationBean registration = <span class="keyword">new</span> FilterRegistrationBean(filter);</span><br><span class="line">        registration.setEnabled(<span class="keyword">false</span>);</span><br><span class="line">        <span class="keyword">return</span> registration;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line"></span><br><span class="line">    <span class="meta">@Bean</span></span><br><span class="line">    <span class="function"><span class="keyword">public</span> ShiroFilterChainDefinition <span class="title">shiroFilterChainDefinition</span><span class="params">()</span> </span>&#123;</span><br><span class="line">        DefaultShiroFilterChainDefinition chainDefinition = <span class="keyword">new</span> DefaultShiroFilterChainDefinition();</span><br><span class="line">        chainDefinition.addPathDefinition(<span class="string">"/login"</span>, <span class="string">"anon"</span>);</span><br><span class="line">        chainDefinition.addPathDefinition(<span class="string">"/**"</span>, <span class="string">"myauth"</span>);</span><br><span class="line">        <span class="keyword">return</span> chainDefinition;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h3 id="添加-controller-示例"><a href="#添加-controller-示例" class="headerlink" title="添加 controller 示例"></a>添加 controller 示例</h3><p>这里写个简单的controller，实现登录和访问页面的接口。比如访问<code>/hello</code>路径，则该请求需要先通过身份认证，才能访问，否则会返回<code>{&quot;status&quot;: 1}</code>的响应。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">@RestController</span></span><br><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">AccountController</span> </span>&#123;</span><br><span class="line">    </span><br><span class="line">    <span class="meta">@PostMapping</span>(value = <span class="string">"/login"</span>)</span><br><span class="line">    <span class="function"><span class="keyword">public</span> Response <span class="title">login</span><span class="params">(@RequestBody LoginRequest request, HttpServletResponse response)</span> </span>&#123;</span><br><span class="line">        Subject user = SecurityUtils.getSubject();</span><br><span class="line">        UsernamePasswordToken token = <span class="keyword">new</span> UsernamePasswordToken(request.getUsername(), request.getPassword());</span><br><span class="line">        <span class="keyword">try</span> &#123;</span><br><span class="line">            user.login(token);</span><br><span class="line">        &#125; <span class="keyword">catch</span> (AuthenticationException errro) &#123;</span><br><span class="line">            <span class="keyword">return</span> Response.PASSWORD_FAIL_RESPONSE;</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        <span class="keyword">return</span> Response.OK_RESPONSE;</span><br><span class="line">    &#125;</span><br><span class="line">    </span><br><span class="line">    <span class="meta">@GetMapping</span>(path = <span class="string">"/hello"</span>)</span><br><span class="line">    <span class="function"><span class="keyword">public</span> Response <span class="title">get</span><span class="params">()</span> </span>&#123;</span><br><span class="line">        Response result = <span class="keyword">new</span> Response();</span><br><span class="line">        result.setCode(<span class="number">0</span>);</span><br><span class="line">        result.setData(<span class="string">"hello"</span>);</span><br><span class="line">        <span class="keyword">return</span> result;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h2 id="springboot-shiro-集成原理"><a href="#springboot-shiro-集成原理" class="headerlink" title="springboot shiro 集成原理"></a>springboot shiro 集成原理</h2><p>当我们引入了<code>shiro-spring-boot-web-starter</code>模块后，springboot 会根据该模块的配置，自动引入<code>ShiroWebAutoConfiguration</code>和<code>ShiroWebFilterConfiguration</code>配置。</p>
+<h3 id="Filter-配置"><a href="#Filter-配置" class="headerlink" title="Filter 配置"></a>Filter 配置</h3><p><code>ShiroWebFilterConfiguration</code>是用来配置 shiro Filter。可以看到它使用了很多条件注解，并且可以看到它使用<code>FilterRegistrationBean</code>注册了 shiro 主 Filter。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">@Configuration</span></span><br><span class="line"><span class="meta">@ConditionalOnProperty</span>(</span><br><span class="line">    name = &#123;<span class="string">"shiro.web.enabled"</span>&#125;,</span><br><span class="line">    matchIfMissing = <span class="keyword">true</span></span><br><span class="line">)</span><br><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">ShiroWebFilterConfiguration</span> <span class="keyword">extends</span> <span class="title">AbstractShiroWebFilterConfiguration</span> </span>&#123;</span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="title">ShiroWebFilterConfiguration</span><span class="params">()</span> </span>&#123;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="meta">@Bean</span></span><br><span class="line">    <span class="meta">@ConditionalOnMissingBean</span></span><br><span class="line">    <span class="function"><span class="keyword">protected</span> ShiroFilterFactoryBean <span class="title">shiroFilterFactoryBean</span><span class="params">()</span> </span>&#123;</span><br><span class="line">        <span class="keyword">return</span> <span class="keyword">super</span>.shiroFilterFactoryBean();</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="meta">@Bean</span>(</span><br><span class="line">        name = &#123;<span class="string">"filterShiroFilterRegistrationBean"</span>&#125;</span><br><span class="line">    )</span><br><span class="line">    <span class="meta">@ConditionalOnMissingBean</span></span><br><span class="line">    <span class="function"><span class="keyword">protected</span> FilterRegistrationBean <span class="title">filterShiroFilterRegistrationBean</span><span class="params">()</span> <span class="keyword">throws</span> Exception </span>&#123;</span><br><span class="line">        FilterRegistrationBean filterRegistrationBean = <span class="keyword">new</span> FilterRegistrationBean();</span><br><span class="line">        filterRegistrationBean.setDispatcherTypes(DispatcherType.REQUEST, <span class="keyword">new</span> DispatcherType[]&#123;DispatcherType.FORWARD, DispatcherType.INCLUDE, DispatcherType.ERROR&#125;);</span><br><span class="line">        filterRegistrationBean.setFilter((AbstractShiroFilter)<span class="keyword">this</span>.shiroFilterFactoryBean().getObject());</span><br><span class="line">        filterRegistrationBean.setOrder(<span class="number">1</span>);</span><br><span class="line">        <span class="keyword">return</span> filterRegistrationBean;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>我们需要继续看看父类是如何创建出<code>ShiroFilterFactoryBean</code>实例的，下面只是列举了一些重要的属性。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">AbstractShiroWebFilterConfiguration</span> </span>&#123;</span><br><span class="line"></span><br><span class="line">    <span class="meta">@Autowired</span></span><br><span class="line">    <span class="keyword">protected</span> SecurityManager securityManager;</span><br><span class="line"></span><br><span class="line">    <span class="meta">@Autowired</span></span><br><span class="line">    <span class="keyword">protected</span> ShiroFilterChainDefinition shiroFilterChainDefinition;</span><br><span class="line"></span><br><span class="line">    <span class="meta">@Autowired</span></span><br><span class="line">    <span class="keyword">protected</span> Map&lt;String, Filter&gt; filterMap;</span><br><span class="line">    </span><br><span class="line">    <span class="function"><span class="keyword">protected</span> ShiroFilterFactoryBean <span class="title">shiroFilterFactoryBean</span><span class="params">()</span> </span>&#123;</span><br><span class="line">        ShiroFilterFactoryBean filterFactoryBean = <span class="keyword">new</span> ShiroFilterFactoryBean();</span><br><span class="line">        filterFactoryBean.setSecurityManager(securityManager);</span><br><span class="line">        filterFactoryBean.setFilterChainDefinitionMap(shiroFilterChainDefinition.getFilterChainMap());</span><br><span class="line">        filterFactoryBean.setFilters(filterMap);</span><br><span class="line"></span><br><span class="line">        <span class="keyword">return</span> filterFactoryBean;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>可以看到<code>ShiroFilterChainDefinition</code>实例，使用了<code>AutoWired</code>自动装配。我们在<code>ShiroConfig</code>配置类定义的<code>ShiroFilterChainDefinition</code>实例，会被自动装配到这里。</p>
+<p>还需要主意<code>filterMap</code>属性，它是<code>Map&lt;String, Filter&gt;</code>类型。它会自动扫描所有的Filter实例，并且添加到 map 里。所以我们在<code>ShiroConfig</code>配置类定义的<code>RestFilter</code>被添加到了这里。</p>
+<h3 id="Shiro-core-配置"><a href="#Shiro-core-配置" class="headerlink" title="Shiro core 配置"></a>Shiro core 配置</h3><p><code>ShiroWebAutoConfiguration</code>负责 shiro 核心类型的配置，它继承<code>AbstractShiroWebConfiguration</code>，将父类的参数方法都提供了<code>Bean</code>注解。还需要注意到<code>securityManager</code>方法，它接收的参数类型是<code>List&lt;Realm&gt;</code>。我们在<code>ShiroConfig</code>配置类定义的<code>MyRleam</code>会被添加到该列表里。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">@Configuration</span></span><br><span class="line"><span class="meta">@AutoConfigureBefore</span>(&#123;ShiroAutoConfiguration.class&#125;)</span><br><span class="line"><span class="meta">@ConditionalOnProperty</span>(</span><br><span class="line">    name = &#123;<span class="string">"shiro.web.enabled"</span>&#125;,</span><br><span class="line">    matchIfMissing = <span class="keyword">true</span></span><br><span class="line">)</span><br><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">ShiroWebAutoConfiguration</span> <span class="keyword">extends</span> <span class="title">AbstractShiroWebConfiguration</span> </span>&#123;</span><br><span class="line">    </span><br><span class="line">    <span class="meta">@Bean</span></span><br><span class="line">    <span class="meta">@ConditionalOnMissingBean</span></span><br><span class="line">    <span class="function"><span class="keyword">protected</span> Authenticator <span class="title">authenticator</span><span class="params">()</span> </span>&#123;</span><br><span class="line">        <span class="keyword">return</span> <span class="keyword">super</span>.authenticator();</span><br><span class="line">    &#125;</span><br><span class="line">    </span><br><span class="line">    <span class="comment">//.....</span></span><br><span class="line">    </span><br><span class="line">    <span class="meta">@Bean</span></span><br><span class="line">    <span class="meta">@ConditionalOnMissingBean</span></span><br><span class="line">    <span class="function"><span class="keyword">protected</span> SessionsSecurityManager <span class="title">securityManager</span><span class="params">(List&lt;Realm&gt; realms)</span> </span>&#123;</span><br><span class="line">        <span class="keyword">return</span> <span class="keyword">super</span>.securityManager(realms);</span><br><span class="line">    &#125;</span><br><span class="line">    </span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+      
+    </div>
+    
+    
+    
+
+    
+
+    
+
+    
+
+    <footer class="post-footer">
+      
+        <div class="post-tags">
+          
+            <a href="/tags/shiro/" rel="tag"># shiro</a>
+          
+        </div>
+      
+
+      
+      
+      
+
+      
+        <div class="post-nav">
+          <div class="post-nav-next post-nav-item">
+            
+              <a href="/2020/04/15/shiro-filter/" rel="next" title="Apache Shiro Filter 原理">
+                <i class="fa fa-chevron-left"></i> Apache Shiro Filter 原理
+              </a>
+            
+          </div>
+
+          <span class="post-nav-divider"></span>
+
+          <div class="post-nav-prev post-nav-item">
+            
+          </div>
+        </div>
+      
+
+      
+      
+    </footer>
+  </div>
+  
+  
+  
+  </article>
+
+
+
+    <div class="post-spread">
+      
+    </div>
+  </div>
+
+
+          </div>
+          
+
+
+          
+
+  
+    <div class="comments" id="comments">
+    </div>
+  
+
+
+
+        </div>
+        
+          
+  
+  <div class="sidebar-toggle">
+    <div class="sidebar-toggle-line-wrap">
+      <span class="sidebar-toggle-line sidebar-toggle-line-first"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-middle"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-last"></span>
+    </div>
+  </div>
+
+  <aside id="sidebar" class="sidebar">
+    
+    <div class="sidebar-inner">
+
+      
+
+      
+        <ul class="sidebar-nav motion-element">
+          <li class="sidebar-nav-toc sidebar-nav-active" data-target="post-toc-wrap">
+            Table of Contents
+          </li>
+          <li class="sidebar-nav-overview" data-target="site-overview-wrap">
+            Overview
+          </li>
+        </ul>
+      
+
+      <section class="site-overview-wrap sidebar-panel">
+        <div class="site-overview">
+          <div class="site-author motion-element" itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+            
+              <p class="site-author-name" itemprop="name">zhmin</p>
+              <p class="site-description motion-element" itemprop="description"></p>
+          </div>
+
+          <nav class="site-state motion-element">
+
+            
+              <div class="site-state-item site-state-posts">
+              
+                <a href="/archives/">
+              
+                  <span class="site-state-item-count">73</span>
+                  <span class="site-state-item-name">posts</span>
+                </a>
+              </div>
+            
+
+            
+              
+              
+              <div class="site-state-item site-state-categories">
+                <a href="/categories/index.html">
+                  <span class="site-state-item-count">15</span>
+                  <span class="site-state-item-name">categories</span>
+                </a>
+              </div>
+            
+
+            
+              
+              
+              <div class="site-state-item site-state-tags">
+                
+                  <span class="site-state-item-count">66</span>
+                  <span class="site-state-item-name">tags</span>
+                
+              </div>
+            
+
+          </nav>
+
+          
+
+          
+            <div class="links-of-author motion-element">
+                
+                  <span class="links-of-author-item">
+                    <a href="https://github.com/zhmin" target="_blank" title="GitHub">
+                      
+                        <i class="fa fa-fw fa-github"></i>GitHub</a>
+                  </span>
+                
+            </div>
+          
+
+          
+          
+
+          
+          
+
+          
+
+        </div>
+      </section>
+
+      
+      <!--noindex-->
+        <section class="post-toc-wrap motion-element sidebar-panel sidebar-panel-active">
+          <div class="post-toc">
+
+            
+              
+            
+
+            
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#前言"><span class="nav-number">1.</span> <span class="nav-text">前言</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#默认配置类"><span class="nav-number">2.</span> <span class="nav-text">默认配置类</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#非-Web-环境"><span class="nav-number">2.1.</span> <span class="nav-text">非 Web 环境</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Web-环境下"><span class="nav-number">2.2.</span> <span class="nav-text">Web 环境下</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#shiro-配置类"><span class="nav-number">3.</span> <span class="nav-text">shiro 配置类</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#SpringBoot-web-集成示例"><span class="nav-number">4.</span> <span class="nav-text">SpringBoot web 集成示例</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#在-pom-xml-添加-shiro-spring-依赖"><span class="nav-number">4.1.</span> <span class="nav-text">在 pom.xml 添加 shiro-spring 依赖</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#自定-Realm"><span class="nav-number">4.2.</span> <span class="nav-text">自定 Realm</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#自定义-Filter"><span class="nav-number">4.3.</span> <span class="nav-text">自定义  Filter</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#配置类"><span class="nav-number">4.4.</span> <span class="nav-text">配置类</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#添加-controller-示例"><span class="nav-number">4.5.</span> <span class="nav-text">添加 controller 示例</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#springboot-shiro-集成原理"><span class="nav-number">5.</span> <span class="nav-text">springboot shiro 集成原理</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#Filter-配置"><span class="nav-number">5.1.</span> <span class="nav-text">Filter 配置</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Shiro-core-配置"><span class="nav-number">5.2.</span> <span class="nav-text">Shiro core 配置</span></a></li></ol></li></ol></div>
+            
+
+          </div>
+        </section>
+      <!--/noindex-->
+      
+
+      
+
+    </div>
+  </aside>
+
+
+        
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="footer-inner">
+        <div class="copyright">&copy; <span itemprop="copyrightYear">2020</span>
+  <span class="with-love">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">zhmin</span>
+
+  
+</div>
+
+
+
+
+
+
+
+
+
+
+
+  <script src="https://unpkg.com/mermaid@8/dist/mermaid.min.js"></script>
+  <script>
+    if (window.mermaid) {
+      mermaid.initialize({"startOnload":true,"theme":"forest"});
+    }
+  </script>
+
+
+
+<script async src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+<span id="busuanzi_container_site_pv">
+    访问量<span id="busuanzi_value_site_pv"></span>
+</span>
+<span class="post-meta-divider">|</span>
+<span id="busuanzi_container_site_uv">
+  访客数<span id="busuanzi_value_site_uv"></span>
+</span>
+
+        
+
+
+
+
+
+
+
+        
+      </div>
+    </footer>
+
+    
+      <div class="back-to-top">
+        <i class="fa fa-arrow-up"></i>
+        
+      </div>
+    
+
+    
+
+  </div>
+
+  
+
+<script type="text/javascript">
+  if (Object.prototype.toString.call(window.Promise) !== '[object Function]') {
+    window.Promise = null;
+  }
+</script>
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery/index.js?v=2.1.3"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fastclick/lib/fastclick.min.js?v=1.0.6"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery_lazyload/jquery.lazyload.js?v=1.9.7"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.ui.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fancybox/source/jquery.fancybox.pack.js?v=2.1.5"></script>
+  
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/utils.js?v=5.1.4"></script>
+
+  <script type="text/javascript" src="/js/src/motion.js?v=5.1.4"></script>
+
+
+
+  
+  
+
+  
+  <script type="text/javascript" src="/js/src/scrollspy.js?v=5.1.4"></script>
+<script type="text/javascript" src="/js/src/post-details.js?v=5.1.4"></script>
+
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/bootstrap.js?v=5.1.4"></script>
+
+
+
+  
+
+
+  
+
+
+
+
+	
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+  <script src="//cdn1.lncld.net/static/js/3.0.4/av-min.js"></script>
+  <script src="//unpkg.com/valine/dist/Valine.min.js"></script>
+  
+  <script type="text/javascript">
+    var GUEST = ['nick','mail','link'];
+    var guest = 'nick';
+    guest = guest.split(',').filter(item=>{
+      return GUEST.indexOf(item)>-1;
+    });
+    new Valine({
+        el: '#comments' ,
+        verify: false,
+        notify: false,
+        appId: 'iYiPQlDR2X2zg2QIql2UEe2o-gzGzoHsz',
+        appKey: 'EW8G4sftwX1pef1zS9EsOeKE',
+        placeholder: 'comment here',
+        avatar:'mm',
+        guest_info:guest,
+        pageSize:'10' || 10,
+    });
+  </script>
+
+
+
+  
+
+
+
+
+
+  
+
+  
+  <script src="https://cdn1.lncld.net/static/js/av-core-mini-0.6.4.js"></script>
+  <script>AV.initialize("iYiPQlDR2X2zg2QIql2UEe2o-gzGzoHsz", "EW8G4sftwX1pef1zS9EsOeKE");</script>
+  <script>
+    function showTime(Counter) {
+      var query = new AV.Query(Counter);
+      var entries = [];
+      var $visitors = $(".leancloud_visitors");
+
+      $visitors.each(function () {
+        entries.push( $(this).attr("id").trim() );
+      });
+
+      query.containedIn('url', entries);
+      query.find()
+        .done(function (results) {
+          var COUNT_CONTAINER_REF = '.leancloud-visitors-count';
+
+          if (results.length === 0) {
+            $visitors.find(COUNT_CONTAINER_REF).text(0);
+            return;
+          }
+
+          for (var i = 0; i < results.length; i++) {
+            var item = results[i];
+            var url = item.get('url');
+            var time = item.get('time');
+            var element = document.getElementById(url);
+
+            $(element).find(COUNT_CONTAINER_REF).text(time);
+          }
+          for(var i = 0; i < entries.length; i++) {
+            var url = entries[i];
+            var element = document.getElementById(url);
+            var countSpan = $(element).find(COUNT_CONTAINER_REF);
+            if( countSpan.text() == '') {
+              countSpan.text(0);
+            }
+          }
+        })
+        .fail(function (object, error) {
+          console.log("Error: " + error.code + " " + error.message);
+        });
+    }
+
+    function addCount(Counter) {
+      var $visitors = $(".leancloud_visitors");
+      var url = $visitors.attr('id').trim();
+      var title = $visitors.attr('data-flag-title').trim();
+      var query = new AV.Query(Counter);
+
+      query.equalTo("url", url);
+      query.find({
+        success: function(results) {
+          if (results.length > 0) {
+            var counter = results[0];
+            counter.fetchWhenSave(true);
+            counter.increment("time");
+            counter.save(null, {
+              success: function(counter) {
+                var $element = $(document.getElementById(url));
+                $element.find('.leancloud-visitors-count').text(counter.get('time'));
+              },
+              error: function(counter, error) {
+                console.log('Failed to save Visitor num, with error message: ' + error.message);
+              }
+            });
+          } else {
+            var newcounter = new Counter();
+            /* Set ACL */
+            var acl = new AV.ACL();
+            acl.setPublicReadAccess(true);
+            acl.setPublicWriteAccess(true);
+            newcounter.setACL(acl);
+            /* End Set ACL */
+            newcounter.set("title", title);
+            newcounter.set("url", url);
+            newcounter.set("time", 1);
+            newcounter.save(null, {
+              success: function(newcounter) {
+                var $element = $(document.getElementById(url));
+                $element.find('.leancloud-visitors-count').text(newcounter.get('time'));
+              },
+              error: function(newcounter, error) {
+                console.log('Failed to create');
+              }
+            });
+          }
+        },
+        error: function(error) {
+          console.log('Error:' + error.code + " " + error.message);
+        }
+      });
+    }
+
+    $(function() {
+      var Counter = AV.Object.extend("Counter");
+      if ($('.leancloud_visitors').length == 1) {
+        addCount(Counter);
+      } else if ($('.post-title-link').length > 1) {
+        showTime(Counter);
+      }
+    });
+  </script>
+
+
+
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+</body>
+</html>

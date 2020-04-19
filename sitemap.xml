@@ -2,6 +2,13 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   
   <url>
+    <loc>https://zhmin.github.io/2020/04/19/shiro-spring-boot/</loc>
+    
+    <lastmod>2020-04-19T08:05:42.626Z</lastmod>
+    
+  </url>
+  
+  <url>
     <loc>https://zhmin.github.io/2020/04/15/shiro-filter/</loc>
     
     <lastmod>2020-04-15T13:47:05.972Z</lastmod>
