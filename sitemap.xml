@@ -2,6 +2,13 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   
   <url>
+    <loc>https://zhmin.github.io/2020/05/06/postgresql-physical-replication/</loc>
+    
+    <lastmod>2020-05-06T14:31:59.356Z</lastmod>
+    
+  </url>
+  
+  <url>
     <loc>https://zhmin.github.io/2020/04/19/shiro-spring-boot/</loc>
     
     <lastmod>2020-04-19T08:05:42.626Z</lastmod>
